@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from "framer-motion"
 import BottomNav from "./BottomNav"
 import AuthWrapper from "./AuthWrapper"
 import MusicPlayer from "./MusicPlayer"
+import { useStore } from "@/lib/store"
 
 interface ClientLayoutProps {
   children: React.ReactNode
@@ -15,6 +16,7 @@ interface ClientLayoutProps {
 export default function ClientLayout({ children }: ClientLayoutProps) {
   const pathname = usePathname()
   const [isPageTransitioning, setIsPageTransitioning] = useState(false)
+  const { currentSong } = useStore()
 
   useEffect(() => {
     setIsPageTransitioning(true)
@@ -31,15 +33,17 @@ export default function ClientLayout({ children }: ClientLayoutProps) {
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.15 }}
-          className="pb-20"
+          className={currentSong ? "pb-32" : "pb-16"} // Dynamic padding based on player state
         >
           {children}
         </motion.main>
       </AnimatePresence>
-      <div className="fixed bottom-0 left-0 right-0 z-50 flex flex-col">
-        <MusicPlayer />
-        <BottomNav />
-      </div>
+
+      {/* Music Player - renders above navigation */}
+      <MusicPlayer />
+
+      {/* Bottom Navigation */}
+      <BottomNav />
     </AuthWrapper>
   )
 }

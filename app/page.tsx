@@ -18,6 +18,7 @@ import {
   Radio,
   Clock,
   Star,
+  Loader2,
 } from "lucide-react"
 import { useStore } from "@/lib/store"
 import { cn } from "@/lib/utils"
@@ -45,7 +46,7 @@ export default function Home() {
   const [currentTime, setCurrentTime] = useState("")
 
   const {
-    trendingSongs,
+    trendingSongs = [],
     userData,
     isLoading,
     error,
@@ -85,11 +86,14 @@ export default function Home() {
   }
 
   const playSong = (song: any) => {
+    if (!song) return
     setCurrentSong(song)
     setIsPlaying(true)
   }
 
   const toggleFavorite = (song: any) => {
+    if (!song || !userData?.favorites) return
+
     const isFavorite = userData.favorites.some((fav) => fav.id === song.id)
     if (isFavorite) {
       removeFromFavorites(song.id)
@@ -98,7 +102,12 @@ export default function Home() {
     }
   }
 
-  const userName = localStorage.getItem("username") || userData.name || "Music Lover"
+  const userName = localStorage.getItem("username") || userData?.name || "Music Lover"
+
+  // Safe access to arrays with fallbacks
+  const safeTrendingSongs = Array.isArray(trendingSongs) ? trendingSongs : []
+  const safeRecentlyPlayed = Array.isArray(userData?.recentlyPlayed) ? userData.recentlyPlayed : []
+  const safeFavorites = Array.isArray(userData?.favorites) ? userData.favorites : []
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
@@ -130,7 +139,7 @@ export default function Home() {
             <div className="flex items-center space-x-4">
               <div className="text-white text-sm">{currentTime}</div>
               <div className="w-8 h-8 bg-gradient-to-r from-purple-400 to-pink-500 rounded-full flex items-center justify-center">
-                <span className="text-white text-sm font-bold">{userName[0]?.toUpperCase()}</span>
+                <span className="text-white text-sm font-bold">{userName[0]?.toUpperCase() || "U"}</span>
               </div>
             </div>
           </div>
@@ -220,18 +229,14 @@ export default function Home() {
           {isLoading ? (
             <div className="flex items-center justify-center py-12">
               <div className="flex items-center space-x-2 text-gray-400">
-                <motion.div
-                  animate={{ rotate: 360 }}
-                  transition={{ duration: 1, repeat: Number.POSITIVE_INFINITY, ease: "linear" }}
-                  className="w-5 h-5 border-2 border-gray-400 border-t-transparent rounded-full"
-                />
+                <Loader2 className="w-5 h-5 animate-spin" />
                 <span>Loading trending songs...</span>
               </div>
             </div>
           ) : error ? (
             <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-4">
-              <p className="text-red-400 text-center">{error}</p>
-              <div className="text-center mt-2">
+              <p className="text-red-400 text-center mb-2">{error}</p>
+              <div className="text-center">
                 <Button
                   variant="outline"
                   size="sm"
@@ -242,28 +247,17 @@ export default function Home() {
                 </Button>
               </div>
             </div>
-          ) : (
+          ) : safeTrendingSongs.length > 0 ? (
             <ScrollArea className="w-full">
               <div className="flex space-x-4 pb-4">
-                {trendingSongs.slice(0, 10).map((song, index) => {
-                  const convertedSong = {
-                    id: song.id,
-                    title: song.name,
-                    artist: song.primaryArtists,
-                    album: song.album.name,
-                    image: song.image[song.image.length - 1]?.link || "/placeholder.svg",
-                    audio: song.downloadUrl[song.downloadUrl.length - 1]?.link || "",
-                    duration: Number.parseInt(song.duration),
-                    language: song.language,
-                    year: song.year,
-                    playCount: song.playCount,
-                  }
+                {safeTrendingSongs.slice(0, 10).map((song, index) => {
+                  if (!song) return null
 
-                  const isFavorite = userData.favorites.some((fav) => fav.id === song.id)
+                  const isFavorite = safeFavorites.some((fav) => fav?.id === song.id)
 
                   return (
                     <motion.div
-                      key={song.id}
+                      key={song.id || index}
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: index * 0.1 }}
@@ -271,8 +265,8 @@ export default function Home() {
                     >
                       <div className="relative mb-4">
                         <Image
-                          src={convertedSong.image || "/placeholder.svg"}
-                          alt={song.name}
+                          src={song.image || "/placeholder.svg?height=160&width=160"}
+                          alt={song.title || "Song"}
                           width={160}
                           height={160}
                           className="w-full aspect-square object-cover rounded-lg"
@@ -280,7 +274,7 @@ export default function Home() {
                         <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center">
                           <Button
                             size="icon"
-                            onClick={() => playSong(convertedSong)}
+                            onClick={() => playSong(song)}
                             className="bg-green-500 hover:bg-green-600 rounded-full w-12 h-12"
                           >
                             {currentSong?.id === song.id && isPlaying ? (
@@ -293,15 +287,15 @@ export default function Home() {
                         <Button
                           size="icon"
                           variant="ghost"
-                          onClick={() => toggleFavorite(convertedSong)}
+                          onClick={() => toggleFavorite(song)}
                           className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity bg-black/50 hover:bg-black/70"
                         >
                           <Heart className={cn("w-4 h-4", isFavorite ? "fill-red-500 text-red-500" : "text-white")} />
                         </Button>
                       </div>
                       <div>
-                        <h4 className="text-white font-medium truncate mb-1">{song.name}</h4>
-                        <p className="text-gray-400 text-sm truncate">{song.primaryArtists}</p>
+                        <h4 className="text-white font-medium truncate mb-1">{song.title || "Unknown Song"}</h4>
+                        <p className="text-gray-400 text-sm truncate">{song.artist || "Unknown Artist"}</p>
                       </div>
                     </motion.div>
                   )
@@ -309,51 +303,74 @@ export default function Home() {
               </div>
               <ScrollBar orientation="horizontal" />
             </ScrollArea>
+          ) : (
+            <div className="text-center py-12">
+              <Music className="w-16 h-16 text-gray-600 mx-auto mb-4" />
+              <p className="text-gray-400 mb-4">No trending songs available</p>
+              <Button
+                variant="outline"
+                onClick={() => fetchTrendingSongs()}
+                className="border-gray-600 text-gray-400 hover:bg-gray-800"
+              >
+                Refresh
+              </Button>
+            </div>
           )}
         </div>
 
         {/* Recently Played */}
         <div className="mb-8">
           <h3 className="text-xl font-semibold text-white mb-4">Recently Played</h3>
-          <div className="space-y-2">
-            {userData.recentlyPlayed.slice(0, 5).map((song, index) => (
-              <motion.div
-                key={song.id}
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: index * 0.1 }}
-                className="flex items-center space-x-4 p-3 rounded-lg hover:bg-white/5 cursor-pointer group transition-colors"
-                onClick={() => playSong(song)}
-              >
-                <div className="relative">
-                  <Image
-                    src={song.image || "/placeholder.svg"}
-                    alt={song.title}
-                    width={48}
-                    height={48}
-                    className="rounded-lg"
-                  />
-                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center">
-                    <Play className="w-4 h-4 text-white" />
-                  </div>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <h4 className="text-white font-medium truncate">{song.title}</h4>
-                  <p className="text-gray-400 text-sm truncate">{song.artist}</p>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <span className="text-gray-400 text-sm">3:45</span>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-white"
+          {safeRecentlyPlayed.length > 0 ? (
+            <div className="space-y-2">
+              {safeRecentlyPlayed.slice(0, 5).map((song, index) => {
+                if (!song) return null
+
+                return (
+                  <motion.div
+                    key={song.id || index}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: index * 0.1 }}
+                    className="flex items-center space-x-4 p-3 rounded-lg hover:bg-white/5 cursor-pointer group transition-colors"
+                    onClick={() => playSong(song)}
                   >
-                    <MoreHorizontal className="w-4 h-4" />
-                  </Button>
-                </div>
-              </motion.div>
-            ))}
-          </div>
+                    <div className="relative">
+                      <Image
+                        src={song.image || "/placeholder.svg?height=48&width=48"}
+                        alt={song.title || "Song"}
+                        width={48}
+                        height={48}
+                        className="rounded-lg"
+                      />
+                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center">
+                        <Play className="w-4 h-4 text-white" />
+                      </div>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h4 className="text-white font-medium truncate">{song.title || "Unknown Song"}</h4>
+                      <p className="text-gray-400 text-sm truncate">{song.artist || "Unknown Artist"}</p>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <span className="text-gray-400 text-sm">3:45</span>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-white"
+                      >
+                        <MoreHorizontal className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </motion.div>
+                )
+              })}
+            </div>
+          ) : (
+            <div className="text-center py-8">
+              <Clock className="w-12 h-12 text-gray-600 mx-auto mb-2" />
+              <p className="text-gray-400">No recently played songs</p>
+            </div>
+          )}
         </div>
 
         {/* Made For You */}

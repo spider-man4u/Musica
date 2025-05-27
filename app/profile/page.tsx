@@ -1,7 +1,6 @@
 "use client"
 
 import type React from "react"
-
 import { useState, useEffect, useRef } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import {
@@ -44,6 +43,7 @@ export default function ProfilePage() {
   const [profileImage, setProfileImage] = useState("")
   const [showSettings, setShowSettings] = useState(false)
   const [uploadingImage, setUploadingImage] = useState(false)
+  const [loginMethod, setLoginMethod] = useState("")
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const { userData, updateUserProfile, updateUserSettings } = useStore()
@@ -57,12 +57,14 @@ export default function ProfilePage() {
     const storedBio = localStorage.getItem("userBio")
     const storedLocation = localStorage.getItem("userLocation")
     const storedImage = localStorage.getItem("userImage")
+    const storedLoginMethod = localStorage.getItem("loginMethod")
 
     setEditedName(storedName || userData.name || "Music Lover")
     setEditedEmail(storedEmail || userData.email || "user@example.com")
     setEditedBio(storedBio || "Music enthusiast who loves discovering new sounds")
     setEditedLocation(storedLocation || "New York, USA")
     setProfileImage(storedImage || userData.avatar || "")
+    setLoginMethod(storedLoginMethod || "")
   }, [userData])
 
   const menuItems = [
@@ -80,7 +82,6 @@ export default function ProfilePage() {
     if (file) {
       setUploadingImage(true)
 
-      // Create a FileReader to convert image to base64
       const reader = new FileReader()
       reader.onload = (e) => {
         const result = e.target?.result as string
@@ -94,13 +95,11 @@ export default function ProfilePage() {
   }
 
   const handleSaveProfile = () => {
-    // Save to localStorage
     localStorage.setItem("username", editedName)
     localStorage.setItem("email", editedEmail)
     localStorage.setItem("userBio", editedBio)
     localStorage.setItem("userLocation", editedLocation)
 
-    // Update store
     updateUserProfile({
       name: editedName,
       email: editedEmail,
@@ -119,6 +118,7 @@ export default function ProfilePage() {
       localStorage.removeItem("userBio")
       localStorage.removeItem("userLocation")
       localStorage.removeItem("userImage")
+      localStorage.removeItem("loginMethod")
 
       // Reset store
       updateUserProfile({
@@ -136,6 +136,8 @@ export default function ProfilePage() {
           quality: "high",
           downloadEnabled: true,
           language: "en",
+          autoplay: true,
+          crossfade: false,
         },
       })
 
@@ -186,23 +188,25 @@ export default function ProfilePage() {
                       </AvatarFallback>
                     </Avatar>
 
-                    <motion.button
-                      whileHover={{ scale: 1.1 }}
-                      whileTap={{ scale: 0.9 }}
-                      onClick={() => fileInputRef.current?.click()}
-                      className="absolute bottom-0 right-0 w-8 h-8 bg-white rounded-full flex items-center justify-center shadow-lg"
-                      disabled={uploadingImage}
-                    >
-                      {uploadingImage ? (
-                        <motion.div
-                          animate={{ rotate: 360 }}
-                          transition={{ duration: 1, repeat: Number.POSITIVE_INFINITY, ease: "linear" }}
-                          className="w-4 h-4 border-2 border-purple-900 border-t-transparent rounded-full"
-                        />
-                      ) : (
-                        <Camera className="w-4 h-4 text-purple-900" />
-                      )}
-                    </motion.button>
+                    {loginMethod !== "google" && (
+                      <motion.button
+                        whileHover={{ scale: 1.1 }}
+                        whileTap={{ scale: 0.9 }}
+                        onClick={() => fileInputRef.current?.click()}
+                        className="absolute bottom-0 right-0 w-8 h-8 bg-white rounded-full flex items-center justify-center shadow-lg"
+                        disabled={uploadingImage}
+                      >
+                        {uploadingImage ? (
+                          <motion.div
+                            animate={{ rotate: 360 }}
+                            transition={{ duration: 1, repeat: Number.POSITIVE_INFINITY, ease: "linear" }}
+                            className="w-4 h-4 border-2 border-purple-900 border-t-transparent rounded-full"
+                          />
+                        ) : (
+                          <Camera className="w-4 h-4 text-purple-900" />
+                        )}
+                      </motion.button>
+                    )}
 
                     <input
                       ref={fileInputRef}
@@ -224,6 +228,7 @@ export default function ProfilePage() {
                           value={editedName}
                           onChange={(e) => setEditedName(e.target.value)}
                           className="bg-white/10 border-white/20 text-white placeholder:text-white/50"
+                          disabled={loginMethod === "google"}
                         />
                       </div>
                       <div>
@@ -236,6 +241,7 @@ export default function ProfilePage() {
                           value={editedEmail}
                           onChange={(e) => setEditedEmail(e.target.value)}
                           className="bg-white/10 border-white/20 text-white placeholder:text-white/50"
+                          disabled={loginMethod === "google"}
                         />
                       </div>
                       <div>
@@ -283,6 +289,7 @@ export default function ProfilePage() {
                     <div className="text-center w-full">
                       <h2 className="text-xl font-semibold text-white">{editedName}</h2>
                       <p className="text-white/70 text-sm mb-2">{editedEmail}</p>
+                      {loginMethod === "google" && <p className="text-blue-400 text-xs mb-2">Signed in with Google</p>}
                       <p className="text-white/60 text-sm mb-2">{editedBio}</p>
                       <p className="text-white/50 text-xs mb-4">📍 {editedLocation}</p>
                       <motion.button
@@ -314,20 +321,6 @@ export default function ProfilePage() {
                   <div className="text-white/70 text-sm">Recent</div>
                 </div>
               </div>
-
-              {/* Premium Banner */}
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="glass-purple rounded-3xl p-6 mb-6 relative overflow-hidden"
-              >
-                <div className="absolute inset-0 bg-gradient-to-br from-purple-600/30 to-pink-600/30" />
-                <div className="relative z-10">
-                  <h3 className="text-white font-semibold text-lg mb-2">Upgrade to Premium</h3>
-                  <p className="text-white/70 text-sm mb-4">Enjoy unlimited music, offline downloads, and more!</p>
-                  <Button className="bg-white text-purple-900 hover:bg-white/90 rounded-full px-6">Get Premium</Button>
-                </div>
-              </motion.div>
 
               {/* Menu Items */}
               <div className="space-y-2">

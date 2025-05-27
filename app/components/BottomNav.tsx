@@ -5,9 +5,11 @@ import { usePathname } from "next/navigation"
 import { motion } from "framer-motion"
 import { Home, Search, Library, User } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { useStore } from "@/lib/store"
 
 const BottomNav = () => {
   const pathname = usePathname()
+  const { currentSong } = useStore()
 
   const navItems = [
     { name: "Home", path: "/", icon: Home },
@@ -17,9 +19,14 @@ const BottomNav = () => {
   ]
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-40 bg-black border-t border-gray-800">
+    <nav
+      className={cn(
+        "fixed bottom-0 left-0 right-0 z-40 bg-black/95 backdrop-blur-xl border-t border-gray-800/50",
+        currentSong && "border-t-0", // Remove border when player is active
+      )}
+    >
       <div className="max-w-7xl mx-auto px-4">
-        <ul className="flex justify-around items-center h-16">
+        <ul className="flex justify-around items-center h-14">
           {navItems.map((item) => {
             const isActive = pathname === item.path
             return (
@@ -29,7 +36,7 @@ const BottomNav = () => {
                     <div className="relative">
                       <item.icon
                         className={cn(
-                          "w-6 h-6 transition-colors duration-200",
+                          "w-5 h-5 transition-colors duration-200",
                           isActive ? "text-white" : "text-gray-400",
                         )}
                       />
