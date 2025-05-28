@@ -1,10 +1,9 @@
-// Enhanced API with better original song detection
-const API_ENDPOINTS = [
-  "https://jiosaavn-api-privatecvc.vercel.app",
-  "https://saavn.me/api",
-  "https://jiosaavn-api.vercel.app",
-]
+// src/JioSaavnApp.tsx (or src/saavnApp.tsx)
 
+import React, { useState, useEffect } from 'react';
+
+// --- Interfaces ---
+// These define the structure of the data you expect from the API.
 export interface SaavnSong {
   id: string
   name: string
@@ -33,8 +32,8 @@ export interface SaavnSong {
     link: string
   }>
   downloadUrl: Array<{
-    quality: string
-    link: string
+    quality: string;
+    link: string;
   }>
   isOriginal?: boolean
   priority?: number
@@ -59,7 +58,18 @@ export interface SearchResults {
   }
 }
 
-// Enhanced song quality scoring
+// --- API Endpoints and Core Logic Functions ---
+
+// Enhanced API with better original song detection
+// These are the unofficial JioSaavn API endpoints that the code will try to use.
+const API_ENDPOINTS = [
+  "https://jiosaavn-api-privatecvc.vercel.app",
+  "https://saavn.me/api",
+  "https://jiosaavn-api.vercel.app",
+]
+
+// Enhanced song quality scoring: Assigns a numerical score to a song
+// based on various attributes like play count, year, image quality, and more.
 function calculateSongQuality(song: SaavnSong): number {
   let score = 0
 
@@ -104,7 +114,7 @@ function calculateSongQuality(song: SaavnSong): number {
   return score
 }
 
-// Filter and sort songs by quality
+// Filter and sort songs by quality: Removes non-original content and sorts by calculated quality.
 function filterAndSortSongs(songs: SaavnSong[]): SaavnSong[] {
   return songs
     .filter((song) => {
@@ -113,69 +123,73 @@ function filterAndSortSongs(songs: SaavnSong[]): SaavnSong[] {
       const title = song.name.toLowerCase()
       const artist = song.primaryArtists?.toLowerCase() || ""
 
-      // Strict filtering for original content
+      // Strict filtering for original content (avoiding remixes, covers, karaoke, unknown artists)
       const isRemix = title.includes("remix") || title.includes("mix")
       const isCover = title.includes("cover") || title.includes("version")
       const isKaraoke = title.includes("karaoke") || title.includes("instrumental")
       const isUnknown = artist.includes("unknown") || artist === ""
 
-      return !isRemix && !isCover && !isKaraoke && !isUnknown
+      return !(isRemix || isCover || isKaraoke || isUnknown)
     })
     .map((song) => ({
       ...song,
-      priority: calculateSongQuality(song),
-      isOriginal: true,
+      priority: calculateSongQuality(song), // Attach the calculated priority
+      isOriginal: true, // Mark as original if it passes the filter
     }))
-    .sort((a, b) => (b.priority || 0) - (a.priority || 0))
+    .sort((a, b) => (b.priority || 0) - (a.priority || 0)) // Sort in descending order of priority
 }
 
+// Generic API request function with timeout and error handling.
 async function apiRequest<T>(endpoint: string, baseUrl: string): Promise<T> {
   const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(), 8000)
+  const timeoutId = setTimeout(() => controller.abort(), 8000) // Set a timeout for 8 seconds
 
   try {
     const response = await fetch(`${baseUrl}${endpoint}`, {
-      signal: controller.signal,
+      signal: controller.signal, // Link the AbortController to the fetch request
       headers: {
         Accept: "application/json",
         "Content-Type": "application/json",
       },
     })
 
-    clearTimeout(timeoutId)
+    clearTimeout(timeoutId) // Clear the timeout if the request completes successfully
 
-    if (!response.ok) {
+    if (!response.ok) { // Check if the HTTP response status is OK (e.g., 200)
       throw new Error(`HTTP ${response.status}`)
     }
 
-    const data = await response.json()
-    return data.data || data
+    const data = await response.json() // Parse the JSON response
+    return data.data || data // Return the actual data, sometimes nested under a 'data' property
   } catch (error) {
-    clearTimeout(timeoutId)
-    throw error
+    clearTimeout(timeoutId) // Clear timeout even if there's an error
+    throw error // Re-throw the error for the caller to handle
   }
 }
 
-// Enhanced search with original song prioritization
+// Enhanced search with original song prioritization: Tries multiple API endpoints and filters/sorts results.
 export async function searchAll(query: string): Promise<SearchResults> {
   if (!query?.trim()) {
-    return { songs: { data: [], total: 0 } }
+    return { songs: { data: [], total: 0 } } // Return empty results if query is empty
   }
 
   let allSongs: SaavnSong[] = []
 
-  // Try multiple endpoints and combine results
+  // Iterate through available API endpoints
   for (const baseUrl of API_ENDPOINTS) {
+    // Define different search paths for the current base URL
     const searchEndpoints = [
       `/search/songs?query=${encodeURIComponent(query)}&page=1&limit=50`,
       `/search?query=${encodeURIComponent(query)}&type=song&limit=50`,
     ]
 
+    // Try each search endpoint for the current base URL
     for (const endpoint of searchEndpoints) {
       try {
-        const result = await apiRequest<any>(endpoint, baseUrl)
+        const result = await apiRequest<any>(endpoint, baseUrl) // Make the API request
 
         let songs: SaavnSong[] = []
+        // Handle different response structures from the APIs
         if (result?.data?.results) {
           songs = result.data.results
         } else if (result?.results) {
@@ -185,21 +199,20 @@ export async function searchAll(query: string): Promise<SearchResults> {
         }
 
         if (songs.length > 0) {
-          allSongs = [...allSongs, ...songs]
-          break // Move to next base URL if we got results
+          allSongs = [...allSongs, ...songs] // Add fetched songs to the overall list
+          break // If we got results from this endpoint, move to the next base URL
         }
       } catch (error) {
-        continue
+        continue // If an API call fails, try the next endpoint/base URL
       }
     }
   }
 
-  // Remove duplicates and filter for original songs
+  // Remove duplicate songs (based on ID) and then filter and sort them by quality
   const uniqueSongs = allSongs.filter((song, index, self) => index === self.findIndex((s) => s.id === song.id))
-
   const filteredSongs = filterAndSortSongs(uniqueSongs)
 
-  // If we have good original songs, return them
+  // If good original songs are found, return the top 30
   if (filteredSongs.length > 0) {
     return {
       songs: {
@@ -209,7 +222,8 @@ export async function searchAll(query: string): Promise<SearchResults> {
     }
   }
 
-  // Fallback to curated original songs
+  // Fallback: If no real API results are found, return curated (mock) original songs
+  // that match the search query.
   const mockResults = getCuratedOriginalSongs().filter((song) => {
     const searchTerm = query.toLowerCase()
     return (
@@ -227,14 +241,16 @@ export async function searchAll(query: string): Promise<SearchResults> {
   }
 }
 
-// Get trending with original song priority
+// Get trending with original song priority: Returns curated songs immediately, then fetches real trending in background.
 export async function getTrendingSongs(): Promise<SaavnSong[]> {
-  // Start with curated original songs for immediate display
+  // Start with curated original songs for immediate display to the user
   const curatedSongs = getCuratedOriginalSongs()
 
-  // Try to fetch real trending data
+  // Try to fetch real trending data in the background after a short delay
+  // This allows the UI to render quickly with curated data while real data loads.
   setTimeout(async () => {
     try {
+      // Example trending queries to get diverse trending songs
       const trendingQueries = [
         "arijit singh latest 2024",
         "bollywood hits original",
@@ -244,28 +260,31 @@ export async function getTrendingSongs(): Promise<SaavnSong[]> {
 
       for (const query of trendingQueries) {
         try {
-          const results = await searchAll(query)
+          const results = await searchAll(query) // Use the searchAll function
           if (results.songs?.data && results.songs.data.length > 0) {
-            // Merge with curated songs, prioritizing API results
+            // Merge fetched results with curated songs, ensuring uniqueness
             const combinedSongs = [...results.songs.data, ...curatedSongs]
             const uniqueSongs = combinedSongs.filter(
               (song, index, self) => index === self.findIndex((s) => s.id === song.id),
             )
-            return filterAndSortSongs(uniqueSongs).slice(0, 20)
+            // In a real app, you would use React state (e.g., `setTrendingSongs`)
+            // in your component to update the UI with these loaded songs.
+            filterAndSortSongs(uniqueSongs).slice(0, 20)
           }
         } catch (error) {
-          continue
+          continue // If one query fails, try the next one
         }
       }
     } catch (error) {
-      // Silent fallback
+      // Catch any unexpected errors during background fetching, but don't break the app.
+      console.error("Error during background trending fetch:", error);
     }
-  }, 100)
+  }, 100); // A small delay (100ms)
 
-  return curatedSongs
+  return curatedSongs // Return curated songs immediately
 }
 
-// Curated original songs with authentic thumbnails
+// Curated original songs with authentic thumbnails: Hardcoded list for fallback/initial display.
 function getCuratedOriginalSongs(): SaavnSong[] {
   return [
     {
@@ -439,7 +458,7 @@ function getCuratedOriginalSongs(): SaavnSong[] {
   ]
 }
 
-// Utility functions
+// Utility functions for getting specific quality images and audio links, and formatting duration.
 export function getHighQualityImage(images: Array<{ quality: string; link: string }> | undefined): string {
   if (!images || !Array.isArray(images) || images.length === 0) {
     return "/placeholder.svg?height=300&width=300"
@@ -474,3 +493,48 @@ export function formatDuration(duration: string | undefined): string {
   const remainingSeconds = seconds % 60
   return `${minutes}:${remainingSeconds.toString().padStart(2, "0")}`
 }
+
+
+// --- React Component ---
+// This is your main React component that integrates the API logic and UI.
+const JioSaavnApp: React.FC = () => {
+  // State variables to manage the component's data and UI.
+  const [searchTerm, setSearchTerm] = useState<string>(''); // Stores the current search query.
+  const [songs, setSongs] = useState<SaavnSong[]>([]); // Stores the list of songs to display (search results).
+  const [trendingSongs, setTrendingSongs] = useState<SaavnSong[]>([]); // Stores the list of trending songs.
+  const [loading, setLoading] = useState<boolean>(false); // Indicates if an API call is in progress.
+  const [error, setError] = useState<string | null>(null); // Stores any error messages.
+  const [selectedSong, setSelectedSong] = useState<SaavnSong | null>(null); // Stores the song clicked by the user for details.
+
+  // useEffect hook to fetch trending songs when the component first mounts.
+  useEffect(() => {
+    const fetchTrending = async () => {
+      try {
+        // Call the getTrendingSongs function (defined in this same file).
+        const fetchedTrending = await getTrendingSongs();
+        setTrendingSongs(fetchedTrending); // Update the state with trending songs.
+      } catch (err) {
+        console.error('Error fetching trending songs:', err);
+        // Errors from getTrendingSongs are often silently handled because of the fallback.
+      }
+    };
+    fetchTrending(); // Execute the function to fetch trending songs.
+  }, []); // Empty dependency array means this effect runs only once after initial render.
+
+  // Handles the search form submission.
+  const handleSearch = async (e: React.FormEvent) => {
+    e.preventDefault(); // Prevent default form submission behavior (page reload).
+    if (!searchTerm.trim()) { // If the search term is empty or just whitespace.
+      setSongs([]); // Clear existing songs.
+      return; // Do nothing further.
+    }
+
+    setLoading(true); // Set loading to true to show a loading indicator.
+    setError(null); // Clear any previous error messages.
+    setSongs([]); // Clear previous search results.
+    setSelectedSong(null); // Clear any previously selected song details.
+
+    try {
+      // Call the searchAll function (defined in this same file) with the search term.
+      const results = await searchAll(searchTerm);
+    
