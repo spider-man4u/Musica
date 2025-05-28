@@ -1,9 +1,6 @@
-// src/JioSaavnApp.tsx (or src/saavnApp.tsx)
-
-import React, { useState, useEffect } from 'react';
+"use client"
 
 // --- Interfaces ---
-// These define the structure of the data you expect from the API.
 export interface SaavnSong {
   id: string
   name: string
@@ -32,8 +29,8 @@ export interface SaavnSong {
     link: string
   }>
   downloadUrl: Array<{
-    quality: string;
-    link: string;
+    quality: string
+    link: string
   }>
   isOriginal?: boolean
   priority?: number
@@ -155,7 +152,8 @@ async function apiRequest<T>(endpoint: string, baseUrl: string): Promise<T> {
 
     clearTimeout(timeoutId) // Clear the timeout if the request completes successfully
 
-    if (!response.ok) { // Check if the HTTP response status is OK (e.g., 200)
+    if (!response.ok) {
+      // Check if the HTTP response status is OK (e.g., 200)
       throw new Error(`HTTP ${response.status}`)
     }
 
@@ -277,9 +275,9 @@ export async function getTrendingSongs(): Promise<SaavnSong[]> {
       }
     } catch (error) {
       // Catch any unexpected errors during background fetching, but don't break the app.
-      console.error("Error during background trending fetch:", error);
+      console.error("Error during background trending fetch:", error)
     }
-  }, 100); // A small delay (100ms)
+  }, 100) // A small delay (100ms)
 
   return curatedSongs // Return curated songs immediately
 }
@@ -493,48 +491,3 @@ export function formatDuration(duration: string | undefined): string {
   const remainingSeconds = seconds % 60
   return `${minutes}:${remainingSeconds.toString().padStart(2, "0")}`
 }
-
-
-// --- React Component ---
-// This is your main React component that integrates the API logic and UI.
-const JioSaavnApp: React.FC = () => {
-  // State variables to manage the component's data and UI.
-  const [searchTerm, setSearchTerm] = useState<string>(''); // Stores the current search query.
-  const [songs, setSongs] = useState<SaavnSong[]>([]); // Stores the list of songs to display (search results).
-  const [trendingSongs, setTrendingSongs] = useState<SaavnSong[]>([]); // Stores the list of trending songs.
-  const [loading, setLoading] = useState<boolean>(false); // Indicates if an API call is in progress.
-  const [error, setError] = useState<string | null>(null); // Stores any error messages.
-  const [selectedSong, setSelectedSong] = useState<SaavnSong | null>(null); // Stores the song clicked by the user for details.
-
-  // useEffect hook to fetch trending songs when the component first mounts.
-  useEffect(() => {
-    const fetchTrending = async () => {
-      try {
-        // Call the getTrendingSongs function (defined in this same file).
-        const fetchedTrending = await getTrendingSongs();
-        setTrendingSongs(fetchedTrending); // Update the state with trending songs.
-      } catch (err) {
-        console.error('Error fetching trending songs:', err);
-        // Errors from getTrendingSongs are often silently handled because of the fallback.
-      }
-    };
-    fetchTrending(); // Execute the function to fetch trending songs.
-  }, []); // Empty dependency array means this effect runs only once after initial render.
-
-  // Handles the search form submission.
-  const handleSearch = async (e: React.FormEvent) => {
-    e.preventDefault(); // Prevent default form submission behavior (page reload).
-    if (!searchTerm.trim()) { // If the search term is empty or just whitespace.
-      setSongs([]); // Clear existing songs.
-      return; // Do nothing further.
-    }
-
-    setLoading(true); // Set loading to true to show a loading indicator.
-    setError(null); // Clear any previous error messages.
-    setSongs([]); // Clear previous search results.
-    setSelectedSong(null); // Clear any previously selected song details.
-
-    try {
-      // Call the searchAll function (defined in this same file) with the search term.
-      const results = await searchAll(searchTerm);
-    

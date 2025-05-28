@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from "framer-motion"
 import { Input } from "@/components/ui/input"
 import { FaGoogle, FaFacebook } from "react-icons/fa"
 import { Music, Play, Pause, Volume2 } from "lucide-react"
+import FeatureCarousel from "./FeatureCarousel"
 
 const AuthWrapper = ({ children }: { children: React.ReactNode }) => {
   const [isLoggedIn, setIsLoggedIn] = useState(false)
@@ -213,7 +214,12 @@ const AuthWrapper = ({ children }: { children: React.ReactNode }) => {
                   </motion.div>
                 </div>
 
-                <div className="mt-72 space-y-4">
+                {/* Feature Carousel */}
+                <div className="mt-64 mb-6">
+                  <FeatureCarousel />
+                </div>
+
+                <div className="space-y-4">
                   <motion.button
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
