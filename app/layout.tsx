@@ -29,15 +29,6 @@ export const metadata: Metadata = {
   ],
   manifest: "/manifest.json",
   icons: {
-    import Link from "next/link"
-
-{/* … */}
-<Link
-  href="/search"
-  className="px-3 py-1 bg-green-500 text-white rounded hover:bg-green-600"
->
-  Go to Song Search
-</Link>
     icon: "/favicon.ico",
     shortcut: "/favicon-16x16.png",
     apple: "/apple-touch-icon.png",
