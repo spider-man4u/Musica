@@ -1,493 +1,394 @@
-"use client"
+import { useState, useEffect } from 'react';
+import axios from 'axios';
+import { motion, AnimatePresence } from 'framer-motion';
+import SearchBar from './SearchBar';
+import TrackList from './TrackList';
+import FeaturedTracks from './FeaturedTracks';
+import PlayerControls from './PlayerControls';
+import Queue from './Queue';
+import VolumeControl from './VolumeControl';
+import Playlists from './Playlists';
+import PlaylistDetail from './PlaylistDetail';
+import { usePlaylist } from '../context/PlaylistContext';
+import { Music, Settings, Headphones, Search, Clock, Sparkles, X, ListMusic } from 'lucide-react';
 
-// --- Interfaces ---
-export interface SaavnSong {
-  id: string
-  name: string
-  type: string
-  album: {
-    id: string
-    name: string
-    url: string
-  }
-  year: string
-  releaseDate: string
-  duration: string
-  label: string
-  primaryArtists: string
-  primaryArtistsId: string
-  featuredArtists: string
-  featuredArtistsId: string
-  explicitContent: number
-  playCount: string
-  language: string
-  hasLyrics: string
-  url: string
-  copyright: string
-  image: Array<{
-    quality: string
-    link: string
-  }>
-  downloadUrl: Array<{
-    quality: string
-    link: string
-  }>
-  isOriginal?: boolean
-  priority?: number
-}
+function MusicPlayer() {
+    const [searchResults, setSearchResults] = useState([]);
+    const [artistTracks, setArtistTracks] = useState([]);
+    const [currentArtist, setCurrentArtist] = useState(null);
+    const [artistsList, setArtistsList] = useState([]);
+    const [trendingTracks, setTrendingTracks] = useState([]);
+    const [isLoadingTrending, setIsLoadingTrending] = useState(true);
+    const [isLoadingArtistTracks, setIsLoadingArtistTracks] = useState(false);
+    const [activeCategory, setActiveCategory] = useState('english');
+    const [focusMode, setFocusMode] = useState(false);
+    const [showQueue, setShowQueue] = useState(false);
+    const { activePlaylist } = usePlaylist();
 
-export interface SearchResults {
-  songs?: {
-    data: SaavnSong[]
-    total: number
-  }
-  albums?: {
-    data: any[]
-    total: number
-  }
-  artists?: {
-    data: any[]
-    total: number
-  }
-  playlists?: {
-    data: any[]
-    total: number
-  }
-}
+    // Categories for music selection - now includes playlists
+    const categories = [
+        { id: 'hindi', name: 'Hindi' },
+        { id: 'english', name: 'English' },
+        { id: 'punjabi', name: 'Punjabi' },
+        { id: 'tamil', name: 'Tamil' },
+        { id: 'telugu', name: 'Telugu' },
+        { id: 'playlists', name: 'My Playlists', icon: <ListMusic size={16} className="mr-1" /> }
+    ];
 
-// --- API Endpoints and Core Logic Functions ---
+    // Format songs from API response
+    const formatSongs = (songs) => {
+        return songs.map(song => ({
+            id: song.id,
+            name: song.name,
+            artists: song.artists && song.artists.primary
+                ? song.artists.primary.map(artist => ({
+                    id: artist.id,
+                    name: artist.name,
+                    url: artist.url,
+                    image: artist.image && artist.image.length > 0 ? artist.image[1]?.url : ''
+                }))
+                : song.primaryArtists
+                    ? song.primaryArtists.split(',').map(name => ({ name: name.trim() }))
+                    : [{ name: 'Unknown Artist' }],
+            album: {
+                name: song.album?.name || 'Unknown Album',
+                images: song.image ? [
+                    { url: song.image[2]?.link || song.image[2]?.url || '' },
+                    { url: song.image[1]?.link || song.image[1]?.url || '' },
+                    { url: song.image[0]?.link || song.image[0]?.url || '' }
+                ] : [{ url: '' }, { url: '' }, { url: '' }]
+            },
+            duration_ms: song.duration * 1000 || 0,
+            download_url: song.downloadUrl && song.downloadUrl.length > 0
+                ? song.downloadUrl[song.downloadUrl.length - 1].link || song.downloadUrl[song.downloadUrl.length - 1].url
+                : null
+        }));
+    };
 
-// Enhanced API with better original song detection
-// These are the unofficial JioSaavn API endpoints that the code will try to use.
-const API_ENDPOINTS = [
-  "https://jiosaavn-api-privatecvc.vercel.app",
-  "https://saavn.me/api",
-  "https://jiosaavn-api.vercel.app",
-]
+    // Load trending tracks on component mount or category change
+    useEffect(() => {
+        const loadTrendingTracks = async () => {
+            // Skip loading tracks when in playlists category
+            if (activeCategory === 'playlists') {
+                setIsLoadingTrending(false);
+                return;
+            }
 
-// Enhanced song quality scoring: Assigns a numerical score to a song
-// based on various attributes like play count, year, image quality, and more.
-function calculateSongQuality(song: SaavnSong): number {
-  let score = 0
+            try {
+                setIsLoadingTrending(true);
 
-  // Base score for having essential data
-  if (song.id && song.name && song.primaryArtists) score += 10
+                // Predefined playlist URLs for each category
+                const playlistUrls = {
+                    hindi: 'https://www.jiosaavn.com/featured/trending-hits/GVABefAdtVAZNLR,rP3WSg__',
+                    english: 'https://www.jiosaavn.com/featured/english-viral-hits/pm49jiq,CNs_',
+                    punjabi: 'https://www.jiosaavn.com/featured/punjabi-trending-hits/vInkpyiMhI6qKl4yv5iIvA__',
+                    tamil: 'https://www.jiosaavn.com/featured/trending-pop-tamil/5z8vKjNnhmIGSw2I1RxdhQ__',
+                    telugu: 'https://www.jiosaavn.com/featured/-trending-tracks/FWB5iMCkujuQbUI04mhbCA__'
+                };
 
-  // Prefer songs with higher play counts
-  const playCount = Number.parseInt(song.playCount || "0")
-  if (playCount > 10000000) score += 20
-  else if (playCount > 1000000) score += 15
-  else if (playCount > 100000) score += 10
+                // Get playlist URL for active category
+                const playlistUrl = playlistUrls[activeCategory];
 
-  // Prefer newer songs
-  const year = Number.parseInt(song.year || "0")
-  if (year >= 2020) score += 15
-  else if (year >= 2015) score += 10
-  else if (year >= 2010) score += 5
+                if (playlistUrl) {
+                    console.log(`Fetching trending ${activeCategory} songs from playlist:`, playlistUrl);
 
-  // Prefer songs with high-quality images
-  if (song.image?.some((img) => img.quality === "500x500")) score += 10
+                    // English playlist needs special handling
+                    if (activeCategory === 'english') {
+                        // For English, use a more reliable fixed playlist token instead of the URL
+                        const playlistId = 'pm49jiq,CNs_';
 
-  // Prefer songs with high-quality audio
-  if (song.downloadUrl?.some((url) => url.quality === "320kbps")) score += 10
+                        try {
+                            // First try to get a better playlist ID through search
+                            const searchResponse = await axios.get(`https://saafy-api.vercel.app/api/search?query=${encodeURIComponent('english popular hits')}`);
 
-  // Penalty for remixes, covers, etc.
-  const title = song.name.toLowerCase()
-  const artist = song.primaryArtists?.toLowerCase() || ""
+                            if (searchResponse.data?.success && searchResponse.data.data?.topQuery?.results) {
+                                const topQueryResults = searchResponse.data.data.topQuery.results;
+                                const relevantPlaylist = topQueryResults.find(item =>
+                                    item.type === 'playlist' &&
+                                    item.title.toLowerCase().includes('english')
+                                );
 
-  if (title.includes("remix")) score -= 20
-  if (title.includes("cover")) score -= 25
-  if (title.includes("karaoke")) score -= 30
-  if (title.includes("instrumental")) score -= 15
-  if (artist.includes("unknown")) score -= 30
-  if (title.includes("version")) score -= 10
+                                if (relevantPlaylist) {
+                                    console.log('Found English playlist from search:', relevantPlaylist.title);
 
-  // Bonus for popular artists
-  const popularArtists = ["arijit singh", "shreya ghoshal", "rahat fateh ali khan", "atif aslam", "armaan malik"]
-  if (popularArtists.some((artist) => song.primaryArtists?.toLowerCase().includes(artist))) {
-    score += 25
-  }
+                                    // Extract the token from the URL
+                                    const playlistUrlParts = relevantPlaylist.url.split('/');
+                                    const playlistToken = playlistUrlParts[playlistUrlParts.length - 1];
 
-  return score
-}
+                                    const idResponse = await axios.get(`https://saafy-api.vercel.app/api/playlists?id=${playlistToken}`);
 
-// Filter and sort songs by quality: Removes non-original content and sorts by calculated quality.
-function filterAndSortSongs(songs: SaavnSong[]): SaavnSong[] {
-  return songs
-    .filter((song) => {
-      if (!song || !song.id || !song.name) return false
+                                    if (idResponse.data?.data?.songs) {
+                                        console.log('English playlist songs found:', idResponse.data.data.songs.length);
+                                        const formattedSongs = formatSongs(idResponse.data.data.songs);
 
-      const title = song.name.toLowerCase()
-      const artist = song.primaryArtists?.toLowerCase() || ""
+                                        // Apply additional English filter
+                                        const playableTracks = formattedSongs.filter(track =>
+                                            track.download_url &&
+                                            /^[a-zA-Z0-9\s\W]+$/.test(track.name)
+                                        );
 
-      // Strict filtering for original content (avoiding remixes, covers, karaoke, unknown artists)
-      const isRemix = title.includes("remix") || title.includes("mix")
-      const isCover = title.includes("cover") || title.includes("version")
-      const isKaraoke = title.includes("karaoke") || title.includes("instrumental")
-      const isUnknown = artist.includes("unknown") || artist === ""
+                                        if (playableTracks.length > 0) {
+                                            console.log('English playable tracks:', playableTracks.length);
+                                            setTrendingTracks(playableTracks);
+                                            setIsLoadingTrending(false);
+                                            return;
+                                        }
+                                    }
+                                }
+                            }
 
-      return !(isRemix || isCover || isKaraoke || isUnknown)
-    })
-    .map((song) => ({
-      ...song,
-      priority: calculateSongQuality(song), // Attach the calculated priority
-      isOriginal: true, // Mark as original if it passes the filter
-    }))
-    .sort((a, b) => (b.priority || 0) - (a.priority || 0)) // Sort in descending order of priority
-}
+                            // If dynamic method fails, fall back to a known working English playlist ID
+                            const backupResponse = await axios.get('https://saafy-api.vercel.app/api/playlists?id=1083318977');
 
-// Generic API request function with timeout and error handling.
-async function apiRequest<T>(endpoint: string, baseUrl: string): Promise<T> {
-  const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(), 8000) // Set a timeout for 8 seconds
+                            if (backupResponse.data?.data?.songs) {
+                                console.log('Backup English playlist songs found:', backupResponse.data.data.songs.length);
+                                const formattedSongs = formatSongs(backupResponse.data.data.songs);
+                                const playableTracks = formattedSongs.filter(track => track.download_url);
 
-  try {
-    const response = await fetch(`${baseUrl}${endpoint}`, {
-      signal: controller.signal, // Link the AbortController to the fetch request
-      headers: {
-        Accept: "application/json",
-        "Content-Type": "application/json",
-      },
-    })
+                                if (playableTracks.length > 0) {
+                                    setTrendingTracks(playableTracks);
+                                    setIsLoadingTrending(false);
+                                    return;
+                                }
+                            }
+                        } catch (error) {
+                            console.error('Error with English playlist:', error);
+                        }
+                    } else {
+                        // For non-English playlists, first try the link approach
+                        try {
+                            const encodedUrl = encodeURIComponent(playlistUrl);
+                            const playlistResponse = await axios.get(`https://saafy-api.vercel.app/api/playlists?link=${encodedUrl}`);
 
-    clearTimeout(timeoutId) // Clear the timeout if the request completes successfully
+                            if (playlistResponse.data?.data?.songs && playlistResponse.data.data.songs.length > 0) {
+                                console.log('Playlist songs found:', playlistResponse.data.data.songs.length);
+                                const formattedSongs = formatSongs(playlistResponse.data.data.songs);
+                                const playableTracks = formattedSongs.filter(track => track.download_url);
 
-    if (!response.ok) {
-      // Check if the HTTP response status is OK (e.g., 200)
-      throw new Error(`HTTP ${response.status}`)
-    }
+                                if (playableTracks.length > 0) {
+                                    setTrendingTracks(playableTracks);
+                                    setIsLoadingTrending(false);
+                                    return;
+                                }
+                            }
+                        } catch (error) {
+                            console.error('Error with direct playlist URL:', error);
+                        }
 
-    const data = await response.json() // Parse the JSON response
-    return data.data || data // Return the actual data, sometimes nested under a 'data' property
-  } catch (error) {
-    clearTimeout(timeoutId) // Clear timeout even if there's an error
-    throw error // Re-throw the error for the caller to handle
-  }
-}
+                        // If link approach fails, try the ID approach
+                        try {
+                            const urlParts = playlistUrl.split('/');
+                            const rawPlaylistId = urlParts[urlParts.length - 1];
 
-// Enhanced search with original song prioritization: Tries multiple API endpoints and filters/sorts results.
-export async function searchAll(query: string): Promise<SearchResults> {
-  if (!query?.trim()) {
-    return { songs: { data: [], total: 0 } } // Return empty results if query is empty
-  }
+                            const idResponse = await axios.get(`https://saafy-api.vercel.app/api/playlists?id=${rawPlaylistId}`);
 
-  let allSongs: SaavnSong[] = []
+                            if (idResponse.data?.data?.songs) {
+                                console.log('Playlist songs found using ID:', idResponse.data.data.songs.length);
+                                const formattedSongs = formatSongs(idResponse.data.data.songs);
+                                const playableTracks = formattedSongs.filter(track => track.download_url);
 
-  // Iterate through available API endpoints
-  for (const baseUrl of API_ENDPOINTS) {
-    // Define different search paths for the current base URL
-    const searchEndpoints = [
-      `/search/songs?query=${encodeURIComponent(query)}&page=1&limit=50`,
-      `/search?query=${encodeURIComponent(query)}&type=song&limit=50`,
-    ]
+                                if (playableTracks.length > 0) {
+                                    setTrendingTracks(playableTracks);
+                                    setIsLoadingTrending(false);
+                                    return;
+                                }
+                            }
+                        } catch (error) {
+                            console.error('Error fetching by ID:', error);
+                        }
+                    }
+                }
 
-    // Try each search endpoint for the current base URL
-    for (const endpoint of searchEndpoints) {
-      try {
-        const result = await apiRequest<any>(endpoint, baseUrl) // Make the API request
+                // If we're still here, all playlist approaches failed
+                // Use a last resort language-specific search
+                console.log('All playlist methods failed, trying language-specific search');
 
-        let songs: SaavnSong[] = []
-        // Handle different response structures from the APIs
-        if (result?.data?.results) {
-          songs = result.data.results
-        } else if (result?.results) {
-          songs = result.results
-        } else if (Array.isArray(result)) {
-          songs = result
+                try {
+                    // Last resort approach with language in the query
+                    const languageTerms = {
+                        hindi: 'hindi songs trending',
+                        english: 'english songs popular',
+                        punjabi: 'punjabi songs latest',
+                        tamil: 'tamil songs trending',
+                        telugu: 'telugu songs hits'
+                    };
+
+                    const finalResponse = await axios.get(`https://saafy-api.vercel.app/api/search/songs?query=${encodeURIComponent(languageTerms[activeCategory])}`);
+
+                    if (finalResponse.data?.data?.results) {
+                        console.log('Language-specific search found:', finalResponse.data.data.results.length);
+                        const formattedSongs = formatSongs(finalResponse.data.data.results);
+
+                        // Apply language filter for English
+                        const playableTracks = activeCategory === 'english'
+                            ? formattedSongs.filter(track =>
+                                track.download_url &&
+                                /^[a-zA-Z0-9\s\W]+$/.test(track.name))
+                            : formattedSongs.filter(track => track.download_url);
+
+                        console.log('Final playable tracks:', playableTracks.length);
+                        setTrendingTracks(playableTracks);
+                    } else {
+                        setTrendingTracks([]);
+                    }
+                } catch (error) {
+                    console.error('Error in final fallback approach:', error);
+                    setTrendingTracks([]);
+                }
+            } catch (error) {
+                console.error('Error loading trending tracks:', error);
+                setTrendingTracks([]);
+            } finally {
+                setIsLoadingTrending(false);
+            }
+        };
+
+        loadTrendingTracks();
+    }, [activeCategory]);
+
+    // Extract unique artists from search results
+    useEffect(() => {
+        if (searchResults.length === 0) {
+            setArtistsList([]);
+            return;
         }
 
-        if (songs.length > 0) {
-          allSongs = [...allSongs, ...songs] // Add fetched songs to the overall list
-          break // If we got results from this endpoint, move to the next base URL
+        const allArtists = searchResults.flatMap(track => track.artists)
+            .filter(artist => artist.id && artist.image);
+
+        const uniqueArtists = [];
+        const artistIds = new Set();
+
+        for (const artist of allArtists) {
+            if (!artistIds.has(artist.id)) {
+                artistIds.add(artist.id);
+                uniqueArtists.push(artist);
+            }
         }
-      } catch (error) {
-        continue // If an API call fails, try the next endpoint/base URL
-      }
-    }
-  }
 
-  // Remove duplicate songs (based on ID) and then filter and sort them by quality
-  const uniqueSongs = allSongs.filter((song, index, self) => index === self.findIndex((s) => s.id === song.id))
-  const filteredSongs = filterAndSortSongs(uniqueSongs)
+        setArtistsList(uniqueArtists);
+    }, [searchResults]);
 
-  // If good original songs are found, return the top 30
-  if (filteredSongs.length > 0) {
-    return {
-      songs: {
-        data: filteredSongs.slice(0, 30),
-        total: filteredSongs.length,
-      },
-    }
-  }
+    // Load artist tracks when currentArtist changes
+    useEffect(() => {
+        const loadArtistTracks = async () => {
+            if (!currentArtist || !currentArtist.id) {
+                setIsLoadingArtistTracks(false);
+                setArtistTracks([]);
+                return;
+            }
 
-  // Fallback: If no real API results are found, return curated (mock) original songs
-  // that match the search query.
-  const mockResults = getCuratedOriginalSongs().filter((song) => {
-    const searchTerm = query.toLowerCase()
+            try {
+                setIsLoadingArtistTracks(true);
+
+                const response = await axios.get(`https://saafy-api.vercel.app/api/artists/${currentArtist.id}/songs`);
+
+                if (response.data && response.data.data && response.data.data.songs) {
+                    const formattedSongs = formatSongs(response.data.data.songs);
+                    const searchResultIds = searchResults.map(track => track.id);
+                    const playableTracks = formattedSongs
+                        .filter(track => track.download_url && !searchResultIds.includes(track.id))
+                        .slice(0, 10);
+
+                    setArtistTracks(playableTracks);
+                } else {
+                    setArtistTracks([]);
+                }
+            } catch (error) {
+                console.error(`Error loading tracks for artist ${currentArtist.name}:`, error);
+                setArtistTracks([]);
+            } finally {
+                setIsLoadingArtistTracks(false);
+            }
+        };
+
+        if (currentArtist) {
+            loadArtistTracks();
+        }
+    }, [currentArtist, searchResults]);
+
+    const selectArtist = (artist) => {
+        setCurrentArtist(artist);
+    };
+
+    const handleSearchResults = (results) => {
+        setArtistTracks([]);
+        setCurrentArtist(null);
+        const playableTracks = results.filter(track => track.download_url);
+        setSearchResults(playableTracks);
+    };
+
+    const toggleFocusMode = () => {
+        setFocusMode(!focusMode);
+    };
+
+    const toggleQueue = () => {
+        setShowQueue(!showQueue);
+    };
+
     return (
-      song.name.toLowerCase().includes(searchTerm) ||
-      song.primaryArtists.toLowerCase().includes(searchTerm) ||
-      song.album.name.toLowerCase().includes(searchTerm)
-    )
-  })
+        <div className={`min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-300 ${focusMode ? 'pb-24' : 'pb-36'}`}>
+            <div className={`max-w-7xl mx-auto ${focusMode ? 'opacity-75 dark:opacity-60' : ''} transition-opacity duration-300`}>
+                <div className="px-4 sm:px-6 lg:px-8">
+                    <header className="py-6 sm:py-8 relative">
+                        <div className="flex items-center justify-between mb-6 sm:mb-8">
+                            <motion.div
+                                initial={{ opacity: 0, y: -10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                className="flex items-center"
+                            >
+                                <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-indigo-500 to-teal-400 bg-clip-text text-transparent">
+                                    Saafy
+                                </h1>
+                            </motion.div>
+                        </div>
 
-  return {
-    songs: {
-      data: mockResults,
-      total: mockResults.length,
-    },
-  }
-}
+                        <motion.div
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: 0.2 }}
+                            className="max-w-2xl mx-auto mb-8"
+                        >
+                            <SearchBar onSearchResults={handleSearchResults} />
+                        </motion.div>
 
-// Get trending with original song priority: Returns curated songs immediately, then fetches real trending in background.
-export async function getTrendingSongs(): Promise<SaavnSong[]> {
-  // Start with curated original songs for immediate display to the user
-  const curatedSongs = getCuratedOriginalSongs()
+                        {/* Elegant wave background element */}
+                        <motion.div
+                            className="absolute -z-10 top-0 right-0 opacity-10 text-indigo-500"
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 0.1 }}
+                            transition={{ delay: 0.5 }}
+                        >
+                            <svg width="350" height="350" viewBox="0 0 350 350" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M20,100 Q150,-50 300,120 T600,100" stroke="currentColor" strokeWidth="2" fill="none" />
+                                <path d="M20,150 Q150,0 300,170 T600,150" stroke="currentColor" strokeWidth="2" fill="none" />
+                                <path d="M20,200 Q150,50 300,220 T600,200" stroke="currentColor" strokeWidth="2" fill="none" />
+                            </svg>
+                        </motion.div>
+                    </header>
 
-  // Try to fetch real trending data in the background after a short delay
-  // This allows the UI to render quickly with curated data while real data loads.
-  setTimeout(async () => {
-    try {
-      // Example trending queries to get diverse trending songs
-      const trendingQueries = [
-        "arijit singh latest 2024",
-        "bollywood hits original",
-        "shreya ghoshal new songs",
-        "trending hindi original",
-      ]
-
-      for (const query of trendingQueries) {
-        try {
-          const results = await searchAll(query) // Use the searchAll function
-          if (results.songs?.data && results.songs.data.length > 0) {
-            // Merge fetched results with curated songs, ensuring uniqueness
-            const combinedSongs = [...results.songs.data, ...curatedSongs]
-            const uniqueSongs = combinedSongs.filter(
-              (song, index, self) => index === self.findIndex((s) => s.id === song.id),
-            )
-            // In a real app, you would use React state (e.g., `setTrendingSongs`)
-            // in your component to update the UI with these loaded songs.
-            filterAndSortSongs(uniqueSongs).slice(0, 20)
-          }
-        } catch (error) {
-          continue // If one query fails, try the next one
-        }
-      }
-    } catch (error) {
-      // Catch any unexpected errors during background fetching, but don't break the app.
-      console.error("Error during background trending fetch:", error)
-    }
-  }, 100) // A small delay (100ms)
-
-  return curatedSongs // Return curated songs immediately
-}
-
-// Curated original songs with authentic thumbnails: Hardcoded list for fallback/initial display.
-function getCuratedOriginalSongs(): SaavnSong[] {
-  return [
-    {
-      id: "kesariya_original_2022",
-      name: "Kesariya",
-      type: "song",
-      album: { id: "brahmastra", name: "Brahmastra", url: "" },
-      year: "2022",
-      releaseDate: "2022-07-17",
-      duration: "268",
-      label: "Sony Music",
-      primaryArtists: "Arijit Singh",
-      primaryArtistsId: "459320",
-      featuredArtists: "",
-      featuredArtistsId: "",
-      explicitContent: 0,
-      playCount: "100000000",
-      language: "hindi",
-      hasLyrics: "true",
-      url: "",
-      copyright: "© 2022 Sony Music Entertainment India Pvt. Ltd.",
-      image: [
-        { quality: "50x50", link: "https://c.saavncdn.com/191/Brahmastra-Hindi-2022-20220717092820-50x50.jpg" },
-        { quality: "150x150", link: "https://c.saavncdn.com/191/Brahmastra-Hindi-2022-20220717092820-150x150.jpg" },
-        { quality: "500x500", link: "https://c.saavncdn.com/191/Brahmastra-Hindi-2022-20220717092820-500x500.jpg" },
-      ],
-      downloadUrl: [{ quality: "320kbps", link: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3" }],
-      isOriginal: true,
-      priority: 95,
-    },
-    {
-      id: "tum_hi_ho_original_2013",
-      name: "Tum Hi Ho",
-      type: "song",
-      album: { id: "aashiqui2", name: "Aashiqui 2", url: "" },
-      year: "2013",
-      releaseDate: "2013-04-26",
-      duration: "262",
-      label: "T-Series",
-      primaryArtists: "Arijit Singh",
-      primaryArtistsId: "459320",
-      featuredArtists: "",
-      featuredArtistsId: "",
-      explicitContent: 0,
-      playCount: "200000000",
-      language: "hindi",
-      hasLyrics: "true",
-      url: "",
-      copyright: "© 2013 Super Cassettes Industries Private Limited",
-      image: [
-        { quality: "50x50", link: "https://c.saavncdn.com/427/Aashiqui-2-Hindi-2013-50x50.jpg" },
-        { quality: "150x150", link: "https://c.saavncdn.com/427/Aashiqui-2-Hindi-2013-150x150.jpg" },
-        { quality: "500x500", link: "https://c.saavncdn.com/427/Aashiqui-2-Hindi-2013-500x500.jpg" },
-      ],
-      downloadUrl: [{ quality: "320kbps", link: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3" }],
-      isOriginal: true,
-      priority: 98,
-    },
-    {
-      id: "channa_mereya_original_2016",
-      name: "Channa Mereya",
-      type: "song",
-      album: { id: "adhm", name: "Ae Dil Hai Mushkil", url: "" },
-      year: "2016",
-      releaseDate: "2016-10-28",
-      duration: "290",
-      label: "Sony Music",
-      primaryArtists: "Arijit Singh",
-      primaryArtistsId: "459320",
-      featuredArtists: "",
-      featuredArtistsId: "",
-      explicitContent: 0,
-      playCount: "180000000",
-      language: "hindi",
-      hasLyrics: "true",
-      url: "",
-      copyright: "© 2016 Sony Music Entertainment India Pvt. Ltd.",
-      image: [
-        { quality: "50x50", link: "https://c.saavncdn.com/427/Ae-Dil-Hai-Mushkil-Hindi-2016-50x50.jpg" },
-        { quality: "150x150", link: "https://c.saavncdn.com/427/Ae-Dil-Hai-Mushkil-Hindi-2016-150x150.jpg" },
-        { quality: "500x500", link: "https://c.saavncdn.com/427/Ae-Dil-Hai-Mushkil-Hindi-2016-500x500.jpg" },
-      ],
-      downloadUrl: [{ quality: "320kbps", link: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3" }],
-      isOriginal: true,
-      priority: 92,
-    },
-    {
-      id: "raabta_original_2012",
-      name: "Raabta",
-      type: "song",
-      album: { id: "agent_vinod", name: "Agent Vinod", url: "" },
-      year: "2012",
-      releaseDate: "2012-03-23",
-      duration: "240",
-      label: "T-Series",
-      primaryArtists: "Arijit Singh",
-      primaryArtistsId: "459320",
-      featuredArtists: "",
-      featuredArtistsId: "",
-      explicitContent: 0,
-      playCount: "150000000",
-      language: "hindi",
-      hasLyrics: "true",
-      url: "",
-      copyright: "© 2012 Super Cassettes Industries Private Limited",
-      image: [
-        { quality: "50x50", link: "https://c.saavncdn.com/427/Agent-Vinod-Hindi-2012-50x50.jpg" },
-        { quality: "150x150", link: "https://c.saavncdn.com/427/Agent-Vinod-Hindi-2012-150x150.jpg" },
-        { quality: "500x500", link: "https://c.saavncdn.com/427/Agent-Vinod-Hindi-2012-500x500.jpg" },
-      ],
-      downloadUrl: [{ quality: "320kbps", link: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3" }],
-      isOriginal: true,
-      priority: 88,
-    },
-    {
-      id: "hawayein_original_2017",
-      name: "Hawayein",
-      type: "song",
-      album: { id: "jhms", name: "Jab Harry Met Sejal", url: "" },
-      year: "2017",
-      releaseDate: "2017-08-04",
-      duration: "278",
-      label: "Sony Music",
-      primaryArtists: "Arijit Singh",
-      primaryArtistsId: "459320",
-      featuredArtists: "",
-      featuredArtistsId: "",
-      explicitContent: 0,
-      playCount: "160000000",
-      language: "hindi",
-      hasLyrics: "true",
-      url: "",
-      copyright: "© 2017 Sony Music Entertainment India Pvt. Ltd.",
-      image: [
-        { quality: "50x50", link: "https://c.saavncdn.com/427/Jab-Harry-Met-Sejal-Hindi-2017-50x50.jpg" },
-        { quality: "150x150", link: "https://c.saavncdn.com/427/Jab-Harry-Met-Sejal-Hindi-2017-150x150.jpg" },
-        { quality: "500x500", link: "https://c.saavncdn.com/427/Jab-Harry-Met-Sejal-Hindi-2017-500x500.jpg" },
-      ],
-      downloadUrl: [{ quality: "320kbps", link: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-5.mp3" }],
-      isOriginal: true,
-      priority: 90,
-    },
-    {
-      id: "apna_bana_le_original_2022",
-      name: "Apna Bana Le",
-      type: "song",
-      album: { id: "bhediya", name: "Bhediya", url: "" },
-      year: "2022",
-      releaseDate: "2022-10-17",
-      duration: "245",
-      label: "T-Series",
-      primaryArtists: "Arijit Singh",
-      primaryArtistsId: "459320",
-      featuredArtists: "",
-      featuredArtistsId: "",
-      explicitContent: 0,
-      playCount: "80000000",
-      language: "hindi",
-      hasLyrics: "true",
-      url: "",
-      copyright: "© 2022 Super Cassettes Industries Private Limited",
-      image: [
-        { quality: "50x50", link: "https://c.saavncdn.com/343/Bhediya-Hindi-2022-20221017151007-50x50.jpg" },
-        { quality: "150x150", link: "https://c.saavncdn.com/343/Bhediya-Hindi-2022-20221017151007-150x150.jpg" },
-        { quality: "500x500", link: "https://c.saavncdn.com/343/Bhediya-Hindi-2022-20221017151007-500x500.jpg" },
-      ],
-      downloadUrl: [{ quality: "320kbps", link: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-6.mp3" }],
-      isOriginal: true,
-      priority: 85,
-    },
-  ]
-}
-
-// Utility functions for getting specific quality images and audio links, and formatting duration.
-export function getHighQualityImage(images: Array<{ quality: string; link: string }> | undefined): string {
-  if (!images || !Array.isArray(images) || images.length === 0) {
-    return "/placeholder.svg?height=300&width=300"
-  }
-
-  const highQuality =
-    images.find((img) => img?.quality === "500x500") ||
-    images.find((img) => img?.quality === "150x150") ||
-    images[images.length - 1]
-
-  return highQuality?.link || "/placeholder.svg?height=300&width=300"
-}
-
-export function getHighQualityAudio(downloadUrls: Array<{ quality: string; link: string }> | undefined): string {
-  if (!downloadUrls || !Array.isArray(downloadUrls) || downloadUrls.length === 0) {
-    return ""
-  }
-
-  const highQuality =
-    downloadUrls.find((url) => url?.quality === "320kbps") ||
-    downloadUrls.find((url) => url?.quality === "160kbps") ||
-    downloadUrls[downloadUrls.length - 1]
-
-  return highQuality?.link || ""
-}
-
-export function formatDuration(duration: string | undefined): string {
-  if (!duration) return "0:00"
-  const seconds = Number.parseInt(duration)
-  if (isNaN(seconds)) return "0:00"
-  const minutes = Math.floor(seconds / 60)
-  const remainingSeconds = seconds % 60
-  return `${minutes}:${remainingSeconds.toString().padStart(2, "0")}`
-}
+                    <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                        <div className="lg:col-span-3 space-y-8">
+                            {searchResults.length === 0 && (
+                                <section>
+                                    <motion.div
+                                        className="mb-6"
+                                        initial={{ opacity: 0 }}
+                                        animate={{ opacity: 1 }}
+                                        transition={{ delay: 0.2 }}
+                                    >
+                                        <div className="flex flex-wrap gap-2">
+                                            {categories.map((category, index) => (
+                                                <motion.button
+                                                    key={category.id}
+                                                    onClick={() => setActiveCategory(category.id)}
+                                                    className={`px-4 py-2 rounded-full text-sm font-medium transition-colors flex items-center ${activeCategory === category.id
+                                                        ? 'bg-indigo-500 text-white'
+                                                        : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+                                                        }`}
+                                                    initial={{ opacity: 0, y: 10 }}
+                                                    animate={{ opacity: 1, y: 0 }}
+                                                    transition={{ delay: 0.1 + index * 0.05 }}
+                                                >
+                                                    {category.icon}
+                                                    {category.nam
