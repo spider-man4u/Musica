@@ -119,6 +119,7 @@ const convertSaavnSongToSong = (saavnSong: SaavnSong): Song | null => {
       url: saavnSong.url,
     }
   } catch (error) {
+    console.error("Error converting song:", error)
     return null
   }
 }
@@ -220,19 +221,32 @@ export const useStore = create<AppState>()(
         }
       },
 
-      // Data actions with silent error handling
+      // Data actions with sample data priority
       searchContent: async (query) => {
         if (!query?.trim()) return
 
         set({ isLoading: true, error: null, searchQuery: query })
 
         try {
+          console.log(`Searching for: ${query}`)
           const results = await searchAll(query)
-          set({ searchResults: results || null })
-          get().addToSearchHistory(query)
+
+          if (results && results.songs && results.songs.data.length > 0) {
+            set({ searchResults: results, error: null })
+            get().addToSearchHistory(query)
+            console.log(`Search successful: ${results.songs.data.length} songs found`)
+          } else {
+            set({
+              searchResults: { songs: { data: [], total: 0 } },
+              error: "No songs found for your search.",
+            })
+          }
         } catch (error) {
-          // Silent fallback - user gets mock results
-          set({ searchResults: null })
+          console.error("Search error:", error)
+          set({
+            searchResults: null,
+            error: "Search failed. Please try again.",
+          })
         } finally {
           set({ isLoading: false })
         }
@@ -242,14 +256,33 @@ export const useStore = create<AppState>()(
         set({ isLoading: true, error: null })
 
         try {
+          console.log("Fetching trending songs...")
           const songs = await getTrendingSongs()
+
           if (Array.isArray(songs) && songs.length > 0) {
             const convertedSongs = songs.map(convertSaavnSongToSong).filter((song): song is Song => song !== null)
-            set({ trendingSongs: convertedSongs, error: null })
+
+            if (convertedSongs.length > 0) {
+              set({ trendingSongs: convertedSongs, error: null })
+              console.log(`Successfully loaded ${convertedSongs.length} trending songs`)
+            } else {
+              set({
+                trendingSongs: [],
+                error: "No trending songs available at the moment.",
+              })
+            }
+          } else {
+            set({
+              trendingSongs: [],
+              error: "Unable to load trending songs. Please try again later.",
+            })
           }
         } catch (error) {
-          // Silent fallback
-          set({ trendingSongs: [], error: null })
+          console.error("Trending songs error:", error)
+          set({
+            trendingSongs: [],
+            error: "Failed to load trending songs. Please check your connection.",
+          })
         } finally {
           set({ isLoading: false })
         }

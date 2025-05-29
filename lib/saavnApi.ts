@@ -1,394 +1,229 @@
-import { useState, useEffect } from 'react';
-import axios from 'axios';
-import { motion, AnimatePresence } from 'framer-motion';
-import SearchBar from './SearchBar';
-import TrackList from './TrackList';
-import FeaturedTracks from './FeaturedTracks';
-import PlayerControls from './PlayerControls';
-import Queue from './Queue';
-import VolumeControl from './VolumeControl';
-import Playlists from './Playlists';
-import PlaylistDetail from './PlaylistDetail';
-import { usePlaylist } from '../context/PlaylistContext';
-import { Music, Settings, Headphones, Search, Clock, Sparkles, X, ListMusic } from 'lucide-react';
+"use client"
 
-function MusicPlayer() {
-    const [searchResults, setSearchResults] = useState([]);
-    const [artistTracks, setArtistTracks] = useState([]);
-    const [currentArtist, setCurrentArtist] = useState(null);
-    const [artistsList, setArtistsList] = useState([]);
-    const [trendingTracks, setTrendingTracks] = useState([]);
-    const [isLoadingTrending, setIsLoadingTrending] = useState(true);
-    const [isLoadingArtistTracks, setIsLoadingArtistTracks] = useState(false);
-    const [activeCategory, setActiveCategory] = useState('english');
-    const [focusMode, setFocusMode] = useState(false);
-    const [showQueue, setShowQueue] = useState(false);
-    const { activePlaylist } = usePlaylist();
+import { sampleSongs, getTrendingSampleSongs, searchSampleSongs } from "./sampleData"
+import type { Song } from "./store"
 
-    // Categories for music selection - now includes playlists
-    const categories = [
-        { id: 'hindi', name: 'Hindi' },
-        { id: 'english', name: 'English' },
-        { id: 'punjabi', name: 'Punjabi' },
-        { id: 'tamil', name: 'Tamil' },
-        { id: 'telugu', name: 'Telugu' },
-        { id: 'playlists', name: 'My Playlists', icon: <ListMusic size={16} className="mr-1" /> }
-    ];
+// --- Interfaces ---
+export interface SaavnSong {
+  id: string
+  name: string
+  type: string
+  album: {
+    id: string
+    name: string
+    url: string
+  }
+  year: string
+  releaseDate: string
+  duration: string
+  label: string
+  primaryArtists: string
+  primaryArtistsId: string
+  featuredArtists: string
+  featuredArtistsId: string
+  explicitContent: number
+  playCount: string
+  language: string
+  hasLyrics: string
+  url: string
+  copyright: string
+  image: Array<{
+    quality: string
+    link: string
+  }>
+  downloadUrl: Array<{
+    quality: string
+    link: string
+  }>
+  isOriginal?: boolean
+  priority?: number
+}
 
-    // Format songs from API response
-    const formatSongs = (songs) => {
-        return songs.map(song => ({
-            id: song.id,
-            name: song.name,
-            artists: song.artists && song.artists.primary
-                ? song.artists.primary.map(artist => ({
-                    id: artist.id,
-                    name: artist.name,
-                    url: artist.url,
-                    image: artist.image && artist.image.length > 0 ? artist.image[1]?.url : ''
-                }))
-                : song.primaryArtists
-                    ? song.primaryArtists.split(',').map(name => ({ name: name.trim() }))
-                    : [{ name: 'Unknown Artist' }],
-            album: {
-                name: song.album?.name || 'Unknown Album',
-                images: song.image ? [
-                    { url: song.image[2]?.link || song.image[2]?.url || '' },
-                    { url: song.image[1]?.link || song.image[1]?.url || '' },
-                    { url: song.image[0]?.link || song.image[0]?.url || '' }
-                ] : [{ url: '' }, { url: '' }, { url: '' }]
-            },
-            duration_ms: song.duration * 1000 || 0,
-            download_url: song.downloadUrl && song.downloadUrl.length > 0
-                ? song.downloadUrl[song.downloadUrl.length - 1].link || song.downloadUrl[song.downloadUrl.length - 1].url
-                : null
-        }));
-    };
+export interface SearchResults {
+  songs?: {
+    data: SaavnSong[]
+    total: number
+  }
+  albums?: {
+    data: any[]
+    total: number
+  }
+  artists?: {
+    data: any[]
+    total: number
+  }
+  playlists?: {
+    data: any[]
+    total: number
+  }
+}
 
-    // Load trending tracks on component mount or category change
-    useEffect(() => {
-        const loadTrendingTracks = async () => {
-            // Skip loading tracks when in playlists category
-            if (activeCategory === 'playlists') {
-                setIsLoadingTrending(false);
-                return;
-            }
+// Convert Song to SaavnSong format for compatibility
+function convertSongToSaavnSong(song: Song): SaavnSong {
+  return {
+    id: song.id,
+    name: song.title,
+    type: "song",
+    album: {
+      id: song.id + "_album",
+      name: song.album,
+      url: "",
+    },
+    year: song.year || "2023",
+    releaseDate: song.year || "2023",
+    duration: song.duration.toString(),
+    label: "Sample Music",
+    primaryArtists: song.artist,
+    primaryArtistsId: song.id + "_artist",
+    featuredArtists: "",
+    featuredArtistsId: "",
+    explicitContent: song.explicit ? 1 : 0,
+    playCount: song.playCount || "1000000",
+    language: song.language || "hindi",
+    hasLyrics: "true",
+    url: song.url || "",
+    copyright: "Sample Music",
+    image: [
+      {
+        quality: "500x500",
+        link: song.image,
+      },
+    ],
+    downloadUrl: [
+      {
+        quality: "320kbps",
+        link: song.audio,
+      },
+    ],
+  }
+}
 
-            try {
-                setIsLoadingTrending(true);
+// Enhanced search function using sample data with API fallback
+export async function searchAll(query: string): Promise<SearchResults> {
+  if (!query?.trim()) {
+    return { songs: { data: [], total: 0 } }
+  }
 
-                // Predefined playlist URLs for each category
-                const playlistUrls = {
-                    hindi: 'https://www.jiosaavn.com/featured/trending-hits/GVABefAdtVAZNLR,rP3WSg__',
-                    english: 'https://www.jiosaavn.com/featured/english-viral-hits/pm49jiq,CNs_',
-                    punjabi: 'https://www.jiosaavn.com/featured/punjabi-trending-hits/vInkpyiMhI6qKl4yv5iIvA__',
-                    tamil: 'https://www.jiosaavn.com/featured/trending-pop-tamil/5z8vKjNnhmIGSw2I1RxdhQ__',
-                    telugu: 'https://www.jiosaavn.com/featured/-trending-tracks/FWB5iMCkujuQbUI04mhbCA__'
-                };
+  console.log(`Searching for: ${query}`)
 
-                // Get playlist URL for active category
-                const playlistUrl = playlistUrls[activeCategory];
+  try {
+    // First try to use sample data search
+    const sampleResults = searchSampleSongs(query)
 
-                if (playlistUrl) {
-                    console.log(`Fetching trending ${activeCategory} songs from playlist:`, playlistUrl);
+    if (sampleResults.length > 0) {
+      const saavnSongs = sampleResults.map(convertSongToSaavnSong)
+      console.log(`Found ${sampleResults.length} songs in sample data`)
 
-                    // English playlist needs special handling
-                    if (activeCategory === 'english') {
-                        // For English, use a more reliable fixed playlist token instead of the URL
-                        const playlistId = 'pm49jiq,CNs_';
+      return {
+        songs: {
+          data: saavnSongs,
+          total: saavnSongs.length,
+        },
+      }
+    }
 
-                        try {
-                            // First try to get a better playlist ID through search
-                            const searchResponse = await axios.get(`https://saafy-api.vercel.app/api/search?query=${encodeURIComponent('english popular hits')}`);
+    // If no sample results, try API as fallback (but don't fail if it doesn't work)
+    try {
+      const response = await fetch(`https://acromusic.pages.dev/search?query=${encodeURIComponent(query)}`, {
+        signal: AbortSignal.timeout(5000),
+        mode: "cors",
+      })
 
-                            if (searchResponse.data?.success && searchResponse.data.data?.topQuery?.results) {
-                                const topQueryResults = searchResponse.data.data.topQuery.results;
-                                const relevantPlaylist = topQueryResults.find(item =>
-                                    item.type === 'playlist' &&
-                                    item.title.toLowerCase().includes('english')
-                                );
-
-                                if (relevantPlaylist) {
-                                    console.log('Found English playlist from search:', relevantPlaylist.title);
-
-                                    // Extract the token from the URL
-                                    const playlistUrlParts = relevantPlaylist.url.split('/');
-                                    const playlistToken = playlistUrlParts[playlistUrlParts.length - 1];
-
-                                    const idResponse = await axios.get(`https://saafy-api.vercel.app/api/playlists?id=${playlistToken}`);
-
-                                    if (idResponse.data?.data?.songs) {
-                                        console.log('English playlist songs found:', idResponse.data.data.songs.length);
-                                        const formattedSongs = formatSongs(idResponse.data.data.songs);
-
-                                        // Apply additional English filter
-                                        const playableTracks = formattedSongs.filter(track =>
-                                            track.download_url &&
-                                            /^[a-zA-Z0-9\s\W]+$/.test(track.name)
-                                        );
-
-                                        if (playableTracks.length > 0) {
-                                            console.log('English playable tracks:', playableTracks.length);
-                                            setTrendingTracks(playableTracks);
-                                            setIsLoadingTrending(false);
-                                            return;
-                                        }
-                                    }
-                                }
-                            }
-
-                            // If dynamic method fails, fall back to a known working English playlist ID
-                            const backupResponse = await axios.get('https://saafy-api.vercel.app/api/playlists?id=1083318977');
-
-                            if (backupResponse.data?.data?.songs) {
-                                console.log('Backup English playlist songs found:', backupResponse.data.data.songs.length);
-                                const formattedSongs = formatSongs(backupResponse.data.data.songs);
-                                const playableTracks = formattedSongs.filter(track => track.download_url);
-
-                                if (playableTracks.length > 0) {
-                                    setTrendingTracks(playableTracks);
-                                    setIsLoadingTrending(false);
-                                    return;
-                                }
-                            }
-                        } catch (error) {
-                            console.error('Error with English playlist:', error);
-                        }
-                    } else {
-                        // For non-English playlists, first try the link approach
-                        try {
-                            const encodedUrl = encodeURIComponent(playlistUrl);
-                            const playlistResponse = await axios.get(`https://saafy-api.vercel.app/api/playlists?link=${encodedUrl}`);
-
-                            if (playlistResponse.data?.data?.songs && playlistResponse.data.data.songs.length > 0) {
-                                console.log('Playlist songs found:', playlistResponse.data.data.songs.length);
-                                const formattedSongs = formatSongs(playlistResponse.data.data.songs);
-                                const playableTracks = formattedSongs.filter(track => track.download_url);
-
-                                if (playableTracks.length > 0) {
-                                    setTrendingTracks(playableTracks);
-                                    setIsLoadingTrending(false);
-                                    return;
-                                }
-                            }
-                        } catch (error) {
-                            console.error('Error with direct playlist URL:', error);
-                        }
-
-                        // If link approach fails, try the ID approach
-                        try {
-                            const urlParts = playlistUrl.split('/');
-                            const rawPlaylistId = urlParts[urlParts.length - 1];
-
-                            const idResponse = await axios.get(`https://saafy-api.vercel.app/api/playlists?id=${rawPlaylistId}`);
-
-                            if (idResponse.data?.data?.songs) {
-                                console.log('Playlist songs found using ID:', idResponse.data.data.songs.length);
-                                const formattedSongs = formatSongs(idResponse.data.data.songs);
-                                const playableTracks = formattedSongs.filter(track => track.download_url);
-
-                                if (playableTracks.length > 0) {
-                                    setTrendingTracks(playableTracks);
-                                    setIsLoadingTrending(false);
-                                    return;
-                                }
-                            }
-                        } catch (error) {
-                            console.error('Error fetching by ID:', error);
-                        }
-                    }
-                }
-
-                // If we're still here, all playlist approaches failed
-                // Use a last resort language-specific search
-                console.log('All playlist methods failed, trying language-specific search');
-
-                try {
-                    // Last resort approach with language in the query
-                    const languageTerms = {
-                        hindi: 'hindi songs trending',
-                        english: 'english songs popular',
-                        punjabi: 'punjabi songs latest',
-                        tamil: 'tamil songs trending',
-                        telugu: 'telugu songs hits'
-                    };
-
-                    const finalResponse = await axios.get(`https://saafy-api.vercel.app/api/search/songs?query=${encodeURIComponent(languageTerms[activeCategory])}`);
-
-                    if (finalResponse.data?.data?.results) {
-                        console.log('Language-specific search found:', finalResponse.data.data.results.length);
-                        const formattedSongs = formatSongs(finalResponse.data.data.results);
-
-                        // Apply language filter for English
-                        const playableTracks = activeCategory === 'english'
-                            ? formattedSongs.filter(track =>
-                                track.download_url &&
-                                /^[a-zA-Z0-9\s\W]+$/.test(track.name))
-                            : formattedSongs.filter(track => track.download_url);
-
-                        console.log('Final playable tracks:', playableTracks.length);
-                        setTrendingTracks(playableTracks);
-                    } else {
-                        setTrendingTracks([]);
-                    }
-                } catch (error) {
-                    console.error('Error in final fallback approach:', error);
-                    setTrendingTracks([]);
-                }
-            } catch (error) {
-                console.error('Error loading trending tracks:', error);
-                setTrendingTracks([]);
-            } finally {
-                setIsLoadingTrending(false);
-            }
-        };
-
-        loadTrendingTracks();
-    }, [activeCategory]);
-
-    // Extract unique artists from search results
-    useEffect(() => {
-        if (searchResults.length === 0) {
-            setArtistsList([]);
-            return;
+      if (response.ok) {
+        const data = await response.json()
+        // Handle API response if it works
+        if (data?.songs) {
+          return { songs: { data: data.songs, total: data.songs.length } }
         }
+      }
+    } catch (apiError) {
+      console.log("API search failed, using sample data only")
+    }
 
-        const allArtists = searchResults.flatMap(track => track.artists)
-            .filter(artist => artist.id && artist.image);
+    // Return empty results if nothing found
+    return { songs: { data: [], total: 0 } }
+  } catch (error) {
+    console.error("Search error:", error)
+    return { songs: { data: [], total: 0 } }
+  }
+}
 
-        const uniqueArtists = [];
-        const artistIds = new Set();
+// Get trending songs using sample data with API fallback
+export async function getTrendingSongs(): Promise<SaavnSong[]> {
+  try {
+    console.log("Fetching trending songs...")
 
-        for (const artist of allArtists) {
-            if (!artistIds.has(artist.id)) {
-                artistIds.add(artist.id);
-                uniqueArtists.push(artist);
-            }
-        }
+    // Always use sample data as primary source
+    const trendingSongs = getTrendingSampleSongs()
+    const saavnSongs = trendingSongs.map(convertSongToSaavnSong)
 
-        setArtistsList(uniqueArtists);
-    }, [searchResults]);
+    console.log(`Using ${saavnSongs.length} trending songs from sample data`)
+    return saavnSongs
+  } catch (error) {
+    console.error("Error fetching trending songs:", error)
+    // Even if there's an error, return some sample songs
+    const fallbackSongs = sampleSongs.slice(0, 10)
+    return fallbackSongs.map(convertSongToSaavnSong)
+  }
+}
 
-    // Load artist tracks when currentArtist changes
-    useEffect(() => {
-        const loadArtistTracks = async () => {
-            if (!currentArtist || !currentArtist.id) {
-                setIsLoadingArtistTracks(false);
-                setArtistTracks([]);
-                return;
-            }
+// Utility functions for getting specific quality images and audio links
+export function getHighQualityImage(images: Array<{ quality: string; link: string }> | undefined): string {
+  if (!images || !Array.isArray(images) || images.length === 0) {
+    return "/placeholder.svg?height=300&width=300"
+  }
 
-            try {
-                setIsLoadingArtistTracks(true);
+  const highQuality =
+    images.find((img) => img?.quality === "500x500") ||
+    images.find((img) => img?.quality === "150x150") ||
+    images[images.length - 1]
 
-                const response = await axios.get(`https://saafy-api.vercel.app/api/artists/${currentArtist.id}/songs`);
+  return highQuality?.link || "/placeholder.svg?height=300&width=300"
+}
 
-                if (response.data && response.data.data && response.data.data.songs) {
-                    const formattedSongs = formatSongs(response.data.data.songs);
-                    const searchResultIds = searchResults.map(track => track.id);
-                    const playableTracks = formattedSongs
-                        .filter(track => track.download_url && !searchResultIds.includes(track.id))
-                        .slice(0, 10);
+export function getHighQualityAudio(downloadUrls: Array<{ quality: string; link: string }> | undefined): string {
+  if (!downloadUrls || !Array.isArray(downloadUrls) || downloadUrls.length === 0) {
+    return ""
+  }
 
-                    setArtistTracks(playableTracks);
-                } else {
-                    setArtistTracks([]);
-                }
-            } catch (error) {
-                console.error(`Error loading tracks for artist ${currentArtist.name}:`, error);
-                setArtistTracks([]);
-            } finally {
-                setIsLoadingArtistTracks(false);
-            }
-        };
+  const highQuality =
+    downloadUrls.find((url) => url?.quality === "320kbps") ||
+    downloadUrls.find((url) => url?.quality === "160kbps") ||
+    downloadUrls.find((url) => url?.quality === "96kbps") ||
+    downloadUrls[downloadUrls.length - 1]
 
-        if (currentArtist) {
-            loadArtistTracks();
-        }
-    }, [currentArtist, searchResults]);
+  return highQuality?.link || ""
+}
 
-    const selectArtist = (artist) => {
-        setCurrentArtist(artist);
-    };
+export function formatDuration(duration: string | undefined): string {
+  if (!duration) return "0:00"
+  const seconds = Number.parseInt(duration)
+  if (isNaN(seconds)) return "0:00"
+  const minutes = Math.floor(seconds / 60)
+  const remainingSeconds = seconds % 60
+  return `${minutes}:${remainingSeconds.toString().padStart(2, "0")}`
+}
 
-    const handleSearchResults = (results) => {
-        setArtistTracks([]);
-        setCurrentArtist(null);
-        const playableTracks = results.filter(track => track.download_url);
-        setSearchResults(playableTracks);
-    };
+// Get song details by ID from sample data
+export async function getSongById(id: string): Promise<SaavnSong | null> {
+  try {
+    const song = sampleSongs.find((s) => s.id === id)
+    return song ? convertSongToSaavnSong(song) : null
+  } catch (error) {
+    console.error("Error fetching song by ID:", error)
+    return null
+  }
+}
 
-    const toggleFocusMode = () => {
-        setFocusMode(!focusMode);
-    };
+// Mock functions for compatibility
+export async function getAlbumById(id: string): Promise<any> {
+  return null
+}
 
-    const toggleQueue = () => {
-        setShowQueue(!showQueue);
-    };
+export async function getArtistById(id: string): Promise<any> {
+  return null
+}
 
-    return (
-        <div className={`min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-300 ${focusMode ? 'pb-24' : 'pb-36'}`}>
-            <div className={`max-w-7xl mx-auto ${focusMode ? 'opacity-75 dark:opacity-60' : ''} transition-opacity duration-300`}>
-                <div className="px-4 sm:px-6 lg:px-8">
-                    <header className="py-6 sm:py-8 relative">
-                        <div className="flex items-center justify-between mb-6 sm:mb-8">
-                            <motion.div
-                                initial={{ opacity: 0, y: -10 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                className="flex items-center"
-                            >
-                                <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-indigo-500 to-teal-400 bg-clip-text text-transparent">
-                                    Saafy
-                                </h1>
-                            </motion.div>
-                        </div>
-
-                        <motion.div
-                            initial={{ opacity: 0, y: 10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: 0.2 }}
-                            className="max-w-2xl mx-auto mb-8"
-                        >
-                            <SearchBar onSearchResults={handleSearchResults} />
-                        </motion.div>
-
-                        {/* Elegant wave background element */}
-                        <motion.div
-                            className="absolute -z-10 top-0 right-0 opacity-10 text-indigo-500"
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 0.1 }}
-                            transition={{ delay: 0.5 }}
-                        >
-                            <svg width="350" height="350" viewBox="0 0 350 350" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                <path d="M20,100 Q150,-50 300,120 T600,100" stroke="currentColor" strokeWidth="2" fill="none" />
-                                <path d="M20,150 Q150,0 300,170 T600,150" stroke="currentColor" strokeWidth="2" fill="none" />
-                                <path d="M20,200 Q150,50 300,220 T600,200" stroke="currentColor" strokeWidth="2" fill="none" />
-                            </svg>
-                        </motion.div>
-                    </header>
-
-                    <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-                        <div className="lg:col-span-3 space-y-8">
-                            {searchResults.length === 0 && (
-                                <section>
-                                    <motion.div
-                                        className="mb-6"
-                                        initial={{ opacity: 0 }}
-                                        animate={{ opacity: 1 }}
-                                        transition={{ delay: 0.2 }}
-                                    >
-                                        <div className="flex flex-wrap gap-2">
-                                            {categories.map((category, index) => (
-                                                <motion.button
-                                                    key={category.id}
-                                                    onClick={() => setActiveCategory(category.id)}
-                                                    className={`px-4 py-2 rounded-full text-sm font-medium transition-colors flex items-center ${activeCategory === category.id
-                                                        ? 'bg-indigo-500 text-white'
-                                                        : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
-                                                        }`}
-                                                    initial={{ opacity: 0, y: 10 }}
-                                                    animate={{ opacity: 1, y: 0 }}
-                                                    transition={{ delay: 0.1 + index * 0.05 }}
-                                                >
-                                                    {category.icon}
-                                                    {category.nam
+export async function getPlaylistById(id: string): Promise<any> {
+  return null
+}
