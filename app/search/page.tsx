@@ -23,6 +23,42 @@ const browseCategories = [
 
 const recentSearches = ["Arijit Singh", "Kesariya", "Bollywood hits", "AR Rahman", "Shreya Ghoshal"]
 
+// Helper function to get a valid image URL or null
+const getValidImageSrc = (imageUrl: string | undefined | null): string | null => {
+  if (!imageUrl || typeof imageUrl !== "string" || imageUrl.trim() === "") {
+    return null
+  }
+  return imageUrl.trim()
+}
+
+// Helper function to safely render an image
+const SafeImage = ({
+  src,
+  alt,
+  width,
+  height,
+  className,
+}: {
+  src: string | undefined | null
+  alt: string
+  width: number
+  height: number
+  className?: string
+}) => {
+  const validSrc = getValidImageSrc(src)
+
+  if (!validSrc) {
+    // Render a placeholder div instead of an Image with empty src
+    return (
+      <div className={cn("bg-gray-800 flex items-center justify-center", className)} style={{ width, height }}>
+        <span className="text-gray-400 text-xs">No Image</span>
+      </div>
+    )
+  }
+
+  return <Image src={validSrc || "/placeholder.svg"} alt={alt} width={width} height={height} className={className} />
+}
+
 export default function SearchPage() {
   const [query, setQuery] = useState("")
   const [isSearching, setIsSearching] = useState(false)
@@ -165,132 +201,147 @@ export default function SearchPage() {
               ) : (
                 <div className="space-y-8">
                   {/* Top Result */}
-                  {searchResults.songs?.data[0] && (
-                    <div>
-                      <h3 className="text-xl font-semibold text-white mb-4">Top Result</h3>
-                      <div className="bg-white/5 rounded-lg p-6 hover:bg-white/10 transition-colors cursor-pointer group">
-                        <div className="flex items-center space-x-6">
-                          <div className="relative">
-                            <Image
-                              src={
-                                searchResults.songs.data[0].image[searchResults.songs.data[0].image.length - 1]?.link ||
-                                "/placeholder.svg"
-                              }
-                              alt={searchResults.songs.data[0].name}
-                              width={120}
-                              height={120}
-                              className="rounded-lg"
-                            />
-                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center">
-                              <Button
-                                size="icon"
-                                onClick={() =>
-                                  playSong({
-                                    id: searchResults.songs.data[0].id,
-                                    title: searchResults.songs.data[0].name,
-                                    artist: searchResults.songs.data[0].primaryArtists,
-                                    album: searchResults.songs.data[0].album.name,
-                                    image:
-                                      searchResults.songs.data[0].image[searchResults.songs.data[0].image.length - 1]
-                                        ?.link,
-                                    audio:
-                                      searchResults.songs.data[0].downloadUrl[
-                                        searchResults.songs.data[0].downloadUrl.length - 1
-                                      ]?.link,
-                                    duration: Number.parseInt(searchResults.songs.data[0].duration),
-                                  })
-                                }
-                                className="bg-green-500 hover:bg-green-600 rounded-full w-16 h-16"
-                              >
-                                <Play className="w-8 h-8 ml-1" />
-                              </Button>
+                  {searchResults?.songs?.data &&
+                    Array.isArray(searchResults.songs.data) &&
+                    searchResults.songs.data.length > 0 && (
+                      <div>
+                        <h3 className="text-xl font-semibold text-white mb-4">Top Result</h3>
+                        <div className="bg-white/5 rounded-lg p-6 hover:bg-white/10 transition-colors cursor-pointer group">
+                          <div className="flex items-center space-x-6">
+                            <div className="relative">
+                              <SafeImage
+                                src={searchResults.songs.data[0].image}
+                                alt={searchResults.songs.data[0].title || "Unknown Song"}
+                                width={120}
+                                height={120}
+                                className="rounded-lg"
+                              />
+                              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center">
+                                <Button
+                                  size="icon"
+                                  onClick={() =>
+                                    playSong({
+                                      id: searchResults.songs.data[0].id,
+                                      title: searchResults.songs.data[0].title || "Unknown Song",
+                                      artist: searchResults.songs.data[0].artist || "Unknown Artist",
+                                      album: searchResults.songs.data[0].album || "Unknown Album",
+                                      image:
+                                        searchResults.songs.data[0].image || "/placeholder.svg?height=300&width=300",
+                                      audio: searchResults.songs.data[0].audio || "",
+                                      duration: searchResults.songs.data[0].duration || 0,
+                                    })
+                                  }
+                                  className="bg-green-500 hover:bg-green-600 rounded-full w-16 h-16"
+                                >
+                                  <Play className="w-8 h-8 ml-1" />
+                                </Button>
+                              </div>
                             </div>
-                          </div>
-                          <div className="flex-1">
-                            <h4 className="text-3xl font-bold text-white mb-2">{searchResults.songs.data[0].name}</h4>
-                            <p className="text-gray-400 text-lg mb-2">{searchResults.songs.data[0].primaryArtists}</p>
-                            <div className="flex items-center space-x-2">
-                              <Badge variant="secondary" className="bg-white/10 text-white">
-                                Song
-                              </Badge>
-                              <Badge variant="outline" className="border-white/20 text-white">
-                                {searchResults.songs.data[0].language}
-                              </Badge>
+                            <div className="flex-1">
+                              <h4 className="text-3xl font-bold text-white mb-2">
+                                {searchResults.songs.data[0].title || "Unknown Song"}
+                              </h4>
+                              <p className="text-gray-400 text-lg mb-2">
+                                {searchResults.songs.data[0].artist || "Unknown Artist"}
+                              </p>
+                              <div className="flex items-center space-x-2">
+                                <Badge variant="secondary" className="bg-white/10 text-white">
+                                  Song
+                                </Badge>
+                                <Badge variant="outline" className="border-white/20 text-white">
+                                  Music
+                                </Badge>
+                              </div>
                             </div>
                           </div>
                         </div>
                       </div>
-                    </div>
-                  )}
+                    )}
 
                   {/* Songs */}
-                  {searchResults.songs?.data && (
-                    <div>
-                      <h3 className="text-xl font-semibold text-white mb-4">Songs</h3>
-                      <div className="space-y-2">
-                        {searchResults.songs.data.slice(0, 10).map((song, index) => {
-                          const convertedSong = {
-                            id: song.id,
-                            title: song.name,
-                            artist: song.primaryArtists,
-                            album: song.album.name,
-                            image: song.image[song.image.length - 1]?.link || "/placeholder.svg",
-                            audio: song.downloadUrl[song.downloadUrl.length - 1]?.link || "",
-                            duration: Number.parseInt(song.duration),
-                          }
+                  {searchResults?.songs?.data &&
+                    Array.isArray(searchResults.songs.data) &&
+                    searchResults.songs.data.length > 0 && (
+                      <div>
+                        <h3 className="text-xl font-semibold text-white mb-4">Songs</h3>
+                        <div className="space-y-2">
+                          {searchResults.songs.data.slice(0, 10).map((song, index) => {
+                            const convertedSong = {
+                              id: song.id || `song-${index}`,
+                              title: song.title || "Unknown Song",
+                              artist: song.artist || "Unknown Artist",
+                              album: song.album || "Unknown Album",
+                              image: song.image || "/placeholder.svg?height=300&width=300",
+                              audio: song.audio || "",
+                              duration: song.duration || 0,
+                            }
 
-                          const isFavorite = userData.favorites.some((fav) => fav.id === song.id)
+                            const isFavorite =
+                              userData?.favorites && Array.isArray(userData.favorites)
+                                ? userData.favorites.some((fav) => fav?.id === song.id)
+                                : false
 
-                          return (
-                            <motion.div
-                              key={song.id}
-                              initial={{ opacity: 0, x: -20 }}
-                              animate={{ opacity: 1, x: 0 }}
-                              transition={{ delay: index * 0.05 }}
-                              className="flex items-center space-x-4 p-3 rounded-lg hover:bg-white/5 cursor-pointer group transition-colors"
-                            >
-                              <div className="relative">
-                                <Image
-                                  src={convertedSong.image || "/placeholder.svg"}
-                                  alt={song.name}
-                                  width={48}
-                                  height={48}
-                                  className="rounded-lg"
-                                />
-                                <div
-                                  onClick={() => playSong(convertedSong)}
-                                  className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center"
-                                >
-                                  <Play className="w-4 h-4 text-white" />
+                            return (
+                              <motion.div
+                                key={convertedSong.id}
+                                initial={{ opacity: 0, x: -20 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                transition={{ delay: index * 0.05 }}
+                                className="flex items-center space-x-4 p-3 rounded-lg hover:bg-white/5 cursor-pointer group transition-colors"
+                              >
+                                <div className="relative">
+                                  <SafeImage
+                                    src={song.image}
+                                    alt={convertedSong.title}
+                                    width={48}
+                                    height={48}
+                                    className="rounded-lg"
+                                  />
+                                  <div
+                                    onClick={() => playSong(convertedSong)}
+                                    className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center"
+                                  >
+                                    <Play className="w-4 h-4 text-white" />
+                                  </div>
                                 </div>
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <h4 className="text-white font-medium truncate">{song.name}</h4>
-                                <p className="text-gray-400 text-sm truncate">{song.primaryArtists}</p>
-                              </div>
-                              <div className="flex items-center space-x-2">
-                                <Button
-                                  size="icon"
-                                  variant="ghost"
-                                  onClick={() => toggleFavorite(convertedSong)}
-                                  className="opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-white"
-                                >
-                                  <Heart className={cn("w-4 h-4", isFavorite && "fill-red-500 text-red-500")} />
-                                </Button>
-                                <Button
-                                  size="icon"
-                                  variant="ghost"
-                                  className="opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-white"
-                                >
-                                  <MoreHorizontal className="w-4 h-4" />
-                                </Button>
-                              </div>
-                            </motion.div>
-                          )
-                        })}
+                                <div className="flex-1 min-w-0">
+                                  <h4 className="text-white font-medium truncate">{convertedSong.title}</h4>
+                                  <p className="text-gray-400 text-sm truncate">{convertedSong.artist}</p>
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                  <Button
+                                    size="icon"
+                                    variant="ghost"
+                                    onClick={() => toggleFavorite(convertedSong)}
+                                    className="opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-white"
+                                  >
+                                    <Heart className={cn("w-4 h-4", isFavorite && "fill-red-500 text-red-500")} />
+                                  </Button>
+                                  <Button
+                                    size="icon"
+                                    variant="ghost"
+                                    className="opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-white"
+                                  >
+                                    <MoreHorizontal className="w-4 h-4" />
+                                  </Button>
+                                </div>
+                              </motion.div>
+                            )
+                          })}
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    )}
+
+                  {/* No Results Message */}
+                  {searchResults &&
+                    (!searchResults.songs?.data ||
+                      !Array.isArray(searchResults.songs.data) ||
+                      searchResults.songs.data.length === 0) && (
+                      <div className="text-center py-12">
+                        <p className="text-gray-400 text-lg mb-4">No songs found for "{query}"</p>
+                        <p className="text-gray-500">Try searching for different keywords or check your spelling.</p>
+                      </div>
+                    )}
                 </div>
               )}
             </motion.div>

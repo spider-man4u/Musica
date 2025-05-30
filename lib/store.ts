@@ -1,13 +1,14 @@
 import { create } from "zustand"
 import { persist } from "zustand/middleware"
 import {
-  searchAll,
-  getTrendingSongs,
+  searchMusic,
+  getTrendingMusic,
+  checkApiHealth,
   getHighQualityImage,
   getHighQualityAudio,
-  type SaavnSong,
-  type SearchResults,
-} from "./saavnApi"
+  sanitizeString,
+  type ModernSong,
+} from "./modernMusicApi"
 
 export interface Song {
   id: string
@@ -22,6 +23,15 @@ export interface Song {
   playCount?: string
   explicit?: boolean
   url?: string
+  hasLyrics?: boolean
+  label?: string
+}
+
+export interface SearchResults {
+  songs?: {
+    data: Song[]
+    total: number
+  }
 }
 
 export interface UserData {
@@ -67,8 +77,11 @@ interface AppState {
   // UI state
   isLoading: boolean
   error: string | null
+  apiStatus: "unknown" | "healthy" | "unhealthy"
+  workingApis: string[]
+  lastApiCheck: number
 
-  // Player actions
+  // Actions
   setCurrentSong: (song: Song | null) => void
   setIsPlaying: (playing: boolean) => void
   setCurrentTime: (time: number) => void
@@ -79,48 +92,54 @@ interface AppState {
   setRepeatMode: (mode: "off" | "one" | "all") => void
   playNext: () => void
   playPrevious: () => void
-
-  // Data actions
   searchContent: (query: string) => Promise<void>
   fetchTrendingSongs: () => Promise<void>
-
-  // User actions
   addToFavorites: (song: Song) => void
   removeFromFavorites: (songId: string) => void
   addToRecentlyPlayed: (song: Song) => void
   updateUserProfile: (data: Partial<UserData>) => void
   updateUserSettings: (settings: Partial<UserData["settings"]>) => void
-
-  // UI actions
   setError: (error: string | null) => void
   setLoading: (loading: boolean) => void
   addToSearchHistory: (query: string) => void
   clearSearchHistory: () => void
+  checkApiStatus: () => Promise<void>
+  retryConnection: () => Promise<void>
 }
 
-const convertSaavnSongToSong = (saavnSong: SaavnSong): Song | null => {
-  try {
-    if (!saavnSong || !saavnSong.id || !saavnSong.name) {
-      return null
-    }
+// Helper function to get a valid image URL
+const getValidImageUrl = (imageUrl: string | undefined | null): string => {
+  if (!imageUrl || typeof imageUrl !== "string" || imageUrl.trim() === "") {
+    return "/placeholder.svg?height=300&width=300"
+  }
+  return imageUrl.trim()
+}
 
-    return {
-      id: saavnSong.id,
-      title: saavnSong.name,
-      artist: saavnSong.primaryArtists || "Unknown Artist",
-      album: saavnSong.album?.name || "Unknown Album",
-      image: getHighQualityImage(saavnSong.image || []),
-      audio: getHighQualityAudio(saavnSong.downloadUrl || []),
-      duration: Number.parseInt(saavnSong.duration || "0"),
-      language: saavnSong.language,
-      year: saavnSong.year,
-      playCount: saavnSong.playCount,
-      explicit: saavnSong.explicitContent === 1,
-      url: saavnSong.url,
-    }
-  } catch (error) {
-    console.error("Error converting song:", error)
-    return null
+// Helper function to get a valid audio URL
+const getValidAudioUrl = (audioUrl: string | undefined | null): string => {
+  if (!audioUrl || typeof audioUrl !== "string" || audioUrl.trim() === "") {
+    return ""
+  }
+  return audioUrl.trim()
+}
+
+// Convert ModernSong to internal Song format
+const convertModernSongToSong = (modernSong: ModernSong): Song => {
+  return {
+    id: modernSong.id || `song-${Date.now()}-${Math.random()}`,
+    title: sanitizeString(modernSong.title) || "Unknown Song",
+    artist: sanitizeString(modernSong.artist) || "Unknown Artist",
+    album: sanitizeString(modernSong.album) || "Unknown Album",
+    image: getValidImageUrl(getHighQualityImage(modernSong.image)),
+    audio: getValidAudioUrl(getHighQualityAudio(modernSong.preview_url)),
+    duration: modernSong.duration || 0,
+    language: "unknown",
+    year: modernSong.release_date?.split("-")[0] || "",
+    playCount: "0",
+    explicit: modernSong.explicit || false,
+    url: modernSong.external_urls?.spotify || "",
+    hasLyrics: false,
+    label: "",
   }
 }
 
@@ -165,6 +184,9 @@ export const useStore = create<AppState>()(
       searchQuery: "",
       isLoading: false,
       error: null,
+      apiStatus: "unknown",
+      workingApis: [],
+      lastApiCheck: 0,
 
       // Player actions
       setCurrentSong: (song) => {
@@ -221,31 +243,62 @@ export const useStore = create<AppState>()(
         }
       },
 
-      // Data actions with sample data priority
+      // Modern API integration
       searchContent: async (query) => {
-        if (!query?.trim()) return
+        if (!query?.trim()) {
+          set({ searchResults: null, error: null })
+          return
+        }
 
         set({ isLoading: true, error: null, searchQuery: query })
 
         try {
-          console.log(`Searching for: ${query}`)
-          const results = await searchAll(query)
+          console.log(`🔍 Modern search for: ${query}`)
+          const response = await searchMusic(query)
 
-          if (results && results.songs && results.songs.data.length > 0) {
-            set({ searchResults: results, error: null })
+          if (
+            response.success &&
+            response.data.results &&
+            Array.isArray(response.data.results) &&
+            response.data.results.length > 0
+          ) {
+            const songs = response.data.results.map(convertModernSongToSong)
+
+            set({
+              searchResults: {
+                songs: {
+                  data: songs,
+                  total: songs.length,
+                },
+              },
+              error: null,
+              apiStatus: "healthy",
+            })
+
             get().addToSearchHistory(query)
-            console.log(`Search successful: ${results.songs.data.length} songs found`)
+            console.log(`✅ Search successful: ${songs.length} songs found`)
           } else {
             set({
-              searchResults: { songs: { data: [], total: 0 } },
-              error: "No songs found for your search.",
+              searchResults: {
+                songs: {
+                  data: [],
+                  total: 0,
+                },
+              },
+              error: "No songs found. Try different keywords or check your connection.",
             })
           }
         } catch (error) {
-          console.error("Search error:", error)
+          console.error("❌ Modern search error:", error)
           set({
-            searchResults: null,
-            error: "Search failed. Please try again.",
+            searchResults: {
+              songs: {
+                data: [],
+                total: 0,
+              },
+            },
+            error: "Search failed. Please check your internet connection and try again.",
+            apiStatus: "unhealthy",
           })
         } finally {
           set({ isLoading: false })
@@ -256,32 +309,32 @@ export const useStore = create<AppState>()(
         set({ isLoading: true, error: null })
 
         try {
-          console.log("Fetching trending songs...")
-          const songs = await getTrendingSongs()
+          console.log("📈 Fetching modern trending songs...")
+          const response = await getTrendingMusic()
 
-          if (Array.isArray(songs) && songs.length > 0) {
-            const convertedSongs = songs.map(convertSaavnSongToSong).filter((song): song is Song => song !== null)
+          if (response.success && response.data.trending.length > 0) {
+            const songs = response.data.trending.map(convertModernSongToSong)
 
-            if (convertedSongs.length > 0) {
-              set({ trendingSongs: convertedSongs, error: null })
-              console.log(`Successfully loaded ${convertedSongs.length} trending songs`)
-            } else {
-              set({
-                trendingSongs: [],
-                error: "No trending songs available at the moment.",
-              })
-            }
+            set({
+              trendingSongs: songs,
+              error: null,
+              apiStatus: "healthy",
+            })
+
+            console.log(`✅ Successfully loaded ${songs.length} trending songs`)
           } else {
             set({
               trendingSongs: [],
-              error: "Unable to load trending songs. Please try again later.",
+              error: "No trending songs available. Please try again later.",
+              apiStatus: "unhealthy",
             })
           }
         } catch (error) {
-          console.error("Trending songs error:", error)
+          console.error("❌ Modern trending error:", error)
           set({
             trendingSongs: [],
             error: "Failed to load trending songs. Please check your connection.",
+            apiStatus: "unhealthy",
           })
         } finally {
           set({ isLoading: false })
@@ -309,7 +362,9 @@ export const useStore = create<AppState>()(
         set((state) => ({
           userData: {
             ...state.userData,
-            favorites: (state.userData?.favorites || []).filter((song) => song?.id !== songId),
+            favorites: Array.isArray(state.userData?.favorites)
+              ? state.userData.favorites.filter((song) => song?.id !== songId)
+              : [],
           },
         }))
       },
@@ -361,9 +416,48 @@ export const useStore = create<AppState>()(
       },
 
       clearSearchHistory: () => set({ searchHistory: [] }),
+
+      checkApiStatus: async () => {
+        const now = Date.now()
+        const { lastApiCheck } = get()
+
+        // Don't check too frequently
+        if (now - lastApiCheck < 10000) return
+
+        set({ lastApiCheck: now })
+
+        try {
+          const health = await checkApiHealth()
+          set({
+            apiStatus: health.status === "healthy" ? "healthy" : "unhealthy",
+            workingApis: health.workingEndpoint ? [health.workingEndpoint] : [],
+          })
+          console.log(`🏥 Modern API Health: ${health.status} - ${health.message}`)
+        } catch (error) {
+          set({ apiStatus: "unhealthy", workingApis: [] })
+          console.error("🏥 Modern API Health Check failed:", error)
+        }
+      },
+
+      retryConnection: async () => {
+        console.log("🔄 Retrying connection...")
+        await get().checkApiStatus()
+
+        const { searchQuery, trendingSongs } = get()
+
+        // Retry last search
+        if (searchQuery) {
+          await get().searchContent(searchQuery)
+        }
+
+        // Retry trending if empty
+        if (trendingSongs.length === 0) {
+          await get().fetchTrendingSongs()
+        }
+      },
     }),
     {
-      name: "music-store",
+      name: "modern-music-store",
       partialize: (state) => ({
         userData: state.userData || defaultUserData,
         searchHistory: Array.isArray(state.searchHistory) ? state.searchHistory : [],
