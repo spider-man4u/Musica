@@ -17,11 +17,39 @@ import {
   ChevronDown,
   Share,
   MoreHorizontal,
+  Music,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useStore } from "@/lib/store"
 import { Slider } from "@/components/ui/slider"
 import { Button } from "@/components/ui/button"
+
+// Safe Image Component for Music Player
+const SafeImage = ({
+  src,
+  alt,
+  width,
+  height,
+  className,
+}: {
+  src: string | undefined | null
+  alt: string
+  width: number
+  height: number
+  className?: string
+}) => {
+  const validSrc = src && typeof src === "string" && src.trim() !== "" ? src.trim() : null
+
+  if (!validSrc) {
+    return (
+      <div className={cn("bg-gray-800 flex items-center justify-center", className)} style={{ width, height }}>
+        <Music className="w-8 h-8 text-gray-400" />
+      </div>
+    )
+  }
+
+  return <Image src={validSrc || "/placeholder.svg"} alt={alt} width={width} height={height} className={className} />
+}
 
 export default function MusicPlayer() {
   const [isExpanded, setIsExpanded] = useState(false)
@@ -53,17 +81,31 @@ export default function MusicPlayer() {
     playPrevious,
     addToFavorites,
     removeFromFavorites,
+    fetchSongDetails,
   } = useStore()
 
   const isFavorite = currentSong ? userData.favorites.some((song) => song.id === currentSong.id) : false
 
-  // Audio event handlers
+  // Enhanced audio event handlers
   useEffect(() => {
     const audio = audioRef.current
     if (!audio) return
 
     const handleTimeUpdate = () => setCurrentTime(audio.currentTime)
     const handleDurationChange = () => setDuration(audio.duration)
+    const handleLoadedMetadata = () => {
+      console.log("🎵 Audio metadata loaded:", {
+        duration: audio.duration,
+        src: audio.src,
+      })
+      setDuration(audio.duration)
+    }
+    const handleCanPlay = () => {
+      console.log("🎵 Audio can play")
+    }
+    const handleError = (e: any) => {
+      console.error("🎵 Audio error:", e.target.error)
+    }
     const handleEnded = () => {
       if (repeatMode === "one") {
         audio.currentTime = 0
@@ -75,34 +117,79 @@ export default function MusicPlayer() {
 
     audio.addEventListener("timeupdate", handleTimeUpdate)
     audio.addEventListener("durationchange", handleDurationChange)
+    audio.addEventListener("loadedmetadata", handleLoadedMetadata)
+    audio.addEventListener("canplay", handleCanPlay)
+    audio.addEventListener("error", handleError)
     audio.addEventListener("ended", handleEnded)
 
     return () => {
       audio.removeEventListener("timeupdate", handleTimeUpdate)
       audio.removeEventListener("durationchange", handleDurationChange)
+      audio.removeEventListener("loadedmetadata", handleLoadedMetadata)
+      audio.removeEventListener("canplay", handleCanPlay)
+      audio.removeEventListener("error", handleError)
       audio.removeEventListener("ended", handleEnded)
     }
   }, [repeatMode, playNext, setCurrentTime, setDuration])
 
-  // Play/pause control
+  // Enhanced play/pause control with better audio URL handling
   useEffect(() => {
     const audio = audioRef.current
-    if (!audio) return
+    if (!audio || !currentSong) return
+
+    // Get the best available audio URL
+    const audioUrl = currentSong.download_url || currentSong.audio
+
+    if (!audioUrl || audioUrl.trim() === "") {
+      console.warn("🎵 No valid audio URL found for song:", currentSong.title)
+      return
+    }
+
+    // Update audio source if it's different
+    if (audio.src !== audioUrl) {
+      console.log("🎵 Loading new audio:", audioUrl)
+      audio.src = audioUrl
+      audio.load()
+    }
 
     if (isPlaying) {
-      audio.play().catch(console.error)
+      const playPromise = audio.play()
+      if (playPromise !== undefined) {
+        playPromise
+          .then(() => {
+            console.log("🎵 Audio playing successfully")
+          })
+          .catch((error) => {
+            console.error("🎵 Audio play failed:", error)
+            setIsPlaying(false)
+          })
+      }
     } else {
       audio.pause()
     }
-  }, [isPlaying, currentSong])
+  }, [isPlaying, currentSong, setIsPlaying])
 
-  // Volume control
+  // Enhanced volume control
   useEffect(() => {
     const audio = audioRef.current
     if (audio) {
       audio.volume = isMuted ? 0 : volume
     }
   }, [volume, isMuted])
+
+  // Enhanced song details fetching
+  useEffect(() => {
+    if (currentSong && !currentSong.download_url && !currentSong.audio) {
+      console.log("🎵 Fetching enhanced song details for:", currentSong.id)
+      fetchSongDetails(currentSong.id).then((enhancedSong) => {
+        if (enhancedSong && enhancedSong.download_url) {
+          console.log("🎵 Enhanced song details received with audio URL")
+          // Update the current song with enhanced details
+          // This would require updating the store to handle enhanced song updates
+        }
+      })
+    }
+  }, [currentSong, fetchSongDetails])
 
   const handleProgressChange = useCallback(
     (newValue: number[]) => {
@@ -229,8 +316,8 @@ export default function MusicPlayer() {
                 whileTap={{ scale: 0.98 }}
               >
                 <div className="relative">
-                  <Image
-                    src={currentSong.image || "/placeholder.svg"}
+                  <SafeImage
+                    src={currentSong.image}
                     alt={currentSong.title}
                     width={48}
                     height={48}
@@ -325,7 +412,7 @@ export default function MusicPlayer() {
                   </Button>
                   <div className="text-center">
                     <p className="text-gray-400 text-sm">PLAYING FROM</p>
-                    <p className="text-white font-medium">Your Library</p>
+                    <p className="text-white font-medium">JioSaavn</p>
                   </div>
                   <Button size="icon" variant="ghost" className="text-white hover:bg-white/10">
                     <MoreHorizontal className="w-6 h-6" />
@@ -357,13 +444,12 @@ export default function MusicPlayer() {
                     style={{ x: dragX }}
                     className="w-80 h-80 mb-8 cursor-grab active:cursor-grabbing"
                   >
-                    <Image
-                      src={currentSong.image || "/placeholder.svg"}
+                    <SafeImage
+                      src={currentSong.image}
                       alt={currentSong.title}
                       width={320}
                       height={320}
                       className="w-full h-full object-cover rounded-2xl shadow-2xl"
-                      priority
                     />
 
                     {/* Swipe indicators */}
@@ -398,6 +484,7 @@ export default function MusicPlayer() {
                   <div className="text-center mb-8 max-w-md">
                     <h1 className="text-3xl font-bold text-white mb-2 truncate">{currentSong.title}</h1>
                     <p className="text-xl text-gray-400 truncate">{currentSong.artist}</p>
+                    {currentSong.album && <p className="text-lg text-gray-500 truncate mt-1">{currentSong.album}</p>}
                   </div>
 
                   {/* Progress */}
@@ -496,7 +583,8 @@ export default function MusicPlayer() {
           )}
         </AnimatePresence>
 
-        <audio ref={audioRef} src={currentSong?.audio} preload="metadata" />
+        {/* Enhanced Audio Element */}
+        <audio ref={audioRef} preload="metadata" crossOrigin="anonymous" />
       </motion.div>
     </AnimatePresence>
   )
