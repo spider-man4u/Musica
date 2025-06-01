@@ -2,26 +2,80 @@
 
 import { useState, useEffect, useRef } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { Search, Clock, X, Play, Heart, MoreHorizontal, TrendingUp } from "lucide-react"
+import { Search, Clock, X, Play, Heart, MoreHorizontal, TrendingUp, Music } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import Image from "next/image"
 import { useStore } from "@/lib/store"
 import { cn } from "@/lib/utils"
+import { useSearchParams } from "next/navigation"
 
 const browseCategories = [
-  { name: "Bollywood", color: "from-red-500 to-pink-500", image: "🎬" },
-  { name: "Punjabi", color: "from-orange-500 to-yellow-500", image: "🎵" },
-  { name: "Tamil", color: "from-green-500 to-emerald-500", image: "🎶" },
-  { name: "Telugu", color: "from-blue-500 to-cyan-500", image: "🎼" },
-  { name: "Pop", color: "from-purple-500 to-pink-500", image: "🎤" },
-  { name: "Rock", color: "from-gray-600 to-gray-800", image: "🎸" },
-  { name: "Classical", color: "from-amber-500 to-orange-500", image: "🎻" },
-  { name: "Devotional", color: "from-indigo-500 to-purple-500", image: "🙏" },
+  {
+    name: "Bollywood",
+    color: "from-red-500 to-pink-500",
+    image: "🎬",
+    thumbnail: "/placeholder.svg?height=150&width=150",
+  },
+  {
+    name: "Punjabi",
+    color: "from-orange-500 to-yellow-500",
+    image: "🎵",
+    thumbnail: "/placeholder.svg?height=150&width=150",
+  },
+  {
+    name: "Tamil",
+    color: "from-green-500 to-emerald-500",
+    image: "🎶",
+    thumbnail: "/placeholder.svg?height=150&width=150",
+  },
+  {
+    name: "Telugu",
+    color: "from-blue-500 to-cyan-500",
+    image: "🎼",
+    thumbnail: "/placeholder.svg?height=150&width=150",
+  },
+  {
+    name: "Pop",
+    color: "from-purple-500 to-pink-500",
+    image: "🎤",
+    thumbnail: "/placeholder.svg?height=150&width=150",
+  },
+  {
+    name: "Rock",
+    color: "from-gray-600 to-gray-800",
+    image: "🎸",
+    thumbnail: "/placeholder.svg?height=150&width=150",
+  },
+  {
+    name: "Classical",
+    color: "from-amber-500 to-orange-500",
+    image: "🎻",
+    thumbnail: "/placeholder.svg?height=150&width=150",
+  },
+  {
+    name: "Devotional",
+    color: "from-indigo-500 to-purple-500",
+    image: "🙏",
+    thumbnail: "/placeholder.svg?height=150&width=150",
+  },
 ]
 
-const recentSearches = ["Arijit Singh", "Kesariya", "Bollywood hits", "AR Rahman", "Shreya Ghoshal"]
+const popularSearches = ["Arijit Singh", "Kesariya", "Bollywood hits", "AR Rahman", "Shreya Ghoshal"]
+
+const searchSuggestions = [
+  "Arijit Singh songs",
+  "Bollywood romantic songs",
+  "Latest Hindi songs 2024",
+  "Punjabi hits",
+  "Tamil melody songs",
+  "AR Rahman classics",
+  "Shreya Ghoshal best",
+  "Party songs Hindi",
+  "Sad songs collection",
+  "Workout music",
+]
 
 // Helper function to get a valid image URL or null
 const getValidImageSrc = (imageUrl: string | undefined | null): string | null => {
@@ -48,10 +102,9 @@ const SafeImage = ({
   const validSrc = getValidImageSrc(src)
 
   if (!validSrc) {
-    // Render a placeholder div instead of an Image with empty src
     return (
       <div className={cn("bg-gray-800 flex items-center justify-center", className)} style={{ width, height }}>
-        <span className="text-gray-400 text-xs">No Image</span>
+        <Music className="w-6 h-6 text-gray-400" />
       </div>
     )
   }
@@ -63,7 +116,10 @@ export default function SearchPage() {
   const [query, setQuery] = useState("")
   const [isSearching, setIsSearching] = useState(false)
   const [activeTab, setActiveTab] = useState("all")
+  const [showSuggestions, setShowSuggestions] = useState(false)
+  const [filteredSuggestions, setFilteredSuggestions] = useState<string[]>([])
   const inputRef = useRef<HTMLInputElement>(null)
+  const searchParams = useSearchParams()
 
   const {
     searchResults,
@@ -83,11 +139,31 @@ export default function SearchPage() {
     if (inputRef.current) {
       inputRef.current.focus()
     }
-  }, [])
+
+    // Check if there's a query parameter
+    const q = searchParams.get("q")
+    if (q) {
+      setQuery(q)
+      handleSearch(q)
+    }
+  }, [searchParams])
+
+  useEffect(() => {
+    // Filter suggestions based on query
+    if (query.trim()) {
+      const filtered = searchSuggestions.filter((suggestion) => suggestion.toLowerCase().includes(query.toLowerCase()))
+      setFilteredSuggestions(filtered)
+      setShowSuggestions(filtered.length > 0)
+    } else {
+      setFilteredSuggestions([])
+      setShowSuggestions(false)
+    }
+  }, [query])
 
   const handleSearch = async (searchQuery: string) => {
     if (searchQuery.trim()) {
       setQuery(searchQuery)
+      setShowSuggestions(false)
       await searchContent(searchQuery)
     }
   }
@@ -95,6 +171,7 @@ export default function SearchPage() {
   const clearSearch = () => {
     setQuery("")
     setIsSearching(false)
+    setShowSuggestions(false)
   }
 
   const playSong = (song: any) => {
@@ -117,7 +194,7 @@ export default function SearchPage() {
       <div className="sticky top-0 z-40 bg-black/20 backdrop-blur-xl border-b border-white/10">
         <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="flex items-center space-x-4">
-            <div className="flex-1 max-w-2xl">
+            <div className="flex-1 max-w-2xl relative">
               <div className="relative">
                 <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
                 <Input
@@ -125,7 +202,14 @@ export default function SearchPage() {
                   placeholder="What do you want to listen to?"
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
-                  onFocus={() => setIsSearching(true)}
+                  onFocus={() => {
+                    setIsSearching(true)
+                    if (query.trim()) setShowSuggestions(true)
+                  }}
+                  onBlur={() => {
+                    // Delay hiding suggestions to allow clicking
+                    setTimeout(() => setShowSuggestions(false), 200)
+                  }}
                   onKeyDown={(e) => {
                     if (e.key === "Enter") {
                       handleSearch(query)
@@ -144,6 +228,22 @@ export default function SearchPage() {
                   </Button>
                 )}
               </div>
+
+              {/* Search Suggestions */}
+              {showSuggestions && filteredSuggestions.length > 0 && (
+                <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-lg shadow-lg border max-h-60 overflow-y-auto z-50">
+                  {filteredSuggestions.map((suggestion, index) => (
+                    <div
+                      key={index}
+                      onClick={() => handleSearch(suggestion)}
+                      className="px-4 py-3 hover:bg-gray-100 cursor-pointer flex items-center space-x-3"
+                    >
+                      <Search className="w-4 h-4 text-gray-400" />
+                      <span className="text-gray-800">{suggestion}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -384,10 +484,10 @@ export default function SearchPage() {
               <div>
                 <h3 className="text-xl font-semibold text-white mb-4 flex items-center">
                   <TrendingUp className="w-5 h-5 mr-2" />
-                  Trending Searches
+                  Popular Searches
                 </h3>
                 <div className="space-y-2">
-                  {recentSearches.map((search, index) => (
+                  {popularSearches.map((search, index) => (
                     <motion.div
                       key={search}
                       initial={{ opacity: 0, x: -20 }}
@@ -403,7 +503,7 @@ export default function SearchPage() {
                 </div>
               </div>
 
-              {/* Browse All */}
+              {/* Browse All - Enhanced with Thumbnails */}
               <div>
                 <h3 className="text-xl font-semibold text-white mb-4">Browse All</h3>
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
@@ -417,6 +517,13 @@ export default function SearchPage() {
                       className={`aspect-square bg-gradient-to-br ${category.color} rounded-lg p-6 cursor-pointer hover:scale-105 transition-transform duration-300 relative overflow-hidden`}
                     >
                       <div className="absolute inset-0 bg-black/20" />
+                      <Image
+                        src={category.thumbnail || "/placeholder.svg"}
+                        alt={category.name}
+                        width={150}
+                        height={150}
+                        className="absolute inset-0 w-full h-full object-cover opacity-30"
+                      />
                       <div className="relative z-10 h-full flex flex-col justify-between">
                         <h4 className="text-white font-bold text-lg">{category.name}</h4>
                         <div className="text-right">

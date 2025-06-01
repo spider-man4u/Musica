@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Image from "next/image"
 import { motion, AnimatePresence } from "framer-motion"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
@@ -18,7 +18,6 @@ import {
   List,
   Clock,
   Music,
-  Headphones,
   Star,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -27,6 +26,7 @@ import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useStore } from "@/lib/store"
 import { cn } from "@/lib/utils"
+import { useSearchParams } from "next/navigation"
 
 interface Song {
   id: string
@@ -47,165 +47,6 @@ interface Playlist {
   description?: string
   dateCreated?: string
   totalDuration?: string
-}
-
-// Enhanced library content with better organization
-const enhancedLibraryContent = {
-  playlists: [
-    {
-      id: "1",
-      title: "Liked Songs",
-      songs: 47,
-      image: "/placeholder.svg?height=150&width=150",
-      description: "Your favorite tracks",
-      dateCreated: "Always updating",
-      totalDuration: "3h 12m",
-      songList: Array.from({ length: 47 }, (_, i) => ({
-        id: `liked-${i}`,
-        title: `Liked Song ${i + 1}`,
-        artist: `Artist ${i + 1}`,
-        album: `Album ${i + 1}`,
-        duration: `${Math.floor(Math.random() * 2) + 2}:${Math.floor(Math.random() * 60)
-          .toString()
-          .padStart(2, "0")}`,
-        dateAdded: `${Math.floor(Math.random() * 30) + 1} days ago`,
-        image: "/placeholder.svg?height=60&width=60",
-      })),
-    },
-    {
-      id: "2",
-      title: "Chill Vibes",
-      songs: 23,
-      image: "/placeholder.svg?height=150&width=150",
-      description: "Relaxing music for peaceful moments",
-      dateCreated: "2 weeks ago",
-      totalDuration: "1h 45m",
-      songList: Array.from({ length: 23 }, (_, i) => ({
-        id: `chill-${i}`,
-        title: `Chill Song ${i + 1}`,
-        artist: `Artist ${i + 1}`,
-        album: `Album ${i + 1}`,
-        duration: `${Math.floor(Math.random() * 2) + 2}:${Math.floor(Math.random() * 60)
-          .toString()
-          .padStart(2, "0")}`,
-        dateAdded: `${Math.floor(Math.random() * 14) + 1} days ago`,
-        image: "/placeholder.svg?height=60&width=60",
-      })),
-    },
-    {
-      id: "3",
-      title: "Workout Mix",
-      songs: 31,
-      image: "/placeholder.svg?height=150&width=150",
-      description: "High-energy tracks for your workout",
-      dateCreated: "1 month ago",
-      totalDuration: "2h 8m",
-      songList: Array.from({ length: 31 }, (_, i) => ({
-        id: `workout-${i}`,
-        title: `Workout Song ${i + 1}`,
-        artist: `Artist ${i + 1}`,
-        album: `Album ${i + 1}`,
-        duration: `${Math.floor(Math.random() * 2) + 2}:${Math.floor(Math.random() * 60)
-          .toString()
-          .padStart(2, "0")}`,
-        dateAdded: `${Math.floor(Math.random() * 30) + 1} days ago`,
-        image: "/placeholder.svg?height=60&width=60",
-      })),
-    },
-    {
-      id: "4",
-      title: "Bollywood Hits",
-      songs: 56,
-      image: "/placeholder.svg?height=150&width=150",
-      description: "Best of Bollywood music",
-      dateCreated: "3 months ago",
-      totalDuration: "4h 22m",
-      songList: Array.from({ length: 56 }, (_, i) => ({
-        id: `bollywood-${i}`,
-        title: `Bollywood Song ${i + 1}`,
-        artist: `Artist ${i + 1}`,
-        album: `Album ${i + 1}`,
-        duration: `${Math.floor(Math.random() * 2) + 2}:${Math.floor(Math.random() * 60)
-          .toString()
-          .padStart(2, "0")}`,
-        dateAdded: `${Math.floor(Math.random() * 90) + 1} days ago`,
-        image: "/placeholder.svg?height=60&width=60",
-      })),
-    },
-  ],
-  recentlyPlayed: [
-    {
-      id: "4",
-      title: "Midnight City",
-      artist: "M83",
-      image: "/placeholder.svg?height=60&width=60",
-      album: "Hurry Up, We're Dreaming",
-      duration: "4:04",
-    },
-    {
-      id: "5",
-      title: "Blinding Lights",
-      artist: "The Weeknd",
-      image: "/placeholder.svg?height=60&width=60",
-      album: "After Hours",
-      duration: "3:20",
-    },
-    {
-      id: "6",
-      title: "Levitating",
-      artist: "Dua Lipa",
-      image: "/placeholder.svg?height=60&width=60",
-      album: "Future Nostalgia",
-      duration: "3:23",
-    },
-    {
-      id: "7",
-      title: "Good 4 U",
-      artist: "Olivia Rodrigo",
-      image: "/placeholder.svg?height=60&width=60",
-      album: "SOUR",
-      duration: "2:58",
-    },
-    {
-      id: "8",
-      title: "Stay",
-      artist: "The Kid LAROI, Justin Bieber",
-      image: "/placeholder.svg?height=60&width=60",
-      album: "Stay",
-      duration: "2:21",
-    },
-  ],
-  albums: [
-    {
-      id: "album-1",
-      title: "After Hours",
-      artist: "The Weeknd",
-      image: "/placeholder.svg?height=150&width=150",
-      year: "2020",
-      songs: 14,
-    },
-    {
-      id: "album-2",
-      title: "Future Nostalgia",
-      artist: "Dua Lipa",
-      image: "/placeholder.svg?height=150&width=150",
-      year: "2020",
-      songs: 11,
-    },
-    {
-      id: "album-3",
-      title: "SOUR",
-      artist: "Olivia Rodrigo",
-      image: "/placeholder.svg?height=150&width=150",
-      year: "2021",
-      songs: 11,
-    },
-  ],
-  artists: [
-    { id: "artist-1", name: "The Weeknd", image: "/placeholder.svg?height=150&width=150", followers: "88.2M" },
-    { id: "artist-2", name: "Dua Lipa", image: "/placeholder.svg?height=150&width=150", followers: "87.6M" },
-    { id: "artist-3", name: "Olivia Rodrigo", image: "/placeholder.svg?height=150&width=150", followers: "45.3M" },
-  ],
 }
 
 // Safe Image Component
@@ -244,6 +85,40 @@ export default function Library() {
   const [activeTab, setActiveTab] = useState("playlists")
 
   const { setCurrentSong, setIsPlaying: setGlobalPlaying, userData } = useStore()
+  const searchParams = useSearchParams()
+
+  useEffect(() => {
+    // Check for tab parameter
+    const tab = searchParams.get("tab")
+    if (tab) {
+      setActiveTab(tab)
+    }
+  }, [searchParams])
+
+  // Create real playlists based on user data
+  const realPlaylists = [
+    {
+      id: "favorites",
+      title: "Liked Songs",
+      songs: userData.favorites.length,
+      image: "/placeholder.svg?height=150&width=150",
+      description: "Your favorite tracks",
+      dateCreated: "Always updating",
+      totalDuration: `${Math.floor((userData.favorites.length * 3.5) / 60)}h ${Math.floor((userData.favorites.length * 3.5) % 60)}m`,
+      songList: userData.favorites.map((song, index) => ({
+        id: song.id,
+        title: song.title,
+        artist: song.artist,
+        album: song.album || "Unknown Album",
+        duration:
+          typeof song.duration === "number"
+            ? `${Math.floor(song.duration / 60)}:${(song.duration % 60).toString().padStart(2, "0")}`
+            : "3:45",
+        dateAdded: `${Math.floor(Math.random() * 30) + 1} days ago`,
+        image: song.image,
+      })),
+    },
+  ]
 
   const handlePlaylistClick = (playlist: Playlist) => {
     setExpandedPlaylist(playlist)
@@ -279,7 +154,7 @@ export default function Library() {
     setGlobalPlaying(true)
   }
 
-  const filteredPlaylists = enhancedLibraryContent.playlists.filter(
+  const filteredPlaylists = realPlaylists.filter(
     (playlist) =>
       playlist.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       playlist.description?.toLowerCase().includes(searchQuery.toLowerCase()),
@@ -515,9 +390,12 @@ export default function Library() {
                     <Clock className="w-4 h-4 mr-2" />
                     Recent
                   </TabsTrigger>
-                  <TabsTrigger value="artists" className="data-[state=active]:bg-white data-[state=active]:text-black">
-                    <Headphones className="w-4 h-4 mr-2" />
-                    Artists
+                  <TabsTrigger
+                    value="favorites"
+                    className="data-[state=active]:bg-white data-[state=active]:text-black"
+                  >
+                    <Heart className="w-4 h-4 mr-2" />
+                    Favorites
                   </TabsTrigger>
                   <TabsTrigger value="albums" className="data-[state=active]:bg-white data-[state=active]:text-black">
                     <Star className="w-4 h-4 mr-2" />
@@ -565,79 +443,86 @@ export default function Library() {
                 </TabsContent>
 
                 <TabsContent value="recent" className="space-y-4">
-                  {enhancedLibraryContent.recentlyPlayed.map((song, index) => (
-                    <motion.div
-                      key={song.id}
-                      initial={{ opacity: 0, x: -20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: index * 0.1 }}
-                      className="glass-dark rounded-xl p-4 flex items-center space-x-4 cursor-pointer card-hover group"
-                      onClick={() => handleSongClick(song)}
-                    >
-                      <div className="relative">
-                        <SafeImage src={song.image} alt={song.title} width={64} height={64} className="rounded-lg" />
-                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center">
-                          <Play className="w-4 h-4 text-white" />
+                  {userData.recentlyPlayed.length > 0 ? (
+                    userData.recentlyPlayed.map((song, index) => (
+                      <motion.div
+                        key={song.id}
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: index * 0.1 }}
+                        className="glass-dark rounded-xl p-4 flex items-center space-x-4 cursor-pointer card-hover group"
+                        onClick={() => handleSongClick(song)}
+                      >
+                        <div className="relative">
+                          <SafeImage src={song.image} alt={song.title} width={64} height={64} className="rounded-lg" />
+                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center">
+                            <Play className="w-4 h-4 text-white" />
+                          </div>
                         </div>
-                      </div>
-                      <div className="flex-1">
-                        <h3 className="text-white font-medium">{song.title}</h3>
-                        <p className="text-white/70 text-sm">{song.artist}</p>
-                        <p className="text-white/50 text-xs">{song.album}</p>
-                      </div>
-                      <div className="text-white/70 text-sm">{song.duration}</div>
-                    </motion.div>
-                  ))}
+                        <div className="flex-1">
+                          <h3 className="text-white font-medium">{song.title}</h3>
+                          <p className="text-white/70 text-sm">{song.artist}</p>
+                          <p className="text-white/50 text-xs">{song.album}</p>
+                        </div>
+                        <div className="text-white/70 text-sm">
+                          {typeof song.duration === "number"
+                            ? `${Math.floor(song.duration / 60)}:${(song.duration % 60).toString().padStart(2, "0")}`
+                            : "3:45"}
+                        </div>
+                      </motion.div>
+                    ))
+                  ) : (
+                    <div className="text-center py-12">
+                      <Clock className="w-16 h-16 text-gray-600 mx-auto mb-4" />
+                      <p className="text-gray-400 mb-2">No recently played songs</p>
+                      <p className="text-gray-500 text-sm">Start listening to see your history here</p>
+                    </div>
+                  )}
                 </TabsContent>
 
-                <TabsContent value="artists" className="space-y-4">
-                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                    {enhancedLibraryContent.artists.map((artist, index) => (
+                <TabsContent value="favorites" className="space-y-4">
+                  {userData.favorites.length > 0 ? (
+                    userData.favorites.map((song, index) => (
                       <motion.div
-                        key={artist.id}
-                        initial={{ opacity: 0, scale: 0.9 }}
-                        animate={{ opacity: 1, scale: 1 }}
+                        key={song.id}
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
                         transition={{ delay: index * 0.1 }}
-                        className="glass-dark rounded-2xl p-6 text-center cursor-pointer card-hover group"
+                        className="glass-dark rounded-xl p-4 flex items-center space-x-4 cursor-pointer card-hover group"
+                        onClick={() => handleSongClick(song)}
                       >
-                        <SafeImage
-                          src={artist.image}
-                          alt={artist.name}
-                          width={120}
-                          height={120}
-                          className="w-full aspect-square object-cover rounded-full mx-auto mb-4"
-                        />
-                        <h3 className="text-white font-semibold mb-1">{artist.name}</h3>
-                        <p className="text-white/70 text-sm">{artist.followers} followers</p>
+                        <div className="relative">
+                          <SafeImage src={song.image} alt={song.title} width={64} height={64} className="rounded-lg" />
+                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center">
+                            <Play className="w-4 h-4 text-white" />
+                          </div>
+                        </div>
+                        <div className="flex-1">
+                          <h3 className="text-white font-medium">{song.title}</h3>
+                          <p className="text-white/70 text-sm">{song.artist}</p>
+                          <p className="text-white/50 text-xs">{song.album}</p>
+                        </div>
+                        <div className="text-white/70 text-sm">
+                          {typeof song.duration === "number"
+                            ? `${Math.floor(song.duration / 60)}:${(song.duration % 60).toString().padStart(2, "0")}`
+                            : "3:45"}
+                        </div>
                       </motion.div>
-                    ))}
-                  </div>
+                    ))
+                  ) : (
+                    <div className="text-center py-12">
+                      <Heart className="w-16 h-16 text-gray-600 mx-auto mb-4" />
+                      <p className="text-gray-400 mb-2">No favorite songs yet</p>
+                      <p className="text-gray-500 text-sm">Like songs to see them here</p>
+                    </div>
+                  )}
                 </TabsContent>
 
                 <TabsContent value="albums" className="space-y-4">
-                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                    {enhancedLibraryContent.albums.map((album, index) => (
-                      <motion.div
-                        key={album.id}
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: index * 0.1 }}
-                        className="glass-dark rounded-2xl p-4 cursor-pointer card-hover group"
-                      >
-                        <SafeImage
-                          src={album.image}
-                          alt={album.title}
-                          width={160}
-                          height={160}
-                          className="w-full aspect-square object-cover rounded-xl mb-4"
-                        />
-                        <h3 className="text-white font-semibold mb-1">{album.title}</h3>
-                        <p className="text-white/70 text-sm mb-1">{album.artist}</p>
-                        <p className="text-white/50 text-xs">
-                          {album.year} • {album.songs} songs
-                        </p>
-                      </motion.div>
-                    ))}
+                  <div className="text-center py-12">
+                    <Star className="w-16 h-16 text-gray-600 mx-auto mb-4" />
+                    <p className="text-gray-400 mb-2">No albums yet</p>
+                    <p className="text-gray-500 text-sm">Albums will appear here as you explore music</p>
                   </div>
                 </TabsContent>
               </Tabs>

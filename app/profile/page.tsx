@@ -22,6 +22,9 @@ import {
   Download,
   Globe,
   Check,
+  User,
+  Mail,
+  MapPin,
 } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
@@ -69,8 +72,8 @@ export default function ProfilePage() {
 
   const menuItems = [
     { icon: Music, label: "Your Music", link: "/library", count: userData.playlists.length },
-    { icon: Heart, label: "Liked Songs", link: "/favorites", count: userData.favorites.length },
-    { icon: Clock, label: "Recently Played", link: "/recent", count: userData.recentlyPlayed.length },
+    { icon: Heart, label: "Liked Songs", link: "/library?tab=favorites", count: userData.favorites.length },
+    { icon: Clock, label: "Recently Played", link: "/library?tab=recent", count: userData.recentlyPlayed.length },
     { icon: Users, label: "Following", link: "/following", count: 0 },
     { icon: Download, label: "Downloads", link: "/downloads", count: 0 },
     { icon: Lock, label: "Privacy", link: "/privacy" },
@@ -220,7 +223,8 @@ export default function ProfilePage() {
                   {isEditing ? (
                     <div className="w-full space-y-4">
                       <div>
-                        <Label htmlFor="name" className="text-white">
+                        <Label htmlFor="name" className="text-white flex items-center">
+                          <User className="w-4 h-4 mr-2" />
                           Name
                         </Label>
                         <Input
@@ -232,7 +236,8 @@ export default function ProfilePage() {
                         />
                       </div>
                       <div>
-                        <Label htmlFor="email" className="text-white">
+                        <Label htmlFor="email" className="text-white flex items-center">
+                          <Mail className="w-4 h-4 mr-2" />
                           Email
                         </Label>
                         <Input
@@ -257,7 +262,8 @@ export default function ProfilePage() {
                         />
                       </div>
                       <div>
-                        <Label htmlFor="location" className="text-white">
+                        <Label htmlFor="location" className="text-white flex items-center">
+                          <MapPin className="w-4 h-4 mr-2" />
                           Location
                         </Label>
                         <Input
@@ -306,7 +312,7 @@ export default function ProfilePage() {
                 </div>
               </div>
 
-              {/* Stats */}
+              {/* Enhanced Stats */}
               <div className="grid grid-cols-3 gap-4 mb-6">
                 <div className="glass-dark rounded-2xl p-4 text-center">
                   <div className="text-2xl font-bold text-white">{userData.playlists.length}</div>
