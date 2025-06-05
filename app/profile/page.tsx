@@ -3,29 +3,7 @@
 import type React from "react"
 import { useState, useEffect, useRef } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import {
-  ArrowLeft,
-  ChevronRight,
-  Lock,
-  Clock,
-  HelpCircle,
-  Settings,
-  LogOut,
-  Sun,
-  Moon,
-  Edit,
-  Camera,
-  Music,
-  Heart,
-  Users,
-  Bell,
-  Download,
-  Globe,
-  Check,
-  User,
-  Mail,
-  MapPin,
-} from "lucide-react"
+import { ArrowLeft, ChevronRight, Lock, Clock, HelpCircle, Settings, LogOut, Edit, Camera, Music, Heart, Users, Bell, Download, Globe, Check, User, Mail, MapPin } from 'lucide-react'
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -37,7 +15,6 @@ import { useRouter } from "next/navigation"
 import { useDateTime } from "@/hooks/useDateTime"
 
 export default function ProfilePage() {
-  const [isDark, setIsDark] = useState(true)
   const [isEditing, setIsEditing] = useState(false)
   const [editedName, setEditedName] = useState("")
   const [editedEmail, setEditedEmail] = useState("")
@@ -77,7 +54,7 @@ export default function ProfilePage() {
     { icon: Users, label: "Following", link: "/following", count: 0 },
     { icon: Download, label: "Downloads", link: "/downloads", count: 0 },
     { icon: Lock, label: "Privacy", link: "/privacy" },
-    { icon: HelpCircle, label: "Help & Support", link: "/support" },
+    { icon: HelpCircle, label: "Help & Support", link: "/help" },
   ]
 
   const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -148,20 +125,13 @@ export default function ProfilePage() {
     }
   }
 
-  const toggleTheme = () => {
-    setIsDark(!isDark)
-    updateUserSettings({ theme: isDark ? "light" : "dark" })
-  }
-
   const handleSettingsToggle = (setting: string, value: boolean) => {
     updateUserSettings({ [setting]: value })
   }
 
   return (
-    <div className="min-h-screen relative">
-      <div className="fixed inset-0 bg-gradient-to-br from-purple-900/50 via-blue-900/50 to-indigo-900/50 pointer-events-none" />
-
-      <div className="relative z-10 max-w-md mx-auto p-4">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
+      <div className="max-w-md mx-auto p-4">
         <div className="flex items-center justify-between pt-8 mb-8">
           <Link href="/">
             <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
@@ -172,16 +142,14 @@ export default function ProfilePage() {
             <p className="text-white/70 text-sm">{dateTime.time}</p>
             <h1 className="text-xl font-semibold text-white">Profile</h1>
           </div>
-          <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={toggleTheme}>
-            {isDark ? <Sun className="w-6 h-6 text-white" /> : <Moon className="w-6 h-6 text-white" />}
-          </motion.button>
+          <div className="w-6" />
         </div>
 
         <AnimatePresence mode="wait">
           {!showSettings ? (
             <motion.div key="profile" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
               {/* Profile Header */}
-              <div className="glass-dark rounded-3xl p-6 mb-6">
+              <div className="bg-white/5 backdrop-blur-xl rounded-3xl p-6 mb-6 border border-white/10">
                 <div className="flex flex-col items-center">
                   <div className="relative mb-4">
                     <Avatar className="w-24 h-24">
@@ -314,15 +282,15 @@ export default function ProfilePage() {
 
               {/* Enhanced Stats */}
               <div className="grid grid-cols-3 gap-4 mb-6">
-                <div className="glass-dark rounded-2xl p-4 text-center">
+                <div className="bg-white/5 backdrop-blur-xl rounded-2xl p-4 text-center border border-white/10">
                   <div className="text-2xl font-bold text-white">{userData.playlists.length}</div>
                   <div className="text-white/70 text-sm">Playlists</div>
                 </div>
-                <div className="glass-dark rounded-2xl p-4 text-center">
+                <div className="bg-white/5 backdrop-blur-xl rounded-2xl p-4 text-center border border-white/10">
                   <div className="text-2xl font-bold text-white">{userData.favorites.length}</div>
                   <div className="text-white/70 text-sm">Liked</div>
                 </div>
-                <div className="glass-dark rounded-2xl p-4 text-center">
+                <div className="bg-white/5 backdrop-blur-xl rounded-2xl p-4 text-center border border-white/10">
                   <div className="text-2xl font-bold text-white">{userData.recentlyPlayed.length}</div>
                   <div className="text-white/70 text-sm">Recent</div>
                 </div>
@@ -340,7 +308,7 @@ export default function ProfilePage() {
                       transition: { delay: index * 0.05 },
                     }}
                     whileHover={{ x: 5 }}
-                    className="glass-dark rounded-2xl p-4 flex items-center justify-between"
+                    className="bg-white/5 backdrop-blur-xl rounded-2xl p-4 flex items-center justify-between border border-white/10"
                   >
                     <Link href={item.link} className="flex items-center w-full">
                       <item.icon className="w-5 h-5 mr-3 text-white" />
@@ -354,7 +322,7 @@ export default function ProfilePage() {
                 <motion.button
                   whileHover={{ x: 5 }}
                   onClick={() => setShowSettings(true)}
-                  className="w-full glass-dark rounded-2xl p-4 flex items-center justify-between"
+                  className="w-full bg-white/5 backdrop-blur-xl rounded-2xl p-4 flex items-center justify-between border border-white/10"
                 >
                   <div className="flex items-center">
                     <Settings className="w-5 h-5 mr-3 text-white" />
@@ -366,7 +334,7 @@ export default function ProfilePage() {
                 <motion.button
                   whileHover={{ x: 5 }}
                   onClick={handleLogout}
-                  className="w-full glass-dark rounded-2xl p-4 flex items-center border border-red-500/30"
+                  className="w-full bg-white/5 backdrop-blur-xl rounded-2xl p-4 flex items-center border border-red-500/30"
                 >
                   <LogOut className="w-5 h-5 mr-3 text-red-400" />
                   <span className="text-red-400">Logout</span>
@@ -393,7 +361,7 @@ export default function ProfilePage() {
               </div>
 
               <div className="space-y-4">
-                <div className="glass-dark rounded-2xl p-4">
+                <div className="bg-white/5 backdrop-blur-xl rounded-2xl p-4 border border-white/10">
                   <h3 className="font-medium mb-4 text-white">Notifications</h3>
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
@@ -409,7 +377,7 @@ export default function ProfilePage() {
                   </div>
                 </div>
 
-                <div className="glass-dark rounded-2xl p-4">
+                <div className="bg-white/5 backdrop-blur-xl rounded-2xl p-4 border border-white/10">
                   <h3 className="font-medium mb-4 text-white">Playback</h3>
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
@@ -425,7 +393,7 @@ export default function ProfilePage() {
                   </div>
                 </div>
 
-                <div className="glass-dark rounded-2xl p-4">
+                <div className="bg-white/5 backdrop-blur-xl rounded-2xl p-4 border border-white/10">
                   <h3 className="font-medium mb-4 text-white">Audio Quality</h3>
                   <div className="space-y-2">
                     {["high", "medium", "low"].map((quality) => (
@@ -445,7 +413,7 @@ export default function ProfilePage() {
                   </div>
                 </div>
 
-                <div className="glass-dark rounded-2xl p-4">
+                <div className="bg-white/5 backdrop-blur-xl rounded-2xl p-4 border border-white/10">
                   <h3 className="font-medium mb-4 text-white">Language & Region</h3>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center">

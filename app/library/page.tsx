@@ -4,22 +4,7 @@ import { useState, useEffect } from "react"
 import Image from "next/image"
 import { motion, AnimatePresence } from "framer-motion"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
-import {
-  Play,
-  Pause,
-  Heart,
-  MoreHorizontal,
-  ChevronLeft,
-  Download,
-  Shuffle,
-  Search,
-  Filter,
-  Grid,
-  List,
-  Clock,
-  Music,
-  Star,
-} from "lucide-react"
+import { Play, Pause, Heart, MoreHorizontal, ChevronLeft, Download, Shuffle, Search, Filter, Grid, List, Clock, Music, Star } from 'lucide-react'
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
@@ -176,11 +161,8 @@ export default function Library() {
   }
 
   return (
-    <div className="min-h-screen relative">
-      {/* Background gradient overlay */}
-      <div className="fixed inset-0 bg-gradient-to-br from-purple-900/50 via-blue-900/50 to-indigo-900/50 pointer-events-none" />
-
-      <div className="relative z-10 pb-20">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
+      <div className="pb-20">
         <AnimatePresence mode="wait">
           {expandedPlaylist ? (
             <motion.div
@@ -197,7 +179,7 @@ export default function Library() {
               {/* Enhanced Playlist Header */}
               <div className="flex flex-col lg:flex-row items-start lg:items-end gap-6 mb-8">
                 <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} className="relative w-64 h-64">
-                  <div className="glass-purple rounded-3xl w-full h-full flex items-center justify-center overflow-hidden">
+                  <div className="bg-white/5 backdrop-blur-xl rounded-3xl w-full h-full flex items-center justify-center overflow-hidden border border-white/10">
                     <SafeImage
                       src={expandedPlaylist.image}
                       alt={expandedPlaylist.title}
@@ -294,7 +276,7 @@ export default function Library() {
                           y: 0,
                           transition: { delay: index * 0.02 },
                         }}
-                        className="glass-dark rounded-xl p-4 flex items-center justify-between hover:bg-white/5 cursor-pointer group transition-all duration-200"
+                        className="bg-white/5 backdrop-blur-xl rounded-xl p-4 flex items-center justify-between hover:bg-white/10 cursor-pointer group transition-all duration-200 border border-white/10"
                         onClick={() => handleSongClick(song)}
                       >
                         <div className="flex items-center gap-4">
@@ -415,7 +397,7 @@ export default function Library() {
                           transition: { delay: index * 0.1 },
                         }}
                         onClick={() => handlePlaylistClick(playlist)}
-                        className="glass-dark rounded-2xl p-6 cursor-pointer card-hover group"
+                        className="bg-white/5 backdrop-blur-xl rounded-2xl p-6 cursor-pointer hover:bg-white/10 transition-all duration-300 group border border-white/10"
                       >
                         <div className="relative mb-4">
                           <SafeImage
@@ -450,7 +432,7 @@ export default function Library() {
                         initial={{ opacity: 0, x: -20 }}
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ delay: index * 0.1 }}
-                        className="glass-dark rounded-xl p-4 flex items-center space-x-4 cursor-pointer card-hover group"
+                        className="bg-white/5 backdrop-blur-xl rounded-xl p-4 flex items-center space-x-4 cursor-pointer hover:bg-white/10 transition-all duration-300 group border border-white/10"
                         onClick={() => handleSongClick(song)}
                       >
                         <div className="relative">
@@ -488,7 +470,7 @@ export default function Library() {
                         initial={{ opacity: 0, x: -20 }}
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ delay: index * 0.1 }}
-                        className="glass-dark rounded-xl p-4 flex items-center space-x-4 cursor-pointer card-hover group"
+                        className="bg-white/5 backdrop-blur-xl rounded-xl p-4 flex items-center space-x-4 cursor-pointer hover:bg-white/10 transition-all duration-300 group border border-white/10"
                         onClick={() => handleSongClick(song)}
                       >
                         <div className="relative">

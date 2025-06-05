@@ -1,470 +1,573 @@
 "use client"
 
-import type React from "react"
-import { useState, useEffect } from "react"
+import React, { useState, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { FaGoogle } from "react-icons/fa"
-import { Music, ChevronRight } from "lucide-react"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Music, Mail, Lock, User, Eye, EyeOff, CheckCircle, Loader2, AlertCircle } from "lucide-react"
+import { useStore } from "@/lib/store"
+import { LocalAuth, type User as AuthUser } from "@/lib/auth"
 
-const AuthWrapper = ({ children }: { children: React.ReactNode }) => {
-  const [isLoggedIn, setIsLoggedIn] = useState(false)
+interface AuthWrapperProps {
+  children: React.ReactNode
+}
+
+export default function AuthWrapper({ children }: AuthWrapperProps) {
+  const [user, setUser] = useState<AuthUser | null>(null)
   const [isLoading, setIsLoading] = useState(true)
-  const [showLogin, setShowLogin] = useState(false)
-  const [showSignup, setShowSignup] = useState(false)
-  const [isSignUp, setIsSignUp] = useState(false)
-  const [username, setUsername] = useState("")
-  const [password, setPassword] = useState("")
-  const [email, setEmail] = useState("")
-  const [musicPlaying, setMusicPlaying] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [currentSlide, setCurrentSlide] = useState(0)
   const [showArtistSelection, setShowArtistSelection] = useState(false)
+  const [authLoading, setAuthLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const [loginForm, setLoginForm] = useState({
+    email: "",
+    password: "",
+  })
+
+  const [signupForm, setSignupForm] = useState({
+    username: "",
+    email: "",
+    password: "",
+    confirmPassword: "",
+  })
+
   const [selectedArtists, setSelectedArtists] = useState<string[]>([])
+  const { updateUserProfile } = useStore()
 
-  // Dynamic music visualization
-  const [audioLevels, setAudioLevels] = useState(Array(12).fill(0))
-
-  // Welcome slides data
   const welcomeSlides = [
     {
       title: "Welcome to Musica",
-      subtitle: "Your ultimate music companion",
-      description: "Discover millions of songs, create playlists, and enjoy high-quality music streaming.",
-      image: "/placeholder.svg?height=300&width=300",
-      color: "from-purple-600 to-blue-600",
+      description: "Your ultimate music streaming companion",
+      icon: Music,
+      color: "from-purple-500 to-blue-500",
     },
     {
-      title: "Personalized Experience",
-      subtitle: "Music that matches your mood",
-      description: "Get recommendations based on your listening habits and discover new favorites.",
-      image: "/placeholder.svg?height=300&width=300",
-      color: "from-pink-600 to-purple-600",
+      title: "Discover New Music",
+      description: "Explore millions of songs from your favorite artists",
+      icon: Music,
+      color: "from-green-500 to-teal-500",
     },
     {
-      title: "High Quality Audio",
-      subtitle: "Crystal clear sound",
-      description: "Enjoy your favorite tracks in the highest quality available.",
-      image: "/placeholder.svg?height=300&width=300",
-      color: "from-blue-600 to-cyan-600",
+      title: "Create Playlists",
+      description: "Build your perfect soundtrack for every moment",
+      icon: Music,
+      color: "from-orange-500 to-red-500",
     },
   ]
 
-  // Popular artists for selection
   const popularArtists = [
     "Arijit Singh",
     "Shreya Ghoshal",
     "AR Rahman",
-    "Rahat Fateh Ali Khan",
     "Atif Aslam",
     "Neha Kakkar",
-    "Armaan Malik",
-    "Sunidhi Chauhan",
+    "Rahat Fateh Ali Khan",
     "Sonu Nigam",
-    "Lata Mangeshkar",
+    "Sunidhi Chauhan",
+    "Armaan Malik",
+    "Asees Kaur",
     "Kishore Kumar",
-    "Mohammed Rafi",
+    "Lata Mangeshkar",
   ]
 
+  // Check authentication status
   useEffect(() => {
-    const loggedIn = localStorage.getItem("isLoggedIn") === "true"
-    setIsLoggedIn(loggedIn)
-    setIsLoading(false)
-  }, [])
+    const checkAuth = () => {
+      try {
+        const currentUser = LocalAuth.getCurrentUser()
+        setUser(currentUser)
 
-  // Animate audio levels for music visualization
-  useEffect(() => {
-    if (!showLogin && !showSignup) return
+        if (currentUser) {
+          updateUserProfile({
+            name: currentUser.username,
+            email: currentUser.email,
+          })
 
-    const interval = setInterval(() => {
-      setAudioLevels((prev) => prev.map(() => Math.random() * 100))
-    }, 150)
-
-    return () => clearInterval(interval)
-  }, [showLogin, showSignup])
-
-  // Auto-play music visualization
-  useEffect(() => {
-    if (showLogin || showSignup) {
-      const timer = setTimeout(() => setMusicPlaying(true), 1000)
-      return () => clearTimeout(timer)
+          // Check if user has selected artists
+          if (!currentUser.selectedArtists || currentUser.selectedArtists.length === 0) {
+            setShowArtistSelection(true)
+          }
+        }
+      } catch (error) {
+        console.error("Auth check error:", error)
+        setError("Failed to check authentication status")
+      } finally {
+        setIsLoading(false)
+      }
     }
-  }, [showLogin, showSignup])
 
-  const handleLogin = (e: React.FormEvent) => {
+    checkAuth()
+  }, [updateUserProfile])
+
+  // Welcome slides auto-rotation
+  useEffect(() => {
+    if (!user) {
+      const interval = setInterval(() => {
+        setCurrentSlide((prev) => (prev + 1) % welcomeSlides.length)
+      }, 3000)
+      return () => clearInterval(interval)
+    }
+  }, [user, welcomeSlides.length])
+
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!username || !password) {
-      alert("Please enter both username and password.")
-      return
-    }
+    setAuthLoading(true)
+    setError(null)
 
-    // Check if user exists
-    const existingUser = localStorage.getItem(`user_${username}`)
-    if (!existingUser) {
-      alert("User not found. Please sign up first.")
-      setShowLogin(false)
-      setShowSignup(true)
-      setIsSignUp(true)
-      return
-    }
+    // Simulate loading delay
+    await new Promise((resolve) => setTimeout(resolve, 500))
 
-    setIsLoggedIn(true)
-    localStorage.setItem("isLoggedIn", "true")
-    localStorage.setItem("username", username)
-  }
-
-  const handleSignup = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!username || !email || !password) {
-      alert("Please fill in all fields.")
-      return
-    }
-
-    // Save user data
-    const userData = { username, email, password, createdAt: new Date().toISOString() }
-    localStorage.setItem(`user_${username}`, JSON.stringify(userData))
-    localStorage.setItem("isLoggedIn", "true")
-    localStorage.setItem("username", username)
-    localStorage.setItem("email", email)
-
-    setShowArtistSelection(true)
-  }
-
-  const handleGoogleSignIn = async () => {
     try {
-      // Simulate Google Sign-In with mock data
-      const mockGoogleUser = {
-        name: "John Doe",
-        email: "john.doe@gmail.com",
-        picture: "https://lh3.googleusercontent.com/a/default-user=s96-c",
+      const result = LocalAuth.signIn(loginForm.email, loginForm.password)
+
+      if (!result.success) {
+        setError(result.error || "Login failed")
+        return
       }
 
-      // Store Google user data
-      localStorage.setItem("isLoggedIn", "true")
-      localStorage.setItem("username", mockGoogleUser.name)
-      localStorage.setItem("email", mockGoogleUser.email)
-      localStorage.setItem("userImage", mockGoogleUser.picture)
-      localStorage.setItem("loginMethod", "google")
+      if (result.user) {
+        setUser(result.user)
+        updateUserProfile({
+          name: result.user.username,
+          email: result.user.email,
+        })
 
-      setIsLoggedIn(true)
+        // Check if user has selected artists
+        if (!result.user.selectedArtists || result.user.selectedArtists.length === 0) {
+          setShowArtistSelection(true)
+        }
+      }
     } catch (error) {
-      console.error("Google Sign-In failed:", error)
-      alert("Google Sign-In failed. Please try again.")
+      console.error("Login error:", error)
+      setError("An unexpected error occurred during login")
+    } finally {
+      setAuthLoading(false)
     }
   }
 
-  const handleSocialLogin = (provider: string) => {
-    if (provider === "Google") {
-      handleGoogleSignIn()
-    } else {
-      // Mock Facebook login
-      localStorage.setItem("isLoggedIn", "true")
-      localStorage.setItem("username", "Facebook User")
-      localStorage.setItem("loginMethod", provider.toLowerCase())
-      setIsLoggedIn(true)
+  const handleSignup = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError(null)
+
+    if (signupForm.password !== signupForm.confirmPassword) {
+      setError("Passwords don't match!")
+      return
+    }
+
+    if (signupForm.password.length < 6) {
+      setError("Password must be at least 6 characters long!")
+      return
+    }
+
+    setAuthLoading(true)
+
+    // Simulate loading delay
+    await new Promise((resolve) => setTimeout(resolve, 500))
+
+    try {
+      const result = LocalAuth.signUp(signupForm.email, signupForm.password, signupForm.username)
+
+      if (!result.success) {
+        setError(result.error || "Signup failed")
+        return
+      }
+
+      if (result.user) {
+        setUser(result.user)
+        updateUserProfile({
+          name: result.user.username,
+          email: result.user.email,
+        })
+        setShowArtistSelection(true)
+      }
+    } catch (error) {
+      console.error("Signup error:", error)
+      setError("An unexpected error occurred during signup")
+    } finally {
+      setAuthLoading(false)
     }
   }
 
-  const handleArtistSelection = () => {
-    if (selectedArtists.length > 0) {
-      localStorage.setItem("selectedArtists", JSON.stringify(selectedArtists))
-      setIsLoggedIn(true)
-    } else {
-      alert("Please select at least one artist to continue.")
+  const handleArtistSelection = async () => {
+    if (selectedArtists.length < 3) {
+      setError("Please select at least 3 artists to continue")
+      return
+    }
+
+    if (!user) return
+
+    try {
+      setAuthLoading(true)
+      setError(null)
+
+      // Simulate loading delay
+      await new Promise((resolve) => setTimeout(resolve, 300))
+
+      // Update user with selected artists
+      const result = LocalAuth.updateUser({ selectedArtists })
+
+      if (!result.success) {
+        setError("Error saving your preferences. Please try again.")
+        return
+      }
+
+      if (result.user) {
+        setUser(result.user)
+      }
+
+      setShowArtistSelection(false)
+    } catch (error) {
+      console.error("Artist selection error:", error)
+      setError("An error occurred while saving your preferences")
+    } finally {
+      setAuthLoading(false)
     }
   }
 
-  const toggleArtistSelection = (artist: string) => {
+  const handleSignOut = () => {
+    try {
+      LocalAuth.signOut()
+      setUser(null)
+      setShowArtistSelection(false)
+      setSelectedArtists([])
+      setError(null)
+    } catch (error) {
+      console.error("Sign out error:", error)
+      setError("Error signing out")
+    }
+  }
+
+  const toggleArtist = (artist: string) => {
     setSelectedArtists((prev) => (prev.includes(artist) ? prev.filter((a) => a !== artist) : [...prev, artist]))
-  }
-
-  const nextSlide = () => {
-    if (currentSlide < welcomeSlides.length - 1) {
-      setCurrentSlide(currentSlide + 1)
-    } else {
-      setShowLogin(true)
-    }
-  }
-
-  const resetForm = () => {
-    setUsername("")
-    setPassword("")
-    setEmail("")
-    setShowLogin(false)
-    setShowSignup(false)
-    setIsSignUp(false)
-    setCurrentSlide(0)
-    setShowArtistSelection(false)
-    setSelectedArtists([])
   }
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900">
-        <motion.div
-          animate={{ rotate: 360 }}
-          transition={{ duration: 1, repeat: Number.POSITIVE_INFINITY, ease: "linear" }}
-          className="w-8 h-8 border-2 border-white border-t-transparent rounded-full"
-        />
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-16 h-16 bg-gradient-to-r from-green-400 to-blue-500 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Music className="w-8 h-8 text-white animate-pulse" />
+          </div>
+          <h1 className="text-2xl font-bold text-white mb-2">Musica</h1>
+          <p className="text-gray-400">Loading your music experience...</p>
+        </div>
       </div>
     )
   }
 
-  if (!isLoggedIn) {
+  if (showArtistSelection && user) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 relative overflow-hidden">
-        {/* Animated background elements */}
-        <div className="absolute inset-0">
-          {Array.from({ length: 20 }).map((_, i) => (
-            <motion.div
-              key={i}
-              className="absolute w-2 h-2 bg-white/10 rounded-full"
-              animate={{
-                x: [0, Math.random() * window.innerWidth],
-                y: [0, Math.random() * window.innerHeight],
-                scale: [0, 1, 0],
-              }}
-              transition={{
-                duration: Math.random() * 10 + 5,
-                repeat: Number.POSITIVE_INFINITY,
-                delay: Math.random() * 5,
-              }}
-              style={{
-                left: Math.random() * 100 + "%",
-                top: Math.random() * 100 + "%",
-              }}
-            />
-          ))}
-        </div>
-
-        <AnimatePresence mode="wait">
-          {showArtistSelection ? (
-            <motion.div
-              key="artist-selection"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              className="w-full max-w-md p-8 relative z-10"
-            >
-              <div className="glass-dark rounded-3xl p-8">
-                {/* Musica Logo */}
-                <div className="flex items-center justify-center mb-6">
-                  <div className="w-12 h-12 bg-gradient-to-r from-green-400 to-blue-500 rounded-full flex items-center justify-center mr-3">
-                    <Music className="w-8 h-8 text-white" />
-                  </div>
-                  <h1 className="text-2xl font-bold text-white">Musica</h1>
-                </div>
-
-                <div className="text-center mb-6">
-                  <h2 className="text-2xl font-bold text-white mb-2">Choose Your Favorites</h2>
-                  <p className="text-white/70">Select artists you like to get personalized recommendations</p>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3 mb-6 max-h-60 overflow-y-auto">
-                  {popularArtists.map((artist) => (
-                    <motion.button
-                      key={artist}
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
-                      onClick={() => toggleArtistSelection(artist)}
-                      className={`p-3 rounded-xl text-sm transition-all ${
-                        selectedArtists.includes(artist)
-                          ? "bg-green-500 text-white"
-                          : "bg-white/10 text-white hover:bg-white/20"
-                      }`}
-                    >
-                      {artist}
-                    </motion.button>
-                  ))}
-                </div>
-
-                <Button
-                  onClick={handleArtistSelection}
-                  disabled={selectedArtists.length === 0}
-                  className="w-full py-3 bg-green-500 hover:bg-green-600 text-white rounded-xl font-medium disabled:opacity-50"
-                >
-                  Continue ({selectedArtists.length} selected)
-                </Button>
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center p-4">
+        <Card className="w-full max-w-2xl bg-black/20 backdrop-blur-xl border-white/10">
+          <CardHeader className="text-center">
+            <div className="w-16 h-16 bg-gradient-to-r from-green-400 to-blue-500 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Music className="w-8 h-8 text-white" />
+            </div>
+            <CardTitle className="text-2xl text-white">Choose Your Favorite Artists</CardTitle>
+            <CardDescription className="text-gray-400">
+              Select at least 3 artists to personalize your music experience
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {error && (
+              <div className="mb-4 p-3 bg-red-500/20 border border-red-500/30 rounded-lg flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-red-400" />
+                <span className="text-red-400 text-sm">{error}</span>
               </div>
-            </motion.div>
-          ) : !showLogin && !showSignup ? (
-            <motion.div
-              key="welcome-slides"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              className="w-full max-w-md p-8 relative z-10"
-            >
-              <div className="glass-dark rounded-3xl p-8 text-center">
-                <motion.div
-                  key={currentSlide}
-                  initial={{ opacity: 0, x: 50 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -50 }}
-                  className="mb-8"
-                >
-                  <div
-                    className={`w-32 h-32 mx-auto mb-6 bg-gradient-to-br ${welcomeSlides[currentSlide].color} rounded-full flex items-center justify-center`}
-                  >
-                    <Music className="w-16 h-16 text-white" />
-                  </div>
-                  <h2 className="text-2xl font-bold text-white mb-2">{welcomeSlides[currentSlide].title}</h2>
-                  <h3 className="text-lg text-white/80 mb-4">{welcomeSlides[currentSlide].subtitle}</h3>
-                  <p className="text-white/70">{welcomeSlides[currentSlide].description}</p>
-                </motion.div>
+            )}
 
-                <div className="flex justify-center space-x-2 mb-6">
-                  {welcomeSlides.map((_, index) => (
-                    <div
-                      key={index}
-                      className={`w-2 h-2 rounded-full transition-colors ${
-                        index === currentSlide ? "bg-white" : "bg-white/30"
-                      }`}
-                    />
-                  ))}
-                </div>
-
-                <Button
-                  onClick={nextSlide}
-                  className="w-full py-3 bg-white text-purple-900 rounded-xl font-medium transition-colors hover:bg-white/90"
-                >
-                  {currentSlide === welcomeSlides.length - 1 ? "Get Started" : "Continue"}
-                  <ChevronRight className="w-5 h-5 ml-2" />
-                </Button>
-              </div>
-            </motion.div>
-          ) : (
-            <motion.div
-              key="auth-form"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              className="w-full max-w-md p-8 relative z-10"
-            >
-              <div className="glass-dark rounded-3xl p-8 relative overflow-hidden">
-                {/* Background music visualization */}
-                <div className="absolute top-0 left-0 w-full h-20 bg-gradient-to-r from-purple-600/20 to-blue-600/20 flex items-center justify-center space-x-1">
-                  {Array.from({ length: 8 }).map((_, i) => (
-                    <motion.div
-                      key={i}
-                      className="bg-white/30 rounded-full"
-                      style={{ width: "2px" }}
-                      animate={{
-                        height: [5, audioLevels[i] * 0.3 + 10, 5],
-                      }}
-                      transition={{
-                        duration: 0.8,
-                        repeat: Number.POSITIVE_INFINITY,
-                        repeatType: "reverse",
-                        delay: i * 0.1,
-                      }}
-                    />
-                  ))}
-                </div>
-
-                {/* Musica Logo for Sign-Up */}
-                {isSignUp && (
-                  <div className="flex items-center justify-center mb-6 mt-8">
-                    <div className="w-10 h-10 bg-gradient-to-r from-green-400 to-blue-500 rounded-full flex items-center justify-center mr-3">
-                      <Music className="w-6 h-6 text-white" />
-                    </div>
-                    <h1 className="text-xl font-bold text-white">Musica</h1>
-                  </div>
-                )}
-
-                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center mb-8 mt-8">
-                  <h2 className="text-2xl font-bold text-white">{isSignUp ? "Join Musica" : "Welcome Back"}</h2>
-                  <p className="text-white/70">
-                    {isSignUp ? "Create your music journey" : "Continue your music journey"}
-                  </p>
-                </motion.div>
-
-                {/* Google Sign-In Button */}
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-6">
+              {popularArtists.map((artist) => (
                 <motion.button
+                  key={artist}
+                  onClick={() => toggleArtist(artist)}
+                  className={`p-3 rounded-lg border transition-all ${
+                    selectedArtists.includes(artist)
+                      ? "bg-purple-600 border-purple-500 text-white"
+                      : "bg-white/5 border-white/20 text-gray-300 hover:bg-white/10"
+                  }`}
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
-                  onClick={handleGoogleSignIn}
-                  className="w-full py-3 bg-white text-gray-900 rounded-xl font-medium transition-colors hover:bg-gray-100 flex items-center justify-center space-x-2 mb-4"
                 >
-                  <FaGoogle className="w-5 h-5" />
-                  <span>Continue with Google</span>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium">{artist}</span>
+                    {selectedArtists.includes(artist) && <CheckCircle className="w-4 h-4" />}
+                  </div>
                 </motion.button>
+              ))}
+            </div>
 
-                <div className="relative my-6">
-                  <div className="absolute inset-0 flex items-center">
-                    <div className="w-full border-t border-white/20"></div>
-                  </div>
-                  <div className="relative flex justify-center text-sm">
-                    <span className="px-2 bg-transparent text-white/70">or</span>
-                  </div>
-                </div>
-
-                <form onSubmit={isSignUp ? handleSignup : handleLogin} className="space-y-4">
-                  <div className="space-y-2">
-                    <Input
-                      type="text"
-                      placeholder="Username"
-                      value={username}
-                      onChange={(e) => setUsername(e.target.value)}
-                      className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder:text-white/50 focus:ring-2 focus:ring-white/30 transition-all"
-                    />
-                    {isSignUp && (
-                      <Input
-                        type="email"
-                        placeholder="Email"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder:text-white/50 focus:ring-2 focus:ring-white/30 transition-all"
-                      />
-                    )}
-                    <Input
-                      type="password"
-                      placeholder="Password"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder:text-white/50 focus:ring-2 focus:ring-white/30 transition-all"
-                    />
-                  </div>
-                  <motion.button
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    type="submit"
-                    className="w-full py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-xl font-medium transition-all hover:from-purple-700 hover:to-blue-700"
-                  >
-                    {isSignUp ? "Create Account" : "Sign In"}
-                  </motion.button>
-                </form>
-
-                <div className="mt-6 text-center space-y-2">
-                  <button
-                    onClick={() => {
-                      if (isSignUp) {
-                        setIsSignUp(false)
-                        setShowSignup(false)
-                        setShowLogin(true)
-                      } else {
-                        resetForm()
-                      }
-                    }}
-                    className="text-white/70 hover:text-white transition-colors"
-                  >
-                    {isSignUp ? "Already have an account? Sign In" : "Back to welcome screen"}
-                  </button>
-                  {!isSignUp && (
-                    <div>
-                      <button className="text-white/50 hover:text-white/70 transition-colors">Forgot password?</button>
-                    </div>
+            <div className="text-center">
+              <p className="text-gray-400 text-sm mb-4">Selected: {selectedArtists.length}/3 minimum</p>
+              <div className="flex gap-3 justify-center">
+                <Button
+                  onClick={handleArtistSelection}
+                  disabled={selectedArtists.length < 3 || authLoading}
+                  className="bg-purple-600 hover:bg-purple-700 text-white px-8"
+                >
+                  {authLoading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    "Continue to Musica"
                   )}
-                </div>
+                </Button>
+                <Button
+                  onClick={handleSignOut}
+                  variant="outline"
+                  className="border-white/20 text-white hover:bg-white/10"
+                  disabled={authLoading}
+                >
+                  Sign Out
+                </Button>
               </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     )
   }
 
-  return <div>{children}</div>
-}
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex">
+        {/* Left Side - Welcome Slides */}
+        <div className="hidden lg:flex lg:w-1/2 items-center justify-center p-8">
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={currentSlide}
+              initial={{ opacity: 0, x: -50 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 50 }}
+              transition={{ duration: 0.5 }}
+              className="text-center"
+            >
+              <div
+                className={`w-24 h-24 bg-gradient-to-r ${welcomeSlides[currentSlide].color} rounded-full flex items-center justify-center mx-auto mb-6`}
+              >
+                {React.createElement(welcomeSlides[currentSlide].icon, { className: "w-12 h-12 text-white" })}
+              </div>
+              <h2 className="text-4xl font-bold text-white mb-4">{welcomeSlides[currentSlide].title}</h2>
+              <p className="text-xl text-gray-300">{welcomeSlides[currentSlide].description}</p>
+            </motion.div>
+          </AnimatePresence>
 
-export default AuthWrapper
+          {/* Slide indicators */}
+          <div className="absolute bottom-8 left-1/4 flex space-x-2">
+            {welcomeSlides.map((_, index) => (
+              <div
+                key={index}
+                className={`w-2 h-2 rounded-full transition-colors ${
+                  index === currentSlide ? "bg-white" : "bg-white/30"
+                }`}
+              />
+            ))}
+          </div>
+        </div>
+
+        {/* Right Side - Auth Forms */}
+        <div className="w-full lg:w-1/2 flex items-center justify-center p-8">
+          <Card className="w-full max-w-md bg-black/20 backdrop-blur-xl border-white/10">
+            <CardHeader className="text-center">
+              <div className="w-16 h-16 bg-gradient-to-r from-green-400 to-blue-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Music className="w-8 h-8 text-white" />
+              </div>
+              <CardTitle className="text-2xl text-white">Welcome to Musica</CardTitle>
+              <CardDescription className="text-gray-400">Sign in to your account or create a new one</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {error && (
+                <div className="mb-4 p-3 bg-red-500/20 border border-red-500/30 rounded-lg flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 text-red-400" />
+                  <span className="text-red-400 text-sm">{error}</span>
+                </div>
+              )}
+
+              <Tabs defaultValue="login" className="w-full">
+                <TabsList className="grid w-full grid-cols-2 bg-white/10">
+                  <TabsTrigger value="login" className="data-[state=active]:bg-white data-[state=active]:text-black">
+                    Sign In
+                  </TabsTrigger>
+                  <TabsTrigger value="signup" className="data-[state=active]:bg-white data-[state=active]:text-black">
+                    Sign Up
+                  </TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="login">
+                  <form onSubmit={handleLogin} className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="email" className="text-white">
+                        Email
+                      </Label>
+                      <div className="relative">
+                        <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                        <Input
+                          id="email"
+                          type="email"
+                          placeholder="Enter your email"
+                          value={loginForm.email}
+                          onChange={(e) => setLoginForm({ ...loginForm, email: e.target.value })}
+                          className="pl-10 bg-white/10 border-white/20 text-white placeholder:text-gray-400"
+                          required
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="password" className="text-white">
+                        Password
+                      </Label>
+                      <div className="relative">
+                        <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                        <Input
+                          id="password"
+                          type={showPassword ? "text" : "password"}
+                          placeholder="Enter your password"
+                          value={loginForm.password}
+                          onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })}
+                          className="pl-10 pr-10 bg-white/10 border-white/20 text-white placeholder:text-gray-400"
+                          required
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword(!showPassword)}
+                          className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-white"
+                        >
+                          {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
+                    </div>
+                    <Button
+                      type="submit"
+                      disabled={authLoading}
+                      className="w-full bg-purple-600 hover:bg-purple-700 text-white"
+                    >
+                      {authLoading ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Signing In...
+                        </>
+                      ) : (
+                        "Sign In"
+                      )}
+                    </Button>
+                  </form>
+                </TabsContent>
+
+                <TabsContent value="signup">
+                  <form onSubmit={handleSignup} className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="username" className="text-white">
+                        Username
+                      </Label>
+                      <div className="relative">
+                        <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                        <Input
+                          id="username"
+                          type="text"
+                          placeholder="Choose a username"
+                          value={signupForm.username}
+                          onChange={(e) => setSignupForm({ ...signupForm, username: e.target.value })}
+                          className="pl-10 bg-white/10 border-white/20 text-white placeholder:text-gray-400"
+                          required
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="signup-email" className="text-white">
+                        Email
+                      </Label>
+                      <div className="relative">
+                        <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                        <Input
+                          id="signup-email"
+                          type="email"
+                          placeholder="Enter your email"
+                          value={signupForm.email}
+                          onChange={(e) => setSignupForm({ ...signupForm, email: e.target.value })}
+                          className="pl-10 bg-white/10 border-white/20 text-white placeholder:text-gray-400"
+                          required
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="signup-password" className="text-white">
+                        Password
+                      </Label>
+                      <div className="relative">
+                        <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                        <Input
+                          id="signup-password"
+                          type={showPassword ? "text" : "password"}
+                          placeholder="Create a password"
+                          value={signupForm.password}
+                          onChange={(e) => setSignupForm({ ...signupForm, password: e.target.value })}
+                          className="pl-10 pr-10 bg-white/10 border-white/20 text-white placeholder:text-gray-400"
+                          required
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword(!showPassword)}
+                          className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-white"
+                        >
+                          {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="confirm-password" className="text-white">
+                        Confirm Password
+                      </Label>
+                      <div className="relative">
+                        <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                        <Input
+                          id="confirm-password"
+                          type={showConfirmPassword ? "text" : "password"}
+                          placeholder="Confirm your password"
+                          value={signupForm.confirmPassword}
+                          onChange={(e) => setSignupForm({ ...signupForm, confirmPassword: e.target.value })}
+                          className="pl-10 pr-10 bg-white/10 border-white/20 text-white placeholder:text-gray-400"
+                          required
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                          className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-white"
+                        >
+                          {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
+                    </div>
+                    <Button
+                      type="submit"
+                      disabled={authLoading}
+                      className="w-full bg-purple-600 hover:bg-purple-700 text-white"
+                    >
+                      {authLoading ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Creating Account...
+                        </>
+                      ) : (
+                        "Create Account"
+                      )}
+                    </Button>
+                  </form>
+                </TabsContent>
+              </Tabs>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    )
+  }
+
+  return <>{children}</>
+}

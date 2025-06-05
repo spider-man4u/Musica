@@ -1,15 +1,13 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import Image from "next/image"
 import { motion } from "framer-motion"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import {
   Play,
   Pause,
-  Search,
   Heart,
   MoreHorizontal,
   TrendingUp,
@@ -33,6 +31,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import SearchBar from "./components/SearchBar"
 
 const quickAccessItems = [
   { name: "Liked Songs", icon: Heart, color: "from-purple-500 to-pink-500", type: "favorites" },
@@ -53,7 +52,6 @@ const moodCategories = [
 ]
 
 export default function Home() {
-  const [searchQuery, setSearchQuery] = useState("")
   const [currentTime, setCurrentTime] = useState("")
   const [showAllTrending, setShowAllTrending] = useState(false)
   const [trendingPage, setTrendingPage] = useState(1)
@@ -74,8 +72,19 @@ export default function Home() {
     searchContent,
   } = useStore()
 
+  // Fetch trending songs on mount and refresh every 5 minutes
   useEffect(() => {
     fetchTrendingSongs()
+
+    // Set up interval for refreshing trending songs
+    const refreshInterval = setInterval(
+      () => {
+        fetchTrendingSongs()
+      },
+      5 * 60 * 1000,
+    ) // 5 minutes
+
+    return () => clearInterval(refreshInterval)
   }, [fetchTrendingSongs])
 
   useEffect(() => {
@@ -100,54 +109,59 @@ export default function Home() {
     return "Good evening"
   }
 
-  const playSong = (song: any) => {
-    if (!song) return
-    setCurrentSong(song)
-    setIsPlaying(true)
-  }
+  const playSong = useCallback(
+    (song: any) => {
+      if (!song) return
+      setCurrentSong(song)
+      setIsPlaying(true)
+    },
+    [setCurrentSong, setIsPlaying],
+  )
 
-  const toggleFavorite = (song: any) => {
-    if (!song || !userData?.favorites) return
+  const toggleFavorite = useCallback(
+    (song: any) => {
+      if (!song || !userData?.favorites) return
 
-    const isFavorite = userData.favorites.some((fav) => fav.id === song.id)
-    if (isFavorite) {
-      removeFromFavorites(song.id)
-    } else {
-      addToFavorites(song)
-    }
-  }
+      const isFavorite = userData.favorites.some((fav) => fav.id === song.id)
+      if (isFavorite) {
+        removeFromFavorites(song.id)
+      } else {
+        addToFavorites(song)
+      }
+    },
+    [userData?.favorites, addToFavorites, removeFromFavorites],
+  )
 
-  const handleQuickAccess = (item: any) => {
-    switch (item.type) {
-      case "favorites":
-        router.push("/library?tab=favorites")
-        break
-      case "recent":
-        router.push("/library?tab=recent")
-        break
-      case "playlist":
-      case "discover":
-      case "mix":
-      case "chill":
-        router.push("/library")
-        break
-      default:
-        break
-    }
-  }
+  const handleQuickAccess = useCallback(
+    (item: any) => {
+      switch (item.type) {
+        case "favorites":
+          router.push("/library?tab=favorites")
+          break
+        case "recent":
+          router.push("/library?tab=recent")
+          break
+        case "playlist":
+        case "discover":
+        case "mix":
+        case "chill":
+          router.push("/library")
+          break
+        default:
+          break
+      }
+    },
+    [router],
+  )
 
-  const handleMoodClick = async (mood: any) => {
-    const randomKeyword = mood.keywords[Math.floor(Math.random() * mood.keywords.length)]
-    await searchContent(randomKeyword)
-    router.push(`/search?q=${randomKeyword}`)
-  }
-
-  const handleSearch = async () => {
-    if (searchQuery.trim()) {
-      await searchContent(searchQuery)
-      router.push(`/search?q=${searchQuery}`)
-    }
-  }
+  const handleMoodClick = useCallback(
+    async (mood: any) => {
+      const randomKeyword = mood.keywords[Math.floor(Math.random() * mood.keywords.length)]
+      await searchContent(randomKeyword)
+      router.push(`/search?q=${randomKeyword}`)
+    },
+    [searchContent, router],
+  )
 
   const handleShowAllTrending = () => {
     setShowAllTrending(true)
@@ -185,20 +199,7 @@ export default function Home() {
             </div>
 
             <div className="flex-1 max-w-md mx-8">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                <Input
-                  placeholder="What do you want to listen to?"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      handleSearch()
-                    }
-                  }}
-                  className="pl-10 bg-white/10 border-white/20 text-white placeholder:text-gray-400 rounded-full"
-                />
-              </div>
+              <SearchBar />
             </div>
 
             <div className="flex items-center space-x-4">
@@ -207,7 +208,7 @@ export default function Home() {
               {/* Profile Dropdown */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" className="relative h-10 w-10 rounded-full">
+                  <Button variant="ghost" className="relative h-10 w-10 rounded-full p-0">
                     <div className="w-10 h-10 bg-gradient-to-r from-purple-400 to-pink-500 rounded-full flex items-center justify-center">
                       <span className="text-white text-sm font-bold">{userName[0]?.toUpperCase() || "U"}</span>
                     </div>
@@ -402,7 +403,10 @@ export default function Home() {
                           <Button
                             size="icon"
                             variant="ghost"
-                            onClick={() => toggleFavorite(song)}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              toggleFavorite(song)
+                            }}
                             className="opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-white"
                           >
                             <Heart className={cn("w-4 h-4", isFavorite ? "fill-red-500 text-red-500" : "text-white")} />
@@ -457,7 +461,10 @@ export default function Home() {
                             <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center">
                               <Button
                                 size="icon"
-                                onClick={() => playSong(song)}
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  playSong(song)
+                                }}
                                 className="bg-green-500 hover:bg-green-600 rounded-full w-12 h-12"
                               >
                                 {currentSong?.id === song.id && isPlaying ? (
@@ -470,7 +477,10 @@ export default function Home() {
                             <Button
                               size="icon"
                               variant="ghost"
-                              onClick={() => toggleFavorite(song)}
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                toggleFavorite(song)
+                              }}
                               className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity bg-black/50 hover:bg-black/70"
                             >
                               <Heart

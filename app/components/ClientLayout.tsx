@@ -26,11 +26,22 @@ export default function ClientLayout({ children }: ClientLayoutProps) {
   }, [pathname])
 
   useEffect(() => {
-    // Initialize modern APIs on app load
+    // Initialize modern APIs on app load with error handling
     const initializeApp = async () => {
-      console.log("🚀 Initializing modern music app...")
-      await checkApiStatus()
-      await fetchTrendingSongs()
+      try {
+        console.log("🚀 Initializing modern music app...")
+
+        // Check if functions exist before calling them
+        if (typeof checkApiStatus === "function") {
+          await checkApiStatus()
+        }
+
+        if (typeof fetchTrendingSongs === "function") {
+          await fetchTrendingSongs()
+        }
+      } catch (error) {
+        console.error("Failed to initialize app:", error)
+      }
     }
 
     initializeApp()

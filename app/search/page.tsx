@@ -1,15 +1,15 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { Search, Clock, X, Play, Heart, MoreHorizontal, TrendingUp, Music } from "lucide-react"
-import { Input } from "@/components/ui/input"
+import { Clock, Play, Heart, MoreHorizontal, TrendingUp, Music } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import Image from "next/image"
 import { useStore } from "@/lib/store"
 import { cn } from "@/lib/utils"
 import { useSearchParams } from "next/navigation"
+import SearchBar from "../components/SearchBar"
 
 const browseCategories = [
   {
@@ -64,19 +64,6 @@ const browseCategories = [
 
 const popularSearches = ["Arijit Singh", "Kesariya", "Bollywood hits", "AR Rahman", "Shreya Ghoshal"]
 
-const searchSuggestions = [
-  "Arijit Singh songs",
-  "Bollywood romantic songs",
-  "Latest Hindi songs 2024",
-  "Punjabi hits",
-  "Tamil melody songs",
-  "AR Rahman classics",
-  "Shreya Ghoshal best",
-  "Party songs Hindi",
-  "Sad songs collection",
-  "Workout music",
-]
-
 // Helper function to get a valid image URL or null
 const getValidImageSrc = (imageUrl: string | undefined | null): string | null => {
   if (!imageUrl || typeof imageUrl !== "string" || imageUrl.trim() === "") {
@@ -113,12 +100,8 @@ const SafeImage = ({
 }
 
 export default function SearchPage() {
-  const [query, setQuery] = useState("")
-  const [isSearching, setIsSearching] = useState(false)
   const [activeTab, setActiveTab] = useState("all")
-  const [showSuggestions, setShowSuggestions] = useState(false)
-  const [filteredSuggestions, setFilteredSuggestions] = useState<string[]>([])
-  const inputRef = useRef<HTMLInputElement>(null)
+  const [hasSearched, setHasSearched] = useState(false)
   const searchParams = useSearchParams()
 
   const {
@@ -135,58 +118,47 @@ export default function SearchPage() {
     removeFromFavorites,
   } = useStore()
 
+  // Handle URL search parameter
   useEffect(() => {
-    if (inputRef.current) {
-      inputRef.current.focus()
-    }
-
-    // Check if there's a query parameter
     const q = searchParams.get("q")
-    if (q) {
-      setQuery(q)
-      handleSearch(q)
+    if (q && !hasSearched) {
+      setHasSearched(true)
+      searchContent(q)
     }
-  }, [searchParams])
+  }, [searchParams, searchContent, hasSearched])
 
-  useEffect(() => {
-    // Filter suggestions based on query
-    if (query.trim()) {
-      const filtered = searchSuggestions.filter((suggestion) => suggestion.toLowerCase().includes(query.toLowerCase()))
-      setFilteredSuggestions(filtered)
-      setShowSuggestions(filtered.length > 0)
-    } else {
-      setFilteredSuggestions([])
-      setShowSuggestions(false)
-    }
-  }, [query])
+  const handleSearch = useCallback(
+    async (searchQuery: string) => {
+      if (searchQuery.trim()) {
+        setHasSearched(true)
+        await searchContent(searchQuery)
+      }
+    },
+    [searchContent],
+  )
 
-  const handleSearch = async (searchQuery: string) => {
-    if (searchQuery.trim()) {
-      setQuery(searchQuery)
-      setShowSuggestions(false)
-      await searchContent(searchQuery)
-    }
-  }
+  const playSong = useCallback(
+    (song: any) => {
+      setCurrentSong(song)
+      setIsPlaying(true)
+    },
+    [setCurrentSong, setIsPlaying],
+  )
 
-  const clearSearch = () => {
-    setQuery("")
-    setIsSearching(false)
-    setShowSuggestions(false)
-  }
+  const toggleFavorite = useCallback(
+    (song: any) => {
+      const isFavorite = userData.favorites.some((fav) => fav.id === song.id)
+      if (isFavorite) {
+        removeFromFavorites(song.id)
+      } else {
+        addToFavorites(song)
+      }
+    },
+    [userData.favorites, addToFavorites, removeFromFavorites],
+  )
 
-  const playSong = (song: any) => {
-    setCurrentSong(song)
-    setIsPlaying(true)
-  }
-
-  const toggleFavorite = (song: any) => {
-    const isFavorite = userData.favorites.some((fav) => fav.id === song.id)
-    if (isFavorite) {
-      removeFromFavorites(song.id)
-    } else {
-      addToFavorites(song)
-    }
-  }
+  const currentQuery = searchParams.get("q") || ""
+  const showResults = hasSearched && (searchResults || isLoading || error)
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
@@ -195,55 +167,7 @@ export default function SearchPage() {
         <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="flex items-center space-x-4">
             <div className="flex-1 max-w-2xl relative">
-              <div className="relative">
-                <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                <Input
-                  ref={inputRef}
-                  placeholder="What do you want to listen to?"
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  onFocus={() => {
-                    setIsSearching(true)
-                    if (query.trim()) setShowSuggestions(true)
-                  }}
-                  onBlur={() => {
-                    // Delay hiding suggestions to allow clicking
-                    setTimeout(() => setShowSuggestions(false), 200)
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      handleSearch(query)
-                    }
-                  }}
-                  className="pl-12 pr-12 py-3 bg-white text-black placeholder:text-gray-600 rounded-full text-lg border-0 focus:ring-2 focus:ring-white/20"
-                />
-                {query && (
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    onClick={clearSearch}
-                    className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-600 hover:text-black rounded-full"
-                  >
-                    <X className="w-5 h-5" />
-                  </Button>
-                )}
-              </div>
-
-              {/* Search Suggestions */}
-              {showSuggestions && filteredSuggestions.length > 0 && (
-                <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-lg shadow-lg border max-h-60 overflow-y-auto z-50">
-                  {filteredSuggestions.map((suggestion, index) => (
-                    <div
-                      key={index}
-                      onClick={() => handleSearch(suggestion)}
-                      className="px-4 py-3 hover:bg-gray-100 cursor-pointer flex items-center space-x-3"
-                    >
-                      <Search className="w-4 h-4 text-gray-400" />
-                      <span className="text-gray-800">{suggestion}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
+              <SearchBar placeholder="What do you want to listen to?" className="w-full" onSearch={handleSearch} />
             </div>
           </div>
         </div>
@@ -251,7 +175,7 @@ export default function SearchPage() {
 
       <div className="max-w-7xl mx-auto px-4 py-8 pb-32">
         <AnimatePresence mode="wait">
-          {query && searchResults ? (
+          {showResults ? (
             <motion.div
               key="search-results"
               initial={{ opacity: 0, y: 20 }}
@@ -292,7 +216,7 @@ export default function SearchPage() {
                   <p className="text-red-400 mb-4">{error}</p>
                   <Button
                     variant="outline"
-                    onClick={() => handleSearch(query)}
+                    onClick={() => handleSearch(currentQuery)}
                     className="border-red-500/20 text-red-400 hover:bg-red-500/10"
                   >
                     Try Again
@@ -438,7 +362,7 @@ export default function SearchPage() {
                       !Array.isArray(searchResults.songs.data) ||
                       searchResults.songs.data.length === 0) && (
                       <div className="text-center py-12">
-                        <p className="text-gray-400 text-lg mb-4">No songs found for "{query}"</p>
+                        <p className="text-gray-400 text-lg mb-4">No songs found for "{currentQuery}"</p>
                         <p className="text-gray-500">Try searching for different keywords or check your spelling.</p>
                       </div>
                     )}
