@@ -2,72 +2,47 @@
 
 import type React from "react"
 
-import { useState, useEffect, useCallback, useRef } from "react"
-import { Search, X } from "lucide-react"
-import { Input } from "@/components/ui/input"
-import { Button } from "@/components/ui/button"
-import { useRouter } from "next/navigation"
-import { useStore } from "@/lib/store"
+import { useState, useRef, useEffect } from "react"
+import { Search, X, Clock, TrendingUp, Music, User, Disc } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
+import { cn } from "@/lib/utils"
+import { useSearchSuggestions } from "@/hooks/useSearchSuggestions"
+import { useStore } from "@/lib/store"
+import Image from "next/image"
 
 interface SearchBarProps {
   placeholder?: string
   className?: string
   onSearch?: (query: string) => void
+  autoFocus?: boolean
 }
 
-export default function SearchBar({ placeholder = "Search...", className = "", onSearch }: SearchBarProps) {
+export default function SearchBar({
+  placeholder = "Search songs, artists, albums...",
+  className,
+  onSearch,
+  autoFocus = false,
+}: SearchBarProps) {
   const [query, setQuery] = useState("")
+  const [isFocused, setIsFocused] = useState(false)
   const [showSuggestions, setShowSuggestions] = useState(false)
-  const [suggestions, setSuggestions] = useState<string[]>([])
   const inputRef = useRef<HTMLInputElement>(null)
-  const suggestionsRef = useRef<HTMLDivElement>(null)
-  const router = useRouter()
-  const { searchContent, searchHistory } = useStore()
+  const containerRef = useRef<HTMLDivElement>(null)
 
-  // Predefined popular search terms
-  const popularSearchTerms = [
-    "Arijit Singh",
-    "Bollywood Hits",
-    "Latest Songs",
-    "AR Rahman",
-    "Romantic Songs",
-    "Party Mix",
-    "Neha Kakkar",
-    "Atif Aslam",
-    "Shreya Ghoshal",
-    "Punjabi Hits",
-  ]
+  const { suggestions, isLoading } = useSearchSuggestions(query)
+  const { searchHistory, addToSearchHistory } = useStore()
 
-  // Generate suggestions based on query
   useEffect(() => {
-    if (!query.trim()) {
-      setSuggestions([])
-      return
+    if (autoFocus && inputRef.current) {
+      inputRef.current.focus()
     }
+  }, [autoFocus])
 
-    // Filter from popular terms and recent searches
-    const matchingPopular = popularSearchTerms.filter((term) => term.toLowerCase().includes(query.toLowerCase()))
-
-    const matchingHistory = searchHistory.filter((term) => term.toLowerCase().includes(query.toLowerCase()))
-
-    // Combine and remove duplicates
-    const combined = [...new Set([...matchingHistory, ...matchingPopular])]
-
-    // Limit to 5 suggestions
-    setSuggestions(combined.slice(0, 5))
-  }, [query, searchHistory])
-
-  // Handle click outside to close suggestions
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (
-        suggestionsRef.current &&
-        !suggestionsRef.current.contains(event.target as Node) &&
-        inputRef.current &&
-        !inputRef.current.contains(event.target as Node)
-      ) {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
         setShowSuggestions(false)
+        setIsFocused(false)
       }
     }
 
@@ -75,84 +50,175 @@ export default function SearchBar({ placeholder = "Search...", className = "", o
     return () => document.removeEventListener("mousedown", handleClickOutside)
   }, [])
 
-  const handleSearch = useCallback(
-    async (searchQuery: string) => {
-      if (!searchQuery.trim()) return
+  const handleSearch = (searchQuery: string) => {
+    if (!searchQuery.trim()) return
 
+    setQuery(searchQuery)
+    setShowSuggestions(false)
+    setIsFocused(false)
+    addToSearchHistory(searchQuery)
+    onSearch?.(searchQuery)
+    inputRef.current?.blur()
+  }
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value
+    setQuery(value)
+    setShowSuggestions(true)
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") {
+      handleSearch(query)
+    } else if (e.key === "Escape") {
       setShowSuggestions(false)
+      setIsFocused(false)
+      inputRef.current?.blur()
+    }
+  }
 
-      if (onSearch) {
-        onSearch(searchQuery)
-      } else {
-        await searchContent(searchQuery)
-        router.push(`/search?q=${encodeURIComponent(searchQuery)}`)
-      }
-    },
-    [onSearch, searchContent, router],
-  )
-
-  const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent) => {
-      if (e.key === "Enter") {
-        handleSearch(query)
-      }
-    },
-    [query, handleSearch],
-  )
-
-  const clearSearch = useCallback(() => {
+  const clearSearch = () => {
     setQuery("")
     setShowSuggestions(false)
-    if (inputRef.current) {
-      inputRef.current.focus()
+    inputRef.current?.focus()
+  }
+
+  const getSuggestionIcon = (type: string) => {
+    switch (type) {
+      case "song":
+        return <Music className="w-4 h-4" />
+      case "artist":
+        return <User className="w-4 h-4" />
+      case "album":
+        return <Disc className="w-4 h-4" />
+      default:
+        return <Search className="w-4 h-4" />
     }
-  }, [])
+  }
 
   return (
-    <div className={`relative ${className}`}>
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-        <Input
+    <div ref={containerRef} className={cn("relative w-full max-w-2xl", className)}>
+      {/* Search Input */}
+      <div
+        className={cn(
+          "relative flex items-center bg-white/10 backdrop-blur-sm rounded-full border transition-all duration-200",
+          isFocused ? "border-white/30 bg-white/15" : "border-white/20",
+        )}
+      >
+        <Search className="w-5 h-5 text-gray-400 ml-4" />
+        <input
           ref={inputRef}
-          placeholder={placeholder}
+          type="text"
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          onFocus={() => setShowSuggestions(true)}
+          onChange={handleInputChange}
           onKeyDown={handleKeyDown}
-          className="pl-10 pr-10 bg-white/10 border-white/20 text-white placeholder:text-gray-400 rounded-full"
+          onFocus={() => {
+            setIsFocused(true)
+            setShowSuggestions(true)
+          }}
+          placeholder={placeholder}
+          className="flex-1 bg-transparent text-white placeholder-gray-400 px-4 py-3 focus:outline-none"
         />
         {query && (
-          <Button
-            size="icon"
-            variant="ghost"
-            onClick={clearSearch}
-            className="absolute right-2 top-1/2 transform -translate-y-1/2 h-7 w-7 text-gray-400 hover:text-white"
-          >
+          <button onClick={clearSearch} className="p-2 text-gray-400 hover:text-white transition-colors">
             <X className="w-4 h-4" />
-          </Button>
+          </button>
         )}
       </div>
 
-      {/* Search Suggestions */}
+      {/* Search Suggestions Dropdown */}
       <AnimatePresence>
-        {showSuggestions && suggestions.length > 0 && (
+        {showSuggestions && (isFocused || query) && (
           <motion.div
-            ref={suggestionsRef}
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            className="absolute top-full left-0 right-0 mt-2 bg-gray-900/95 backdrop-blur-md border border-gray-700 rounded-lg shadow-lg z-50 overflow-hidden"
+            initial={{ opacity: 0, y: -10, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -10, scale: 0.95 }}
+            transition={{ duration: 0.2 }}
+            className="absolute top-full left-0 right-0 mt-2 bg-gray-900/95 backdrop-blur-xl border border-gray-700 rounded-xl shadow-2xl z-50 max-h-96 overflow-hidden"
           >
-            {suggestions.map((suggestion, index) => (
-              <div
-                key={index}
-                onClick={() => handleSearch(suggestion)}
-                className="px-4 py-3 hover:bg-white/10 cursor-pointer flex items-center space-x-3 transition-colors"
-              >
-                <Search className="w-4 h-4 text-gray-400" />
-                <span className="text-white">{suggestion}</span>
+            {isLoading ? (
+              <div className="p-4 text-center">
+                <div className="flex items-center justify-center space-x-2 text-gray-400">
+                  <motion.div
+                    animate={{ rotate: 360 }}
+                    transition={{ duration: 1, repeat: Number.POSITIVE_INFINITY, ease: "linear" }}
+                    className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full"
+                  />
+                  <span>Searching...</span>
+                </div>
               </div>
-            ))}
+            ) : (
+              <div className="py-2">
+                {/* Recent Searches */}
+                {!query && searchHistory.length > 0 && (
+                  <div className="px-4 py-2">
+                    <div className="flex items-center space-x-2 text-gray-400 text-sm mb-2">
+                      <Clock className="w-4 h-4" />
+                      <span>Recent searches</span>
+                    </div>
+                    {searchHistory.slice(0, 3).map((search, index) => (
+                      <button
+                        key={index}
+                        onClick={() => handleSearch(search)}
+                        className="flex items-center space-x-3 w-full p-2 hover:bg-white/5 rounded-lg transition-colors text-left"
+                      >
+                        <Clock className="w-4 h-4 text-gray-500" />
+                        <span className="text-white">{search}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {/* Suggestions */}
+                <div className="px-4 py-2">
+                  {!query && (
+                    <div className="flex items-center space-x-2 text-gray-400 text-sm mb-2">
+                      <TrendingUp className="w-4 h-4" />
+                      <span>Popular searches</span>
+                    </div>
+                  )}
+
+                  {suggestions.map((suggestion, index) => (
+                    <motion.button
+                      key={suggestion.id}
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: index * 0.05 }}
+                      onClick={() => handleSearch(suggestion.text)}
+                      className="flex items-center space-x-3 w-full p-2 hover:bg-white/5 rounded-lg transition-colors text-left group"
+                    >
+                      {suggestion.image ? (
+                        <Image
+                          src={suggestion.image || "/placeholder.svg"}
+                          alt={suggestion.text}
+                          width={32}
+                          height={32}
+                          className="rounded-full"
+                        />
+                      ) : (
+                        <div className="w-8 h-8 bg-gray-700 rounded-full flex items-center justify-center text-gray-400">
+                          {getSuggestionIcon(suggestion.type)}
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-white font-medium truncate">{suggestion.text}</p>
+                        {suggestion.artist && <p className="text-gray-400 text-sm truncate">{suggestion.artist}</p>}
+                      </div>
+                      <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Search className="w-4 h-4 text-gray-400" />
+                      </div>
+                    </motion.button>
+                  ))}
+                </div>
+
+                {suggestions.length === 0 && query && (
+                  <div className="px-4 py-8 text-center text-gray-400">
+                    <Search className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                    <p>No suggestions found</p>
+                  </div>
+                )}
+              </div>
+            )}
           </motion.div>
         )}
       </AnimatePresence>

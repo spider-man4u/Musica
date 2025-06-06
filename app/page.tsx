@@ -20,6 +20,8 @@ import {
   User,
   Settings,
   LogOut,
+  Download,
+  Sparkles,
 } from "lucide-react"
 import { useStore } from "@/lib/store"
 import { cn } from "@/lib/utils"
@@ -32,29 +34,92 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import SearchBar from "./components/SearchBar"
+import AIRecommendations from "./components/AIRecommendations"
+
+// Enhanced animation variants
+const containerVariants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: {
+      duration: 0.3,
+      ease: [0.0, 0.0, 0.2, 1],
+      staggerChildren: 0.05,
+    },
+  },
+}
+
+const itemVariants = {
+  hidden: { opacity: 0, y: 20 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: {
+      duration: 0.4,
+      ease: [0.0, 0.0, 0.2, 1],
+    },
+  },
+}
 
 const quickAccessItems = [
   { name: "Liked Songs", icon: Heart, color: "from-purple-500 to-pink-500", type: "favorites" },
   { name: "Recently Played", icon: Clock, color: "from-green-500 to-emerald-500", type: "recent" },
-  { name: "My Playlist #1", icon: Music, color: "from-blue-500 to-cyan-500", type: "playlist" },
+  { name: "Downloads", icon: Download, color: "from-blue-500 to-cyan-500", type: "downloads" },
   { name: "Discover Weekly", icon: Star, color: "from-orange-500 to-red-500", type: "discover" },
   { name: "Daily Mix 1", icon: Radio, color: "from-indigo-500 to-purple-500", type: "mix" },
   { name: "Chill Hits", icon: Headphones, color: "from-teal-500 to-blue-500", type: "chill" },
 ]
 
 const moodCategories = [
-  { name: "Happy", emoji: "😊", color: "from-yellow-400 to-orange-400", keywords: ["happy", "upbeat", "cheerful"] },
-  { name: "Chill", emoji: "😌", color: "from-blue-400 to-cyan-400", keywords: ["chill", "relaxed", "calm"] },
-  { name: "Energetic", emoji: "⚡", color: "from-red-400 to-pink-400", keywords: ["energetic", "workout", "pump"] },
-  { name: "Romantic", emoji: "💕", color: "from-pink-400 to-rose-400", keywords: ["romantic", "love", "ballad"] },
-  { name: "Focus", emoji: "🎯", color: "from-green-400 to-emerald-400", keywords: ["focus", "study", "concentration"] },
-  { name: "Party", emoji: "🎉", color: "from-purple-400 to-pink-400", keywords: ["party", "dance", "celebration"] },
+  {
+    name: "Happy",
+    emoji: "😊",
+    color: "from-yellow-400 to-orange-400",
+    keywords: ["happy", "upbeat", "cheerful"],
+    thumbnail: "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=150&h=150&fit=crop&crop=faces",
+  },
+  {
+    name: "Chill",
+    emoji: "😌",
+    color: "from-blue-400 to-cyan-400",
+    keywords: ["chill", "relaxed", "calm"],
+    thumbnail: "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=150&h=150&fit=crop&crop=center",
+  },
+  {
+    name: "Energetic",
+    emoji: "⚡",
+    color: "from-red-400 to-pink-400",
+    keywords: ["energetic", "workout", "pump"],
+    thumbnail: "https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=150&h=150&fit=crop&crop=center",
+  },
+  {
+    name: "Romantic",
+    emoji: "💕",
+    color: "from-pink-400 to-rose-400",
+    keywords: ["romantic", "love", "ballad"],
+    thumbnail: "https://images.unsplash.com/photo-1518199266791-5375a83190b7?w=150&h=150&fit=crop&crop=center",
+  },
+  {
+    name: "Focus",
+    emoji: "🎯",
+    color: "from-green-400 to-emerald-400",
+    keywords: ["focus", "study", "concentration"],
+    thumbnail: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop&crop=center",
+  },
+  {
+    name: "Party",
+    emoji: "🎉",
+    color: "from-purple-400 to-pink-400",
+    keywords: ["party", "dance", "celebration"],
+    thumbnail: "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=150&h=150&fit=crop&crop=center",
+  },
 ]
 
 export default function Home() {
   const [currentTime, setCurrentTime] = useState("")
   const [showAllTrending, setShowAllTrending] = useState(false)
   const [trendingPage, setTrendingPage] = useState(1)
+  const [showAIRecommendations, setShowAIRecommendations] = useState(false)
   const router = useRouter()
 
   const {
@@ -64,25 +129,25 @@ export default function Home() {
     error,
     currentSong,
     isPlaying,
+    curatedPlaylists,
     fetchTrendingSongs,
-    setCurrentSong,
-    setIsPlaying,
+    playSong,
     addToFavorites,
     removeFromFavorites,
     searchContent,
+    getPersonalizedRecommendations,
   } = useStore()
 
   // Fetch trending songs on mount and refresh every 5 minutes
   useEffect(() => {
     fetchTrendingSongs()
 
-    // Set up interval for refreshing trending songs
     const refreshInterval = setInterval(
       () => {
         fetchTrendingSongs()
       },
       5 * 60 * 1000,
-    ) // 5 minutes
+    )
 
     return () => clearInterval(refreshInterval)
   }, [fetchTrendingSongs])
@@ -109,13 +174,11 @@ export default function Home() {
     return "Good evening"
   }
 
-  const playSong = useCallback(
-    (song: any) => {
-      if (!song) return
-      setCurrentSong(song)
-      setIsPlaying(true)
+  const handlePlaySong = useCallback(
+    (song: any, playlist?: any[]) => {
+      playSong(song, playlist)
     },
-    [setCurrentSong, setIsPlaying],
+    [playSong],
   )
 
   const toggleFavorite = useCallback(
@@ -140,6 +203,9 @@ export default function Home() {
           break
         case "recent":
           router.push("/library?tab=recent")
+          break
+        case "downloads":
+          router.push("/downloads")
           break
         case "playlist":
         case "discover":
@@ -169,31 +235,41 @@ export default function Home() {
 
   const loadMoreTrending = () => {
     setTrendingPage((prev) => prev + 1)
-    // In a real app, this would fetch more songs
   }
 
   const userName = localStorage.getItem("username") || userData?.name || "Music Lover"
   const userEmail = localStorage.getItem("email") || userData?.email || ""
 
-  // Safe access to arrays with fallbacks
   const safeTrendingSongs = Array.isArray(trendingSongs) ? trendingSongs : []
   const safeRecentlyPlayed = Array.isArray(userData?.recentlyPlayed) ? userData.recentlyPlayed : []
   const safeFavorites = Array.isArray(userData?.favorites) ? userData.favorites : []
+  const safeDownloads = Array.isArray(userData?.downloads) ? userData.downloads : []
 
   const displayedTrending = showAllTrending ? safeTrendingSongs : safeTrendingSongs.slice(0, 10)
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
+    <motion.div
+      variants={containerVariants}
+      initial="hidden"
+      animate="visible"
+      className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900"
+    >
       {/* Header */}
-      <div className="sticky top-0 z-40 bg-black/20 backdrop-blur-xl border-b border-white/10">
+      <motion.div
+        variants={itemVariants}
+        className="sticky top-0 z-40 bg-black/20 backdrop-blur-xl border-b border-white/10"
+      >
         <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
               <div className="flex items-center space-x-3">
-                {/* Musica Logo */}
-                <div className="w-10 h-10 bg-gradient-to-r from-green-400 to-blue-500 rounded-full flex items-center justify-center">
+                <motion.div
+                  className="w-10 h-10 bg-gradient-to-r from-green-400 to-blue-500 rounded-full flex items-center justify-center"
+                  whileHover={{ scale: 1.1 }}
+                  whileTap={{ scale: 0.9 }}
+                >
                   <Music className="w-6 h-6 text-white" />
-                </div>
+                </motion.div>
                 <h1 className="text-xl font-bold text-white">Musica</h1>
               </div>
             </div>
@@ -205,14 +281,29 @@ export default function Home() {
             <div className="flex items-center space-x-4">
               <div className="text-white text-sm">{currentTime}</div>
 
+              {/* AI Recommendations Button */}
+              <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowAIRecommendations(true)}
+                  className="text-purple-400 hover:text-purple-300 hover:bg-purple-500/10"
+                >
+                  <Sparkles className="w-4 h-4 mr-2" />
+                  AI
+                </Button>
+              </motion.div>
+
               {/* Profile Dropdown */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" className="relative h-10 w-10 rounded-full p-0">
-                    <div className="w-10 h-10 bg-gradient-to-r from-purple-400 to-pink-500 rounded-full flex items-center justify-center">
-                      <span className="text-white text-sm font-bold">{userName[0]?.toUpperCase() || "U"}</span>
-                    </div>
-                  </Button>
+                  <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                    <Button variant="ghost" className="relative h-10 w-10 rounded-full p-0">
+                      <div className="w-10 h-10 bg-gradient-to-r from-purple-400 to-pink-500 rounded-full flex items-center justify-center">
+                        <span className="text-white text-sm font-bold">{userName[0]?.toUpperCase() || "U"}</span>
+                      </div>
+                    </Button>
+                  </motion.div>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent className="w-56 bg-gray-900 border-gray-700" align="end" forceMount>
                   <div className="flex flex-col space-y-1 p-2">
@@ -226,6 +317,20 @@ export default function Home() {
                   >
                     <User className="mr-2 h-4 w-4" />
                     Profile
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    className="text-white hover:bg-gray-800 cursor-pointer"
+                    onClick={() => router.push("/downloads")}
+                  >
+                    <Download className="mr-2 h-4 w-4" />
+                    Downloads
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    className="text-white hover:bg-gray-800 cursor-pointer"
+                    onClick={() => setShowAIRecommendations(true)}
+                  >
+                    <Sparkles className="mr-2 h-4 w-4" />
+                    AI Recommendations
                   </DropdownMenuItem>
                   <DropdownMenuItem
                     className="text-white hover:bg-gray-800 cursor-pointer"
@@ -250,61 +355,74 @@ export default function Home() {
             </div>
           </div>
         </div>
-      </div>
+      </motion.div>
 
       <div className="max-w-7xl mx-auto px-4 py-8 pb-32">
         {/* Greeting Section */}
-        <div className="mb-8">
+        <motion.div variants={itemVariants} className="mb-8">
           <h2 className="text-3xl font-bold text-white mb-2">
             {getGreeting()}, {userName}
           </h2>
           <p className="text-gray-400">Ready to discover some great music?</p>
-        </div>
+        </motion.div>
 
-        {/* Quick Access Grid - Now Functional */}
-        <div className="mb-8">
+        {/* Quick Access Grid */}
+        <motion.div variants={itemVariants} className="mb-8">
           <h3 className="text-xl font-semibold text-white mb-4">Quick Access</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {quickAccessItems.map((item, index) => (
-              <motion.div
-                key={item.name}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.1 }}
-                onClick={() => handleQuickAccess(item)}
-                className="group bg-white/5 hover:bg-white/10 rounded-lg p-4 cursor-pointer transition-all duration-300 border border-white/10 hover:border-white/20"
-              >
-                <div className="flex items-center space-x-4">
-                  <div
-                    className={`w-12 h-12 bg-gradient-to-r ${item.color} rounded-lg flex items-center justify-center`}
-                  >
-                    <item.icon className="w-6 h-6 text-white" />
-                  </div>
-                  <div className="flex-1">
-                    <h4 className="text-white font-medium">{item.name}</h4>
-                    <p className="text-gray-400 text-sm">
-                      {item.type === "favorites"
-                        ? `${safeFavorites.length} songs`
-                        : item.type === "recent"
-                          ? `${safeRecentlyPlayed.length} songs`
-                          : "Playlist"}
-                    </p>
-                  </div>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="opacity-0 group-hover:opacity-100 transition-opacity text-white hover:bg-white/10"
-                  >
-                    <Play className="w-5 h-5" />
-                  </Button>
-                </div>
-              </motion.div>
-            ))}
-          </div>
-        </div>
+            {quickAccessItems.map((item, index) => {
+              let count = 0
+              switch (item.type) {
+                case "favorites":
+                  count = safeFavorites.length
+                  break
+                case "recent":
+                  count = safeRecentlyPlayed.length
+                  break
+                case "downloads":
+                  count = safeDownloads.length
+                  break
+                default:
+                  count = 0
+              }
 
-        {/* Browse by Mood - Now Functional */}
-        <div className="mb-8">
+              return (
+                <motion.div
+                  key={item.name}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.1 }}
+                  onClick={() => handleQuickAccess(item)}
+                  className="group bg-white/5 hover:bg-white/10 rounded-lg p-4 cursor-pointer transition-all duration-300 border border-white/10 hover:border-white/20"
+                  whileHover={{ scale: 1.02, y: -2 }}
+                  whileTap={{ scale: 0.98 }}
+                >
+                  <div className="flex items-center space-x-4">
+                    <div
+                      className={`w-12 h-12 bg-gradient-to-r ${item.color} rounded-lg flex items-center justify-center`}
+                    >
+                      <item.icon className="w-6 h-6 text-white" />
+                    </div>
+                    <div className="flex-1">
+                      <h4 className="text-white font-medium">{item.name}</h4>
+                      <p className="text-gray-400 text-sm">{count} songs</p>
+                    </div>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="opacity-0 group-hover:opacity-100 transition-opacity text-white hover:bg-white/10"
+                    >
+                      <Play className="w-5 h-5" />
+                    </Button>
+                  </div>
+                </motion.div>
+              )
+            })}
+          </div>
+        </motion.div>
+
+        {/* Browse by Mood */}
+        <motion.div variants={itemVariants} className="mb-8">
           <h3 className="text-xl font-semibold text-white mb-4">Browse by Mood</h3>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
             {moodCategories.map((mood, index) => (
@@ -315,8 +433,17 @@ export default function Home() {
                 transition={{ delay: index * 0.1 }}
                 onClick={() => handleMoodClick(mood)}
                 className={`aspect-square bg-gradient-to-br ${mood.color} rounded-xl p-4 cursor-pointer hover:scale-105 transition-transform duration-300 relative overflow-hidden`}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
               >
                 <div className="absolute inset-0 bg-black/20" />
+                <Image
+                  src={mood.thumbnail || "/placeholder.svg"}
+                  alt={mood.name}
+                  width={150}
+                  height={150}
+                  className="absolute inset-0 w-full h-full object-cover opacity-30"
+                />
                 <div className="relative z-10 h-full flex flex-col justify-between">
                   <div className="text-3xl">{mood.emoji}</div>
                   <div>
@@ -326,10 +453,50 @@ export default function Home() {
               </motion.div>
             ))}
           </div>
-        </div>
+        </motion.div>
 
-        {/* Trending Now - Enhanced with Show More and Infinite Scroll */}
-        <div className="mb-8">
+        {/* Curated Playlists */}
+        <motion.div variants={itemVariants} className="mb-8">
+          <h3 className="text-xl font-semibold text-white mb-4">Curated for You</h3>
+          <ScrollArea className="w-full">
+            <div className="flex space-x-4 pb-4">
+              {curatedPlaylists.map((playlist, index) => (
+                <motion.div
+                  key={playlist.id}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.1 }}
+                  className="min-w-[200px] bg-white/5 hover:bg-white/10 rounded-lg p-4 cursor-pointer transition-all duration-300 group border border-white/10 hover:border-white/20"
+                  whileHover={{ scale: 1.02, y: -4 }}
+                  whileTap={{ scale: 0.98 }}
+                >
+                  <div className="relative mb-4">
+                    <Image
+                      src={playlist.image || "/placeholder.svg?height=160&width=160"}
+                      alt={playlist.name}
+                      width={160}
+                      height={160}
+                      className="w-full aspect-square object-cover rounded-lg"
+                    />
+                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center">
+                      <Button size="icon" className="bg-green-500 hover:bg-green-600 rounded-full w-12 h-12">
+                        <Play className="w-6 h-6 ml-0.5" />
+                      </Button>
+                    </div>
+                  </div>
+                  <div>
+                    <h4 className="text-white font-medium truncate mb-1">{playlist.name}</h4>
+                    <p className="text-gray-400 text-sm truncate">{playlist.description}</p>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+            <ScrollBar orientation="horizontal" />
+          </ScrollArea>
+        </motion.div>
+
+        {/* Trending Now */}
+        <motion.div variants={itemVariants} className="mb-8">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-xl font-semibold text-white flex items-center">
               <TrendingUp className="w-5 h-5 mr-2" />
@@ -366,7 +533,6 @@ export default function Home() {
           ) : displayedTrending.length > 0 ? (
             <>
               {showAllTrending ? (
-                // List view for Show All
                 <div className="space-y-2">
                   {displayedTrending.map((song, index) => {
                     if (!song) return null
@@ -379,6 +545,7 @@ export default function Home() {
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ delay: index * 0.05 }}
                         className="flex items-center space-x-4 p-3 rounded-lg hover:bg-white/5 cursor-pointer group transition-colors"
+                        whileHover={{ x: 4 }}
                       >
                         <div className="relative">
                           <Image
@@ -389,7 +556,7 @@ export default function Home() {
                             className="rounded-lg"
                           />
                           <div
-                            onClick={() => playSong(song)}
+                            onClick={() => handlePlaySong(song, displayedTrending)}
                             className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center"
                           >
                             <Play className="w-4 h-4 text-white" />
@@ -423,7 +590,6 @@ export default function Home() {
                     )
                   })}
 
-                  {/* Load More Button for Infinite Scroll */}
                   <div className="text-center pt-4">
                     <Button
                       variant="outline"
@@ -435,7 +601,6 @@ export default function Home() {
                   </div>
                 </div>
               ) : (
-                // Card view for initial display
                 <ScrollArea className="w-full">
                   <div className="flex space-x-4 pb-4">
                     {displayedTrending.map((song, index) => {
@@ -449,6 +614,8 @@ export default function Home() {
                           animate={{ opacity: 1, y: 0 }}
                           transition={{ delay: index * 0.1 }}
                           className="min-w-[200px] bg-white/5 hover:bg-white/10 rounded-lg p-4 cursor-pointer transition-all duration-300 group border border-white/10 hover:border-white/20"
+                          whileHover={{ scale: 1.02, y: -4 }}
+                          whileTap={{ scale: 0.98 }}
                         >
                           <div className="relative mb-4">
                             <Image
@@ -463,7 +630,7 @@ export default function Home() {
                                 size="icon"
                                 onClick={(e) => {
                                   e.stopPropagation()
-                                  playSong(song)
+                                  handlePlaySong(song, displayedTrending)
                                 }}
                                 className="bg-green-500 hover:bg-green-600 rounded-full w-12 h-12"
                               >
@@ -513,10 +680,10 @@ export default function Home() {
               </Button>
             </div>
           )}
-        </div>
+        </motion.div>
 
-        {/* Recently Played - Synced with Real Data */}
-        <div className="mb-8">
+        {/* Recently Played */}
+        <motion.div variants={itemVariants} className="mb-8">
           <h3 className="text-xl font-semibold text-white mb-4">Recently Played</h3>
           {safeRecentlyPlayed.length > 0 ? (
             <div className="space-y-2">
@@ -530,7 +697,8 @@ export default function Home() {
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: index * 0.1 }}
                     className="flex items-center space-x-4 p-3 rounded-lg hover:bg-white/5 cursor-pointer group transition-colors"
-                    onClick={() => playSong(song)}
+                    onClick={() => handlePlaySong(song, safeRecentlyPlayed)}
+                    whileHover={{ x: 4 }}
                   >
                     <div className="relative">
                       <Image
@@ -554,13 +722,6 @@ export default function Home() {
                           ? `${Math.floor(song.duration / 60)}:${(song.duration % 60).toString().padStart(2, "0")}`
                           : "3:45"}
                       </span>
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        className="opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-white"
-                      >
-                        <MoreHorizontal className="w-4 h-4" />
-                      </Button>
                     </div>
                   </motion.div>
                 )
@@ -568,80 +729,15 @@ export default function Home() {
             </div>
           ) : (
             <div className="text-center py-8">
-              <Clock className="w-12 h-12 text-gray-600 mx-auto mb-2" />
+              <Clock className="w-12 h-12 text-gray-600 mx-auto mb-4" />
               <p className="text-gray-400">No recently played songs</p>
-              <p className="text-gray-500 text-sm">Start listening to see your history here</p>
             </div>
           )}
-        </div>
-
-        {/* Made For You - Enhanced with Thumbnails */}
-        <div className="mb-8">
-          <h3 className="text-xl font-semibold text-white mb-4">Made For You</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {[
-              {
-                name: "Discover Weekly",
-                desc: "Your weekly mixtape of fresh music",
-                color: "from-purple-600 to-blue-600",
-                thumbnail: "/placeholder.svg?height=200&width=200",
-              },
-              {
-                name: "Daily Mix 1",
-                desc: "Arijit Singh, Shreya Ghoshal and more",
-                color: "from-green-600 to-teal-600",
-                thumbnail: "/placeholder.svg?height=200&width=200",
-              },
-              {
-                name: "Daily Mix 2",
-                desc: "Bollywood hits and classics",
-                color: "from-orange-600 to-red-600",
-                thumbnail: "/placeholder.svg?height=200&width=200",
-              },
-              {
-                name: "Release Radar",
-                desc: "Catch all the latest music",
-                color: "from-pink-600 to-purple-600",
-                thumbnail: "/placeholder.svg?height=200&width=200",
-              },
-            ].map((playlist, index) => (
-              <motion.div
-                key={playlist.name}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.1 }}
-                className="bg-white/5 hover:bg-white/10 rounded-lg p-4 cursor-pointer transition-all duration-300 group border border-white/10 hover:border-white/20"
-              >
-                <div className="relative mb-4">
-                  <div
-                    className={`w-full aspect-square bg-gradient-to-br ${playlist.color} rounded-lg flex items-center justify-center relative overflow-hidden`}
-                  >
-                    <Image
-                      src={playlist.thumbnail || "/placeholder.svg"}
-                      alt={playlist.name}
-                      width={200}
-                      height={200}
-                      className="w-full h-full object-cover rounded-lg opacity-80"
-                    />
-                    <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                      <Button size="icon" className="bg-green-500 hover:bg-green-600 rounded-full">
-                        <Play className="w-5 h-5 ml-0.5" />
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-                <h4 className="text-white font-medium mb-1">{playlist.name}</h4>
-                <p className="text-gray-400 text-sm">{playlist.desc}</p>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-
-        {/* Footer */}
-        <div className="text-center py-8 border-t border-white/10">
-          <p className="text-gray-400 text-sm">Made with ❤️ by Ali Sheikh (Spider)</p>
-        </div>
+        </motion.div>
       </div>
-    </div>
+
+      {/* AI Recommendations Modal */}
+      <AIRecommendations isVisible={showAIRecommendations} onClose={() => setShowAIRecommendations(false)} />
+    </motion.div>
   )
 }

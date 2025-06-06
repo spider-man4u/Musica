@@ -16,49 +16,49 @@ const browseCategories = [
     name: "Bollywood",
     color: "from-red-500 to-pink-500",
     image: "🎬",
-    thumbnail: "/placeholder.svg?height=150&width=150",
+    thumbnail: "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=150&h=150&fit=crop",
   },
   {
     name: "Punjabi",
     color: "from-orange-500 to-yellow-500",
     image: "🎵",
-    thumbnail: "/placeholder.svg?height=150&width=150",
+    thumbnail: "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=150&h=150&fit=crop",
   },
   {
     name: "Tamil",
     color: "from-green-500 to-emerald-500",
     image: "🎶",
-    thumbnail: "/placeholder.svg?height=150&width=150",
+    thumbnail: "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=150&h=150&fit=crop",
   },
   {
     name: "Telugu",
     color: "from-blue-500 to-cyan-500",
     image: "🎼",
-    thumbnail: "/placeholder.svg?height=150&width=150",
+    thumbnail: "https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=150&h=150&fit=crop",
   },
   {
     name: "Pop",
     color: "from-purple-500 to-pink-500",
     image: "🎤",
-    thumbnail: "/placeholder.svg?height=150&width=150",
+    thumbnail: "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=150&h=150&fit=crop",
   },
   {
     name: "Rock",
     color: "from-gray-600 to-gray-800",
     image: "🎸",
-    thumbnail: "/placeholder.svg?height=150&width=150",
+    thumbnail: "https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=150&h=150&fit=crop",
   },
   {
     name: "Classical",
     color: "from-amber-500 to-orange-500",
     image: "🎻",
-    thumbnail: "/placeholder.svg?height=150&width=150",
+    thumbnail: "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=150&h=150&fit=crop",
   },
   {
     name: "Devotional",
     color: "from-indigo-500 to-purple-500",
     image: "🙏",
-    thumbnail: "/placeholder.svg?height=150&width=150",
+    thumbnail: "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=150&h=150&fit=crop",
   },
 ]
 
@@ -112,8 +112,7 @@ export default function SearchPage() {
     userData,
     searchContent,
     clearSearchHistory,
-    setCurrentSong,
-    setIsPlaying,
+    playSong,
     addToFavorites,
     removeFromFavorites,
   } = useStore()
@@ -137,21 +136,53 @@ export default function SearchPage() {
     [searchContent],
   )
 
-  const playSong = useCallback(
-    (song: any) => {
-      setCurrentSong(song)
-      setIsPlaying(true)
+  const handlePlaySong = useCallback(
+    (song: any, index: number) => {
+      // Convert search result to proper song format
+      const convertedSong = {
+        id: song.id || `song-${index}`,
+        title: song.title || "Unknown Song",
+        artist: song.artist || "Unknown Artist",
+        album: song.album || "Unknown Album",
+        image: song.image || "/placeholder.svg?height=300&width=300",
+        audio: song.audio || song.download_url || "",
+        duration: song.duration || 0,
+      }
+
+      // Create playlist from search results
+      const playlist =
+        searchResults?.songs?.data?.map((s, i) => ({
+          id: s.id || `song-${i}`,
+          title: s.title || "Unknown Song",
+          artist: s.artist || "Unknown Artist",
+          album: s.album || "Unknown Album",
+          image: s.image || "/placeholder.svg?height=300&width=300",
+          audio: s.audio || s.download_url || "",
+          duration: s.duration || 0,
+        })) || []
+
+      playSong(convertedSong, playlist)
     },
-    [setCurrentSong, setIsPlaying],
+    [searchResults, playSong],
   )
 
   const toggleFavorite = useCallback(
     (song: any) => {
+      const convertedSong = {
+        id: song.id,
+        title: song.title || "Unknown Song",
+        artist: song.artist || "Unknown Artist",
+        album: song.album || "Unknown Album",
+        image: song.image || "/placeholder.svg?height=300&width=300",
+        audio: song.audio || song.download_url || "",
+        duration: song.duration || 0,
+      }
+
       const isFavorite = userData.favorites.some((fav) => fav.id === song.id)
       if (isFavorite) {
         removeFromFavorites(song.id)
       } else {
-        addToFavorites(song)
+        addToFavorites(convertedSong)
       }
     },
     [userData.favorites, addToFavorites, removeFromFavorites],
@@ -243,18 +274,7 @@ export default function SearchPage() {
                               <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center">
                                 <Button
                                   size="icon"
-                                  onClick={() =>
-                                    playSong({
-                                      id: searchResults.songs.data[0].id,
-                                      title: searchResults.songs.data[0].title || "Unknown Song",
-                                      artist: searchResults.songs.data[0].artist || "Unknown Artist",
-                                      album: searchResults.songs.data[0].album || "Unknown Album",
-                                      image:
-                                        searchResults.songs.data[0].image || "/placeholder.svg?height=300&width=300",
-                                      audio: searchResults.songs.data[0].audio || "",
-                                      duration: searchResults.songs.data[0].duration || 0,
-                                    })
-                                  }
+                                  onClick={() => handlePlaySong(searchResults.songs.data[0], 0)}
                                   className="bg-green-500 hover:bg-green-600 rounded-full w-16 h-16"
                                 >
                                   <Play className="w-8 h-8 ml-1" />
@@ -290,16 +310,6 @@ export default function SearchPage() {
                         <h3 className="text-xl font-semibold text-white mb-4">Songs</h3>
                         <div className="space-y-2">
                           {searchResults.songs.data.slice(0, 10).map((song, index) => {
-                            const convertedSong = {
-                              id: song.id || `song-${index}`,
-                              title: song.title || "Unknown Song",
-                              artist: song.artist || "Unknown Artist",
-                              album: song.album || "Unknown Album",
-                              image: song.image || "/placeholder.svg?height=300&width=300",
-                              audio: song.audio || "",
-                              duration: song.duration || 0,
-                            }
-
                             const isFavorite =
                               userData?.favorites && Array.isArray(userData.favorites)
                                 ? userData.favorites.some((fav) => fav?.id === song.id)
@@ -307,7 +317,7 @@ export default function SearchPage() {
 
                             return (
                               <motion.div
-                                key={convertedSong.id}
+                                key={song.id || `song-${index}`}
                                 initial={{ opacity: 0, x: -20 }}
                                 animate={{ opacity: 1, x: 0 }}
                                 transition={{ delay: index * 0.05 }}
@@ -316,27 +326,27 @@ export default function SearchPage() {
                                 <div className="relative">
                                   <SafeImage
                                     src={song.image}
-                                    alt={convertedSong.title}
+                                    alt={song.title || "Unknown Song"}
                                     width={48}
                                     height={48}
                                     className="rounded-lg"
                                   />
                                   <div
-                                    onClick={() => playSong(convertedSong)}
+                                    onClick={() => handlePlaySong(song, index)}
                                     className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center"
                                   >
                                     <Play className="w-4 h-4 text-white" />
                                   </div>
                                 </div>
                                 <div className="flex-1 min-w-0">
-                                  <h4 className="text-white font-medium truncate">{convertedSong.title}</h4>
-                                  <p className="text-gray-400 text-sm truncate">{convertedSong.artist}</p>
+                                  <h4 className="text-white font-medium truncate">{song.title || "Unknown Song"}</h4>
+                                  <p className="text-gray-400 text-sm truncate">{song.artist || "Unknown Artist"}</p>
                                 </div>
                                 <div className="flex items-center space-x-2">
                                   <Button
                                     size="icon"
                                     variant="ghost"
-                                    onClick={() => toggleFavorite(convertedSong)}
+                                    onClick={() => toggleFavorite(song)}
                                     className="opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-white"
                                   >
                                     <Heart className={cn("w-4 h-4", isFavorite && "fill-red-500 text-red-500")} />
