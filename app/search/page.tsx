@@ -91,7 +91,7 @@ const SafeImage = ({
   if (!validSrc) {
     return (
       <div className={cn("bg-gray-800 flex items-center justify-center", className)} style={{ width, height }}>
-        <Music className="w-6 h-6 text-gray-400" />
+        <Music className="w-4 h-4 sm:w-6 sm:h-6 text-gray-400" />
       </div>
     )
   }
@@ -193,18 +193,18 @@ export default function SearchPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
-      {/* Header */}
+      {/* Header - Compact for mobile */}
       <div className="sticky top-0 z-40 bg-black/20 backdrop-blur-xl border-b border-white/10">
-        <div className="max-w-7xl mx-auto px-4 py-4">
-          <div className="flex items-center space-x-4">
-            <div className="flex-1 max-w-2xl relative">
+        <div className="w-full px-2 py-2 sm:px-4 sm:py-4">
+          <div className="flex items-center space-x-2 sm:space-x-4">
+            <div className="flex-1 relative">
               <SearchBar placeholder="What do you want to listen to?" className="w-full" onSearch={handleSearch} />
             </div>
           </div>
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 py-8 pb-32">
+      <div className="w-full px-2 py-3 pb-20 sm:px-4 sm:py-6 sm:pb-32">
         <AnimatePresence mode="wait">
           {showResults ? (
             <motion.div
@@ -213,15 +213,15 @@ export default function SearchPage() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
             >
-              {/* Search Tabs */}
-              <div className="flex space-x-1 mb-6 bg-white/10 rounded-full p-1 w-fit">
+              {/* Search Tabs - Compact */}
+              <div className="flex space-x-1 mb-4 sm:mb-6 bg-white/10 rounded-full p-1 w-fit">
                 {["all", "songs", "artists", "albums", "playlists"].map((tab) => (
                   <Button
                     key={tab}
                     variant={activeTab === tab ? "default" : "ghost"}
                     onClick={() => setActiveTab(tab)}
                     className={cn(
-                      "rounded-full px-6 capitalize",
+                      "rounded-full px-3 sm:px-6 capitalize text-xs sm:text-sm",
                       activeTab === tab ? "bg-white text-black hover:bg-white/90" : "text-white hover:bg-white/10",
                     )}
                   >
@@ -232,19 +232,19 @@ export default function SearchPage() {
 
               {/* Search Results */}
               {isLoading ? (
-                <div className="flex items-center justify-center py-12">
+                <div className="flex items-center justify-center py-8 sm:py-12">
                   <div className="flex items-center space-x-2 text-gray-400">
                     <motion.div
                       animate={{ rotate: 360 }}
                       transition={{ duration: 1, repeat: Number.POSITIVE_INFINITY, ease: "linear" }}
-                      className="w-5 h-5 border-2 border-gray-400 border-t-transparent rounded-full"
+                      className="w-4 h-4 sm:w-5 sm:h-5 border-2 border-gray-400 border-t-transparent rounded-full"
                     />
-                    <span>Searching...</span>
+                    <span className="text-sm sm:text-base">Searching...</span>
                   </div>
                 </div>
               ) : error ? (
-                <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-6 text-center">
-                  <p className="text-red-400 mb-4">{error}</p>
+                <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-4 sm:p-6 text-center">
+                  <p className="text-red-400 mb-4 text-sm sm:text-base">{error}</p>
                   <Button
                     variant="outline"
                     onClick={() => handleSearch(currentQuery)}
@@ -254,45 +254,45 @@ export default function SearchPage() {
                   </Button>
                 </div>
               ) : (
-                <div className="space-y-8">
+                <div className="space-y-6 sm:space-y-8">
                   {/* Top Result */}
                   {searchResults?.songs?.data &&
                     Array.isArray(searchResults.songs.data) &&
                     searchResults.songs.data.length > 0 && (
                       <div>
-                        <h3 className="text-xl font-semibold text-white mb-4">Top Result</h3>
-                        <div className="bg-white/5 rounded-lg p-6 hover:bg-white/10 transition-colors cursor-pointer group">
-                          <div className="flex items-center space-x-6">
+                        <h3 className="text-lg sm:text-xl font-semibold text-white mb-3 sm:mb-4">Top Result</h3>
+                        <div className="bg-white/5 rounded-lg p-4 sm:p-6 hover:bg-white/10 transition-colors cursor-pointer group">
+                          <div className="flex items-center space-x-4 sm:space-x-6">
                             <div className="relative">
                               <SafeImage
                                 src={searchResults.songs.data[0].image}
                                 alt={searchResults.songs.data[0].title || "Unknown Song"}
-                                width={120}
-                                height={120}
-                                className="rounded-lg"
+                                width={80}
+                                height={80}
+                                className="rounded-lg sm:w-[120px] sm:h-[120px]"
                               />
                               <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center">
                                 <Button
                                   size="icon"
                                   onClick={() => handlePlaySong(searchResults.songs.data[0], 0)}
-                                  className="bg-green-500 hover:bg-green-600 rounded-full w-16 h-16"
+                                  className="bg-green-500 hover:bg-green-600 rounded-full w-10 h-10 sm:w-16 sm:h-16"
                                 >
-                                  <Play className="w-8 h-8 ml-1" />
+                                  <Play className="w-5 h-5 sm:w-8 sm:h-8 ml-1" />
                                 </Button>
                               </div>
                             </div>
-                            <div className="flex-1">
-                              <h4 className="text-3xl font-bold text-white mb-2">
+                            <div className="flex-1 min-w-0">
+                              <h4 className="text-xl sm:text-3xl font-bold text-white mb-1 sm:mb-2 truncate">
                                 {searchResults.songs.data[0].title || "Unknown Song"}
                               </h4>
-                              <p className="text-gray-400 text-lg mb-2">
+                              <p className="text-gray-400 text-sm sm:text-lg mb-1 sm:mb-2 truncate">
                                 {searchResults.songs.data[0].artist || "Unknown Artist"}
                               </p>
                               <div className="flex items-center space-x-2">
-                                <Badge variant="secondary" className="bg-white/10 text-white">
+                                <Badge variant="secondary" className="bg-white/10 text-white text-xs">
                                   Song
                                 </Badge>
-                                <Badge variant="outline" className="border-white/20 text-white">
+                                <Badge variant="outline" className="border-white/20 text-white text-xs">
                                   Music
                                 </Badge>
                               </div>
@@ -307,8 +307,8 @@ export default function SearchPage() {
                     Array.isArray(searchResults.songs.data) &&
                     searchResults.songs.data.length > 0 && (
                       <div>
-                        <h3 className="text-xl font-semibold text-white mb-4">Songs</h3>
-                        <div className="space-y-2">
+                        <h3 className="text-lg sm:text-xl font-semibold text-white mb-3 sm:mb-4">Songs</h3>
+                        <div className="space-y-1 sm:space-y-2">
                           {searchResults.songs.data.slice(0, 10).map((song, index) => {
                             const isFavorite =
                               userData?.favorites && Array.isArray(userData.favorites)
@@ -321,42 +321,48 @@ export default function SearchPage() {
                                 initial={{ opacity: 0, x: -20 }}
                                 animate={{ opacity: 1, x: 0 }}
                                 transition={{ delay: index * 0.05 }}
-                                className="flex items-center space-x-4 p-3 rounded-lg hover:bg-white/5 cursor-pointer group transition-colors"
+                                className="flex items-center space-x-3 sm:space-x-4 p-2 sm:p-3 rounded-lg hover:bg-white/5 cursor-pointer group transition-colors"
                               >
                                 <div className="relative">
                                   <SafeImage
                                     src={song.image}
                                     alt={song.title || "Unknown Song"}
-                                    width={48}
-                                    height={48}
-                                    className="rounded-lg"
+                                    width={40}
+                                    height={40}
+                                    className="rounded-lg sm:w-12 sm:h-12"
                                   />
                                   <div
                                     onClick={() => handlePlaySong(song, index)}
                                     className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center"
                                   >
-                                    <Play className="w-4 h-4 text-white" />
+                                    <Play className="w-3 h-3 sm:w-4 sm:h-4 text-white" />
                                   </div>
                                 </div>
                                 <div className="flex-1 min-w-0">
-                                  <h4 className="text-white font-medium truncate">{song.title || "Unknown Song"}</h4>
-                                  <p className="text-gray-400 text-sm truncate">{song.artist || "Unknown Artist"}</p>
+                                  <h4 className="text-white font-medium truncate text-sm sm:text-base">
+                                    {song.title || "Unknown Song"}
+                                  </h4>
+                                  <p className="text-gray-400 text-xs sm:text-sm truncate">
+                                    {song.artist || "Unknown Artist"}
+                                  </p>
                                 </div>
-                                <div className="flex items-center space-x-2">
+                                <div className="flex items-center space-x-1 sm:space-x-2">
                                   <Button
                                     size="icon"
                                     variant="ghost"
                                     onClick={() => toggleFavorite(song)}
-                                    className="opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-white"
+                                    className="opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-white w-7 h-7 sm:w-8 sm:h-8"
                                   >
-                                    <Heart className={cn("w-4 h-4", isFavorite && "fill-red-500 text-red-500")} />
+                                    <Heart
+                                      className={cn("w-3 h-3 sm:w-4 sm:h-4", isFavorite && "fill-red-500 text-red-500")}
+                                    />
                                   </Button>
                                   <Button
                                     size="icon"
                                     variant="ghost"
-                                    className="opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-white"
+                                    className="opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-white w-7 h-7 sm:w-8 sm:h-8"
                                   >
-                                    <MoreHorizontal className="w-4 h-4" />
+                                    <MoreHorizontal className="w-3 h-3 sm:w-4 sm:h-4" />
                                   </Button>
                                 </div>
                               </motion.div>
@@ -371,9 +377,11 @@ export default function SearchPage() {
                     (!searchResults.songs?.data ||
                       !Array.isArray(searchResults.songs.data) ||
                       searchResults.songs.data.length === 0) && (
-                      <div className="text-center py-12">
-                        <p className="text-gray-400 text-lg mb-4">No songs found for "{currentQuery}"</p>
-                        <p className="text-gray-500">Try searching for different keywords or check your spelling.</p>
+                      <div className="text-center py-8 sm:py-12">
+                        <p className="text-gray-400 text-base sm:text-lg mb-4">No songs found for "{currentQuery}"</p>
+                        <p className="text-gray-500 text-sm sm:text-base">
+                          Try searching for different keywords or check your spelling.
+                        </p>
                       </div>
                     )}
                 </div>
@@ -385,18 +393,22 @@ export default function SearchPage() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="space-y-8"
+              className="space-y-6 sm:space-y-8"
             >
               {/* Recent Searches */}
               {searchHistory.length > 0 && (
                 <div>
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-xl font-semibold text-white">Recent Searches</h3>
-                    <Button variant="ghost" onClick={clearSearchHistory} className="text-gray-400 hover:text-white">
+                  <div className="flex items-center justify-between mb-3 sm:mb-4">
+                    <h3 className="text-lg sm:text-xl font-semibold text-white">Recent Searches</h3>
+                    <Button
+                      variant="ghost"
+                      onClick={clearSearchHistory}
+                      className="text-gray-400 hover:text-white text-sm"
+                    >
                       Clear all
                     </Button>
                   </div>
-                  <div className="space-y-2">
+                  <div className="space-y-1 sm:space-y-2">
                     {searchHistory.slice(0, 5).map((search, index) => (
                       <motion.div
                         key={index}
@@ -404,10 +416,10 @@ export default function SearchPage() {
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ delay: index * 0.1 }}
                         onClick={() => handleSearch(search)}
-                        className="flex items-center space-x-4 p-3 rounded-lg hover:bg-white/5 cursor-pointer group transition-colors"
+                        className="flex items-center space-x-3 sm:space-x-4 p-2 sm:p-3 rounded-lg hover:bg-white/5 cursor-pointer group transition-colors"
                       >
-                        <Clock className="w-5 h-5 text-gray-400" />
-                        <span className="text-white">{search}</span>
+                        <Clock className="w-4 h-4 sm:w-5 sm:h-5 text-gray-400" />
+                        <span className="text-white text-sm sm:text-base">{search}</span>
                       </motion.div>
                     ))}
                   </div>
@@ -416,11 +428,11 @@ export default function SearchPage() {
 
               {/* Trending Searches */}
               <div>
-                <h3 className="text-xl font-semibold text-white mb-4 flex items-center">
-                  <TrendingUp className="w-5 h-5 mr-2" />
+                <h3 className="text-lg sm:text-xl font-semibold text-white mb-3 sm:mb-4 flex items-center">
+                  <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
                   Popular Searches
                 </h3>
-                <div className="space-y-2">
+                <div className="space-y-1 sm:space-y-2">
                   {popularSearches.map((search, index) => (
                     <motion.div
                       key={search}
@@ -428,19 +440,19 @@ export default function SearchPage() {
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: index * 0.1 }}
                       onClick={() => handleSearch(search)}
-                      className="flex items-center space-x-4 p-3 rounded-lg hover:bg-white/5 cursor-pointer group transition-colors"
+                      className="flex items-center space-x-3 sm:space-x-4 p-2 sm:p-3 rounded-lg hover:bg-white/5 cursor-pointer group transition-colors"
                     >
-                      <TrendingUp className="w-5 h-5 text-gray-400" />
-                      <span className="text-white">{search}</span>
+                      <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5 text-gray-400" />
+                      <span className="text-white text-sm sm:text-base">{search}</span>
                     </motion.div>
                   ))}
                 </div>
               </div>
 
-              {/* Browse All - Enhanced with Thumbnails */}
+              {/* Browse All - Compact grid */}
               <div>
-                <h3 className="text-xl font-semibold text-white mb-4">Browse All</h3>
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                <h3 className="text-lg sm:text-xl font-semibold text-white mb-3 sm:mb-4">Browse All</h3>
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-4">
                   {browseCategories.map((category, index) => (
                     <motion.div
                       key={category.name}
@@ -448,7 +460,7 @@ export default function SearchPage() {
                       animate={{ opacity: 1, scale: 1 }}
                       transition={{ delay: index * 0.1 }}
                       onClick={() => handleSearch(category.name)}
-                      className={`aspect-square bg-gradient-to-br ${category.color} rounded-lg p-6 cursor-pointer hover:scale-105 transition-transform duration-300 relative overflow-hidden`}
+                      className={`aspect-square bg-gradient-to-br ${category.color} rounded-lg p-3 sm:p-6 cursor-pointer hover:scale-105 transition-transform duration-300 relative overflow-hidden`}
                     >
                       <div className="absolute inset-0 bg-black/20" />
                       <Image
@@ -459,9 +471,9 @@ export default function SearchPage() {
                         className="absolute inset-0 w-full h-full object-cover opacity-30"
                       />
                       <div className="relative z-10 h-full flex flex-col justify-between">
-                        <h4 className="text-white font-bold text-lg">{category.name}</h4>
+                        <h4 className="text-white font-bold text-sm sm:text-lg">{category.name}</h4>
                         <div className="text-right">
-                          <span className="text-4xl">{category.image}</span>
+                          <span className="text-2xl sm:text-4xl">{category.image}</span>
                         </div>
                       </div>
                     </motion.div>

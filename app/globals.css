@@ -221,10 +221,126 @@ html {
 }
 
 /* Enhanced mobile optimizations */
-@media (max-width: 768px) {
+@media (max-width: 640px) {
+  .music-player-mini {
+    bottom: 64px !important;
+    padding: 6px 8px !important;
+  }
+
+  /* Remove any extra margins on mobile */
+  .container-mobile {
+    padding-left: 4px;
+    padding-right: 4px;
+  }
+
+  /* Ensure no horizontal overflow */
+  body {
+    overflow-x: hidden;
+    width: 100vw;
+  }
+
+  /* Compact spacing for mobile */
+  .mobile-compact {
+    margin-bottom: 8px;
+  }
+
   .mobile-optimized {
     touch-action: manipulation;
     -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Fix mobile spacing issues */
+  .container-mobile {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
+  /* Ensure no horizontal overflow */
+  body {
+    overflow-x: hidden;
+  }
+
+  /* Better touch targets */
+  button {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  /* Optimize text sizes */
+  .text-responsive {
+    font-size: 14px;
+  }
+
+  /* Fix viewport issues */
+  .full-height-mobile {
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
+
+  .full-width-mobile {
+    width: 100vw;
+    margin-left: calc(-50vw + 50%);
+  }
+}
+
+/* Small mobile devices */
+@media (max-width: 375px) {
+  .music-player-mini {
+    padding: 6px 8px !important;
+  }
+
+  .container-mobile {
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+
+  /* Smaller text for very small screens */
+  .text-xs {
+    font-size: 10px;
+  }
+
+  .text-sm {
+    font-size: 12px;
+  }
+}
+
+/* Landscape mobile orientation */
+@media (max-height: 500px) and (orientation: landscape) {
+  .music-player-full {
+    padding: 16px;
+  }
+
+  .album-art-landscape {
+    width: 200px;
+    height: 200px;
+  }
+}
+
+/* Fix for iOS safe areas */
+@supports (padding: max(0px)) {
+  .safe-area-bottom {
+    padding-bottom: max(16px, env(safe-area-inset-bottom));
+  }
+
+  .safe-area-top {
+    padding-top: max(16px, env(safe-area-inset-top));
+  }
+}
+
+/* Better scroll behavior on mobile */
+@media (max-width: 768px) {
+  .scroll-smooth {
+    -webkit-overflow-scrolling: touch;
+    scroll-behavior: smooth;
+  }
+
+  /* Prevent zoom on input focus */
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  textarea,
+  select {
+    font-size: 16px;
   }
 }
 

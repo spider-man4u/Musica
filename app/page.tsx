@@ -254,43 +254,44 @@ export default function Home() {
       animate="visible"
       className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900"
     >
-      {/* Header */}
+      {/* Header - Compact for mobile */}
       <motion.div
         variants={itemVariants}
         className="sticky top-0 z-40 bg-black/20 backdrop-blur-xl border-b border-white/10"
       >
-        <div className="max-w-7xl mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
-              <div className="flex items-center space-x-3">
-                <motion.div
-                  className="w-10 h-10 bg-gradient-to-r from-green-400 to-blue-500 rounded-full flex items-center justify-center"
-                  whileHover={{ scale: 1.1 }}
-                  whileTap={{ scale: 0.9 }}
-                >
-                  <Music className="w-6 h-6 text-white" />
-                </motion.div>
-                <h1 className="text-xl font-bold text-white">Musica</h1>
-              </div>
+        <div className="w-full px-1 py-1.5 sm:px-4 sm:py-4">
+          <div className="flex items-center justify-between gap-2">
+            {/* Logo - Smaller on mobile */}
+            <div className="flex items-center space-x-2 sm:space-x-3 flex-shrink-0">
+              <motion.div
+                className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-r from-green-400 to-blue-500 rounded-full flex items-center justify-center"
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.9 }}
+              >
+                <Music className="w-4 h-4 sm:w-6 sm:h-6 text-white" />
+              </motion.div>
+              <h1 className="text-lg sm:text-xl font-bold text-white">Musica</h1>
             </div>
 
-            <div className="flex-1 max-w-md mx-8">
+            {/* Search Bar - More compact on mobile */}
+            <div className="flex-1 max-w-xs sm:max-w-md mx-2 sm:mx-8">
               <SearchBar />
             </div>
 
-            <div className="flex items-center space-x-4">
-              <div className="text-white text-sm">{currentTime}</div>
+            {/* Right side controls - Compact */}
+            <div className="flex items-center space-x-1 sm:space-x-4 flex-shrink-0">
+              <div className="hidden sm:block text-white text-sm">{currentTime}</div>
 
-              {/* AI Recommendations Button */}
+              {/* AI Button - Smaller on mobile */}
               <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={() => setShowAIRecommendations(true)}
-                  className="text-purple-400 hover:text-purple-300 hover:bg-purple-500/10"
+                  className="text-purple-400 hover:text-purple-300 hover:bg-purple-500/10 px-2 sm:px-3"
                 >
-                  <Sparkles className="w-4 h-4 mr-2" />
-                  AI
+                  <Sparkles className="w-3 h-3 sm:w-4 sm:h-4 sm:mr-2" />
+                  <span className="hidden sm:inline">AI</span>
                 </Button>
               </motion.div>
 
@@ -298,9 +299,11 @@ export default function Home() {
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                    <Button variant="ghost" className="relative h-10 w-10 rounded-full p-0">
-                      <div className="w-10 h-10 bg-gradient-to-r from-purple-400 to-pink-500 rounded-full flex items-center justify-center">
-                        <span className="text-white text-sm font-bold">{userName[0]?.toUpperCase() || "U"}</span>
+                    <Button variant="ghost" className="relative h-8 w-8 sm:h-10 sm:w-10 rounded-full p-0">
+                      <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-r from-purple-400 to-pink-500 rounded-full flex items-center justify-center">
+                        <span className="text-white text-xs sm:text-sm font-bold">
+                          {userName[0]?.toUpperCase() || "U"}
+                        </span>
                       </div>
                     </Button>
                   </motion.div>
@@ -357,19 +360,20 @@ export default function Home() {
         </div>
       </motion.div>
 
-      <div className="max-w-7xl mx-auto px-4 py-8 pb-32">
-        {/* Greeting Section */}
-        <motion.div variants={itemVariants} className="mb-8">
-          <h2 className="text-3xl font-bold text-white mb-2">
+      {/* Main Content - Reduced padding and spacing */}
+      <div className="w-full px-1 py-2 pb-20 sm:px-4 sm:py-6 sm:pb-32">
+        {/* Greeting Section - Compact */}
+        <motion.div variants={itemVariants} className="mb-3 sm:mb-6">
+          <h2 className="text-2xl sm:text-3xl font-bold text-white mb-1 sm:mb-2">
             {getGreeting()}, {userName}
           </h2>
-          <p className="text-gray-400">Ready to discover some great music?</p>
+          <p className="text-gray-400 text-sm sm:text-base">Ready to discover some great music?</p>
         </motion.div>
 
-        {/* Quick Access Grid */}
-        <motion.div variants={itemVariants} className="mb-8">
-          <h3 className="text-xl font-semibold text-white mb-4">Quick Access</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {/* Quick Access Grid - Compact spacing */}
+        <motion.div variants={itemVariants} className="mb-3 sm:mb-6">
+          <h3 className="text-lg sm:text-xl font-semibold text-white mb-3 sm:mb-4">Quick Access</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-1.5 sm:gap-3">
             {quickAccessItems.map((item, index) => {
               let count = 0
               switch (item.type) {
@@ -393,26 +397,26 @@ export default function Home() {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: index * 0.1 }}
                   onClick={() => handleQuickAccess(item)}
-                  className="group bg-white/5 hover:bg-white/10 rounded-lg p-4 cursor-pointer transition-all duration-300 border border-white/10 hover:border-white/20"
+                  className="group bg-white/5 hover:bg-white/10 rounded-lg p-3 sm:p-4 cursor-pointer transition-all duration-300 border border-white/10 hover:border-white/20"
                   whileHover={{ scale: 1.02, y: -2 }}
                   whileTap={{ scale: 0.98 }}
                 >
-                  <div className="flex items-center space-x-4">
+                  <div className="flex items-center space-x-3 sm:space-x-4">
                     <div
-                      className={`w-12 h-12 bg-gradient-to-r ${item.color} rounded-lg flex items-center justify-center`}
+                      className={`w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-r ${item.color} rounded-lg flex items-center justify-center`}
                     >
-                      <item.icon className="w-6 h-6 text-white" />
+                      <item.icon className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
                     </div>
-                    <div className="flex-1">
-                      <h4 className="text-white font-medium">{item.name}</h4>
-                      <p className="text-gray-400 text-sm">{count} songs</p>
+                    <div className="flex-1 min-w-0">
+                      <h4 className="text-white font-medium text-sm sm:text-base truncate">{item.name}</h4>
+                      <p className="text-gray-400 text-xs sm:text-sm">{count} songs</p>
                     </div>
                     <Button
                       size="icon"
                       variant="ghost"
-                      className="opacity-0 group-hover:opacity-100 transition-opacity text-white hover:bg-white/10"
+                      className="opacity-0 group-hover:opacity-100 transition-opacity text-white hover:bg-white/10 w-8 h-8 sm:w-10 sm:h-10"
                     >
-                      <Play className="w-5 h-5" />
+                      <Play className="w-4 h-4 sm:w-5 sm:h-5" />
                     </Button>
                   </div>
                 </motion.div>
@@ -421,10 +425,10 @@ export default function Home() {
           </div>
         </motion.div>
 
-        {/* Browse by Mood */}
-        <motion.div variants={itemVariants} className="mb-8">
-          <h3 className="text-xl font-semibold text-white mb-4">Browse by Mood</h3>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+        {/* Browse by Mood - Compact grid */}
+        <motion.div variants={itemVariants} className="mb-3 sm:mb-6">
+          <h3 className="text-lg sm:text-xl font-semibold text-white mb-3 sm:mb-4">Browse by Mood</h3>
+          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-1.5 sm:gap-3">
             {moodCategories.map((mood, index) => (
               <motion.div
                 key={mood.name}
@@ -432,7 +436,7 @@ export default function Home() {
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ delay: index * 0.1 }}
                 onClick={() => handleMoodClick(mood)}
-                className={`aspect-square bg-gradient-to-br ${mood.color} rounded-xl p-4 cursor-pointer hover:scale-105 transition-transform duration-300 relative overflow-hidden`}
+                className={`aspect-square bg-gradient-to-br ${mood.color} rounded-lg p-2 sm:p-4 cursor-pointer hover:scale-105 transition-transform duration-300 relative overflow-hidden`}
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
               >
@@ -445,9 +449,9 @@ export default function Home() {
                   className="absolute inset-0 w-full h-full object-cover opacity-30"
                 />
                 <div className="relative z-10 h-full flex flex-col justify-between">
-                  <div className="text-3xl">{mood.emoji}</div>
+                  <div className="text-lg sm:text-3xl">{mood.emoji}</div>
                   <div>
-                    <h4 className="text-white font-semibold">{mood.name}</h4>
+                    <h4 className="text-white font-semibold text-xs sm:text-sm">{mood.name}</h4>
                   </div>
                 </div>
               </motion.div>
@@ -455,22 +459,22 @@ export default function Home() {
           </div>
         </motion.div>
 
-        {/* Curated Playlists */}
-        <motion.div variants={itemVariants} className="mb-8">
-          <h3 className="text-xl font-semibold text-white mb-4">Curated for You</h3>
+        {/* Curated Playlists - Compact */}
+        <motion.div variants={itemVariants} className="mb-3 sm:mb-6">
+          <h3 className="text-lg sm:text-xl font-semibold text-white mb-3 sm:mb-4">Curated for You</h3>
           <ScrollArea className="w-full">
-            <div className="flex space-x-4 pb-4">
+            <div className="flex space-x-3 sm:space-x-4 pb-4">
               {curatedPlaylists.map((playlist, index) => (
                 <motion.div
                   key={playlist.id}
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: index * 0.1 }}
-                  className="min-w-[200px] bg-white/5 hover:bg-white/10 rounded-lg p-4 cursor-pointer transition-all duration-300 group border border-white/10 hover:border-white/20"
+                  className="min-w-[160px] sm:min-w-[200px] bg-white/5 hover:bg-white/10 rounded-lg p-3 sm:p-4 cursor-pointer transition-all duration-300 group border border-white/10 hover:border-white/20"
                   whileHover={{ scale: 1.02, y: -4 }}
                   whileTap={{ scale: 0.98 }}
                 >
-                  <div className="relative mb-4">
+                  <div className="relative mb-3 sm:mb-4">
                     <Image
                       src={playlist.image || "/placeholder.svg?height=160&width=160"}
                       alt={playlist.name}
@@ -479,14 +483,17 @@ export default function Home() {
                       className="w-full aspect-square object-cover rounded-lg"
                     />
                     <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center">
-                      <Button size="icon" className="bg-green-500 hover:bg-green-600 rounded-full w-12 h-12">
-                        <Play className="w-6 h-6 ml-0.5" />
+                      <Button
+                        size="icon"
+                        className="bg-green-500 hover:bg-green-600 rounded-full w-10 h-10 sm:w-12 sm:h-12"
+                      >
+                        <Play className="w-5 h-5 sm:w-6 sm:h-6 ml-0.5" />
                       </Button>
                     </div>
                   </div>
                   <div>
-                    <h4 className="text-white font-medium truncate mb-1">{playlist.name}</h4>
-                    <p className="text-gray-400 text-sm truncate">{playlist.description}</p>
+                    <h4 className="text-white font-medium truncate mb-1 text-sm sm:text-base">{playlist.name}</h4>
+                    <p className="text-gray-400 text-xs sm:text-sm truncate">{playlist.description}</p>
                   </div>
                 </motion.div>
               ))}
@@ -495,30 +502,34 @@ export default function Home() {
           </ScrollArea>
         </motion.div>
 
-        {/* Trending Now */}
-        <motion.div variants={itemVariants} className="mb-8">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-xl font-semibold text-white flex items-center">
-              <TrendingUp className="w-5 h-5 mr-2" />
+        {/* Trending Now - Compact */}
+        <motion.div variants={itemVariants} className="mb-3 sm:mb-6">
+          <div className="flex items-center justify-between mb-3 sm:mb-4">
+            <h3 className="text-lg sm:text-xl font-semibold text-white flex items-center">
+              <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
               Trending Now
             </h3>
             {!showAllTrending && safeTrendingSongs.length > 10 && (
-              <Button variant="ghost" className="text-gray-400 hover:text-white" onClick={handleShowAllTrending}>
+              <Button
+                variant="ghost"
+                className="text-gray-400 hover:text-white text-sm"
+                onClick={handleShowAllTrending}
+              >
                 Show all
               </Button>
             )}
           </div>
 
           {isLoading ? (
-            <div className="flex items-center justify-center py-12">
+            <div className="flex items-center justify-center py-8 sm:py-12">
               <div className="flex items-center space-x-2 text-gray-400">
-                <Loader2 className="w-5 h-5 animate-spin" />
-                <span>Loading trending songs...</span>
+                <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" />
+                <span className="text-sm sm:text-base">Loading trending songs...</span>
               </div>
             </div>
           ) : error ? (
-            <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-4">
-              <p className="text-red-400 text-center mb-2">{error}</p>
+            <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-3 sm:p-4">
+              <p className="text-red-400 text-center mb-2 text-sm sm:text-base">{error}</p>
               <div className="text-center">
                 <Button
                   variant="outline"
@@ -533,7 +544,7 @@ export default function Home() {
           ) : displayedTrending.length > 0 ? (
             <>
               {showAllTrending ? (
-                <div className="space-y-2">
+                <div className="space-y-1 sm:space-y-2">
                   {displayedTrending.map((song, index) => {
                     if (!song) return null
                     const isFavorite = safeFavorites.some((fav) => fav?.id === song.id)
@@ -544,29 +555,31 @@ export default function Home() {
                         initial={{ opacity: 0, x: -20 }}
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ delay: index * 0.05 }}
-                        className="flex items-center space-x-4 p-3 rounded-lg hover:bg-white/5 cursor-pointer group transition-colors"
+                        className="flex items-center space-x-3 sm:space-x-4 p-2 sm:p-3 rounded-lg hover:bg-white/5 cursor-pointer group transition-colors"
                         whileHover={{ x: 4 }}
                       >
                         <div className="relative">
                           <Image
                             src={song.image || "/placeholder.svg?height=48&width=48"}
                             alt={song.title || "Song"}
-                            width={48}
-                            height={48}
-                            className="rounded-lg"
+                            width={40}
+                            height={40}
+                            className="rounded-lg sm:w-12 sm:h-12"
                           />
                           <div
                             onClick={() => handlePlaySong(song, displayedTrending)}
                             className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center"
                           >
-                            <Play className="w-4 h-4 text-white" />
+                            <Play className="w-3 h-3 sm:w-4 sm:h-4 text-white" />
                           </div>
                         </div>
                         <div className="flex-1 min-w-0">
-                          <h4 className="text-white font-medium truncate">{song.title || "Unknown Song"}</h4>
-                          <p className="text-gray-400 text-sm truncate">{song.artist || "Unknown Artist"}</p>
+                          <h4 className="text-white font-medium truncate text-sm sm:text-base">
+                            {song.title || "Unknown Song"}
+                          </h4>
+                          <p className="text-gray-400 text-xs sm:text-sm truncate">{song.artist || "Unknown Artist"}</p>
                         </div>
-                        <div className="flex items-center space-x-2">
+                        <div className="flex items-center space-x-1 sm:space-x-2">
                           <Button
                             size="icon"
                             variant="ghost"
@@ -574,16 +587,21 @@ export default function Home() {
                               e.stopPropagation()
                               toggleFavorite(song)
                             }}
-                            className="opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-white"
+                            className="opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-white w-7 h-7 sm:w-8 sm:h-8"
                           >
-                            <Heart className={cn("w-4 h-4", isFavorite ? "fill-red-500 text-red-500" : "text-white")} />
+                            <Heart
+                              className={cn(
+                                "w-3 h-3 sm:w-4 sm:h-4",
+                                isFavorite ? "fill-red-500 text-red-500" : "text-white",
+                              )}
+                            />
                           </Button>
                           <Button
                             size="icon"
                             variant="ghost"
-                            className="opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-white"
+                            className="opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-white w-7 h-7 sm:w-8 sm:h-8"
                           >
-                            <MoreHorizontal className="w-4 h-4" />
+                            <MoreHorizontal className="w-3 h-3 sm:w-4 sm:h-4" />
                           </Button>
                         </div>
                       </motion.div>
@@ -602,7 +620,7 @@ export default function Home() {
                 </div>
               ) : (
                 <ScrollArea className="w-full">
-                  <div className="flex space-x-4 pb-4">
+                  <div className="flex space-x-3 sm:space-x-4 pb-4">
                     {displayedTrending.map((song, index) => {
                       if (!song) return null
                       const isFavorite = safeFavorites.some((fav) => fav?.id === song.id)
@@ -613,11 +631,11 @@ export default function Home() {
                           initial={{ opacity: 0, y: 20 }}
                           animate={{ opacity: 1, y: 0 }}
                           transition={{ delay: index * 0.1 }}
-                          className="min-w-[200px] bg-white/5 hover:bg-white/10 rounded-lg p-4 cursor-pointer transition-all duration-300 group border border-white/10 hover:border-white/20"
+                          className="min-w-[160px] sm:min-w-[200px] bg-white/5 hover:bg-white/10 rounded-lg p-3 sm:p-4 cursor-pointer transition-all duration-300 group border border-white/10 hover:border-white/20"
                           whileHover={{ scale: 1.02, y: -4 }}
                           whileTap={{ scale: 0.98 }}
                         >
-                          <div className="relative mb-4">
+                          <div className="relative mb-3 sm:mb-4">
                             <Image
                               src={song.image || "/placeholder.svg?height=160&width=160"}
                               alt={song.title || "Song"}
@@ -632,12 +650,12 @@ export default function Home() {
                                   e.stopPropagation()
                                   handlePlaySong(song, displayedTrending)
                                 }}
-                                className="bg-green-500 hover:bg-green-600 rounded-full w-12 h-12"
+                                className="bg-green-500 hover:bg-green-600 rounded-full w-10 h-10 sm:w-12 sm:h-12"
                               >
                                 {currentSong?.id === song.id && isPlaying ? (
-                                  <Pause className="w-6 h-6" />
+                                  <Pause className="w-5 h-5 sm:w-6 sm:h-6" />
                                 ) : (
-                                  <Play className="w-6 h-6 ml-0.5" />
+                                  <Play className="w-5 h-5 sm:w-6 sm:h-6 ml-0.5" />
                                 )}
                               </Button>
                             </div>
@@ -648,16 +666,23 @@ export default function Home() {
                                 e.stopPropagation()
                                 toggleFavorite(song)
                               }}
-                              className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity bg-black/50 hover:bg-black/70"
+                              className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity bg-black/50 hover:bg-black/70 w-8 h-8"
                             >
                               <Heart
-                                className={cn("w-4 h-4", isFavorite ? "fill-red-500 text-red-500" : "text-white")}
+                                className={cn(
+                                  "w-3 h-3 sm:w-4 sm:h-4",
+                                  isFavorite ? "fill-red-500 text-red-500" : "text-white",
+                                )}
                               />
                             </Button>
                           </div>
                           <div>
-                            <h4 className="text-white font-medium truncate mb-1">{song.title || "Unknown Song"}</h4>
-                            <p className="text-gray-400 text-sm truncate">{song.artist || "Unknown Artist"}</p>
+                            <h4 className="text-white font-medium truncate mb-1 text-sm sm:text-base">
+                              {song.title || "Unknown Song"}
+                            </h4>
+                            <p className="text-gray-400 text-xs sm:text-sm truncate">
+                              {song.artist || "Unknown Artist"}
+                            </p>
                           </div>
                         </motion.div>
                       )
@@ -668,9 +693,9 @@ export default function Home() {
               )}
             </>
           ) : (
-            <div className="text-center py-12">
-              <Music className="w-16 h-16 text-gray-600 mx-auto mb-4" />
-              <p className="text-gray-400 mb-4">No trending songs available</p>
+            <div className="text-center py-8 sm:py-12">
+              <Music className="w-12 h-12 sm:w-16 sm:h-16 text-gray-600 mx-auto mb-4" />
+              <p className="text-gray-400 mb-4 text-sm sm:text-base">No trending songs available</p>
               <Button
                 variant="outline"
                 onClick={() => fetchTrendingSongs()}
@@ -682,11 +707,11 @@ export default function Home() {
           )}
         </motion.div>
 
-        {/* Recently Played */}
-        <motion.div variants={itemVariants} className="mb-8">
-          <h3 className="text-xl font-semibold text-white mb-4">Recently Played</h3>
+        {/* Recently Played - Compact */}
+        <motion.div variants={itemVariants} className="mb-3 sm:mb-6">
+          <h3 className="text-lg sm:text-xl font-semibold text-white mb-3 sm:mb-4">Recently Played</h3>
           {safeRecentlyPlayed.length > 0 ? (
-            <div className="space-y-2">
+            <div className="space-y-1 sm:space-y-2">
               {safeRecentlyPlayed.slice(0, 5).map((song, index) => {
                 if (!song) return null
 
@@ -696,7 +721,7 @@ export default function Home() {
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: index * 0.1 }}
-                    className="flex items-center space-x-4 p-3 rounded-lg hover:bg-white/5 cursor-pointer group transition-colors"
+                    className="flex items-center space-x-3 sm:space-x-4 p-2 sm:p-3 rounded-lg hover:bg-white/5 cursor-pointer group transition-colors"
                     onClick={() => handlePlaySong(song, safeRecentlyPlayed)}
                     whileHover={{ x: 4 }}
                   >
@@ -704,20 +729,22 @@ export default function Home() {
                       <Image
                         src={song.image || "/placeholder.svg?height=48&width=48"}
                         alt={song.title || "Song"}
-                        width={48}
-                        height={48}
-                        className="rounded-lg"
+                        width={40}
+                        height={40}
+                        className="rounded-lg sm:w-12 sm:h-12"
                       />
                       <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center">
-                        <Play className="w-4 h-4 text-white" />
+                        <Play className="w-3 h-3 sm:w-4 sm:h-4 text-white" />
                       </div>
                     </div>
                     <div className="flex-1 min-w-0">
-                      <h4 className="text-white font-medium truncate">{song.title || "Unknown Song"}</h4>
-                      <p className="text-gray-400 text-sm truncate">{song.artist || "Unknown Artist"}</p>
+                      <h4 className="text-white font-medium truncate text-sm sm:text-base">
+                        {song.title || "Unknown Song"}
+                      </h4>
+                      <p className="text-gray-400 text-xs sm:text-sm truncate">{song.artist || "Unknown Artist"}</p>
                     </div>
                     <div className="flex items-center space-x-2">
-                      <span className="text-gray-400 text-sm">
+                      <span className="text-gray-400 text-xs sm:text-sm">
                         {typeof song.duration === "number"
                           ? `${Math.floor(song.duration / 60)}:${(song.duration % 60).toString().padStart(2, "0")}`
                           : "3:45"}
@@ -728,9 +755,9 @@ export default function Home() {
               })}
             </div>
           ) : (
-            <div className="text-center py-8">
-              <Clock className="w-12 h-12 text-gray-600 mx-auto mb-4" />
-              <p className="text-gray-400">No recently played songs</p>
+            <div className="text-center py-6 sm:py-8">
+              <Clock className="w-10 h-10 sm:w-12 sm:h-12 text-gray-600 mx-auto mb-4" />
+              <p className="text-gray-400 text-sm sm:text-base">No recently played songs</p>
             </div>
           )}
         </motion.div>

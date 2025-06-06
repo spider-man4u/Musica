@@ -627,29 +627,29 @@ export default function MusicPlayer() {
       {/* Queue View with enhanced animations */}
       <AnimatePresence mode="wait">{showQueue && <QueueView onClose={() => setShowQueue(false)} />}</AnimatePresence>
 
-      {/* Mini Player with smooth animations */}
+      {/* Mini Player with reduced height on mobile */}
       {!isExpanded && (
         <motion.div
           variants={playerVariants}
           initial="hidden"
           animate="visible"
           exit="exit"
-          className="absolute bottom-16 left-0 right-0 bg-gradient-to-r from-gray-900/98 to-black/98 backdrop-blur-xl border-t border-gray-800/50 px-4 py-3 md:px-6 lg:px-8"
+          className="absolute bottom-16 left-0 right-0 bg-gradient-to-r from-gray-900/98 to-black/98 backdrop-blur-xl border-t border-gray-800/50 px-2 py-1 md:px-6 lg:px-8 md:py-3"
         >
-          {/* Expand indicator */}
-          <motion.div variants={childVariants} className="flex justify-center mb-2">
+          {/* Expand indicator - smaller on mobile */}
+          <motion.div variants={childVariants} className="flex justify-center mb-1 md:mb-2">
             <motion.button
               onClick={() => setIsExpanded(true)}
-              className="w-8 h-1 bg-gray-600 rounded-full hover:bg-gray-500 transition-colors"
+              className="w-6 h-0.5 bg-gray-600 rounded-full hover:bg-gray-500 transition-colors"
               whileHover={{ scaleX: 1.2 }}
               whileTap={{ scaleY: 0.8 }}
             />
           </motion.div>
 
           <motion.div variants={childVariants} className="flex items-center justify-between max-w-7xl mx-auto">
-            {/* Song Info */}
+            {/* Song Info - smaller on mobile */}
             <motion.div
-              className="flex items-center space-x-3 flex-1 min-w-0 cursor-pointer"
+              className="flex items-center space-x-2 sm:space-x-3 flex-1 min-w-0 cursor-pointer"
               onClick={() => setIsExpanded(true)}
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
@@ -658,29 +658,32 @@ export default function MusicPlayer() {
                 <SafeImage
                   src={currentSong.image}
                   alt={currentSong.title}
-                  width={48}
-                  height={48}
-                  className="rounded-lg md:w-12 md:h-12 lg:w-14 lg:h-14"
+                  width={36}
+                  height={36}
+                  className="rounded-lg sm:w-12 sm:h-12 md:w-14 md:h-14"
                   priority
                 />
                 <div className="absolute inset-0 bg-black/20 rounded-lg" />
               </div>
               <div className="min-w-0 flex-1">
-                <h4 className="text-white font-medium truncate text-sm md:text-base">{currentSong.title}</h4>
-                <p className="text-gray-400 text-xs md:text-sm truncate">{currentSong.artist}</p>
+                <h4 className="text-white font-medium truncate text-xs sm:text-sm md:text-base">{currentSong.title}</h4>
+                <p className="text-gray-400 text-xs truncate">{currentSong.artist}</p>
               </div>
             </motion.div>
 
-            {/* Mini Controls with enhanced animations */}
-            <motion.div variants={childVariants} className="flex items-center space-x-2 md:space-x-3 lg:space-x-4">
+            {/* Mini Controls - smaller on mobile */}
+            <motion.div
+              variants={childVariants}
+              className="flex items-center space-x-1 sm:space-x-2 md:space-x-3 lg:space-x-4"
+            >
               <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
                 <Button
                   size="icon"
                   variant="ghost"
                   onClick={handlePrevious}
-                  className="text-gray-400 hover:text-white w-8 h-8 md:w-10 md:h-10"
+                  className="text-gray-400 hover:text-white w-6 h-6 sm:w-8 sm:h-8 md:w-10 md:h-10"
                 >
-                  <SkipBack className="w-4 h-4 md:w-5 md:h-5" />
+                  <SkipBack className="w-3 h-3 sm:w-4 sm:h-4 md:w-5 md:h-5" />
                 </Button>
               </motion.div>
 
@@ -688,12 +691,12 @@ export default function MusicPlayer() {
                 <Button
                   size="icon"
                   onClick={() => setIsPlaying(!isPlaying)}
-                  className="bg-white hover:bg-gray-200 text-black rounded-full w-10 h-10 md:w-12 md:h-12"
+                  className="bg-white hover:bg-gray-200 text-black rounded-full w-7 h-7 sm:w-10 sm:h-10 md:w-12 md:h-12"
                 >
                   {isPlaying ? (
-                    <Pause className="w-4 h-4 md:w-5 md:h-5" />
+                    <Pause className="w-3 h-3 sm:w-4 sm:h-4 md:w-5 md:h-5" />
                   ) : (
-                    <Play className="w-4 h-4 md:w-5 md:h-5 ml-0.5" />
+                    <Play className="w-3 h-3 sm:w-4 sm:h-4 md:w-5 md:h-5 ml-0.5" />
                   )}
                 </Button>
               </motion.div>
@@ -703,9 +706,9 @@ export default function MusicPlayer() {
                   size="icon"
                   variant="ghost"
                   onClick={handleNext}
-                  className="text-gray-400 hover:text-white w-8 h-8 md:w-10 md:h-10"
+                  className="text-gray-400 hover:text-white w-6 h-6 sm:w-8 sm:h-8 md:w-10 md:h-10"
                 >
-                  <SkipForward className="w-4 h-4 md:w-5 md:h-5" />
+                  <SkipForward className="w-3 h-3 sm:w-4 sm:h-4 md:w-5 md:h-5" />
                 </Button>
               </motion.div>
 
@@ -714,9 +717,11 @@ export default function MusicPlayer() {
                   size="icon"
                   variant="ghost"
                   onClick={toggleFavorite}
-                  className="text-gray-400 hover:text-white w-8 h-8 md:w-10 md:h-10"
+                  className="text-gray-400 hover:text-white w-6 h-6 sm:w-8 sm:h-8 md:w-10 md:h-10"
                 >
-                  <Heart className={cn("w-4 h-4 md:w-5 md:h-5", isFavorite && "fill-red-500 text-red-500")} />
+                  <Heart
+                    className={cn("w-3 h-3 sm:w-4 sm:h-4 md:w-5 md:h-5", isFavorite && "fill-red-500 text-red-500")}
+                  />
                 </Button>
               </motion.div>
 
@@ -725,19 +730,19 @@ export default function MusicPlayer() {
                   size="icon"
                   variant="ghost"
                   onClick={() => setShowQueue(!showQueue)}
-                  className="text-gray-400 hover:text-white w-8 h-8 md:w-10 md:h-10"
+                  className="text-gray-400 hover:text-white w-6 h-6 sm:w-8 sm:h-8 md:w-10 md:h-10"
                 >
-                  <ListMusic className="w-4 h-4 md:w-5 md:h-5" />
+                  <ListMusic className="w-3 h-3 sm:w-4 sm:h-4 md:w-5 md:h-5" />
                 </Button>
               </motion.div>
             </motion.div>
           </motion.div>
 
-          {/* Mini Progress Bar with smooth animation */}
-          <motion.div variants={childVariants} className="mt-3">
-            <div className="w-full bg-gray-700 rounded-full h-1">
+          {/* Mini Progress Bar - thinner on mobile */}
+          <motion.div variants={childVariants} className="mt-1.5 sm:mt-3">
+            <div className="w-full bg-gray-700 rounded-full h-0.5">
               <motion.div
-                className="bg-white rounded-full h-1"
+                className="bg-white rounded-full h-0.5"
                 initial={{ width: 0 }}
                 animate={{ width: `${progress}%` }}
                 transition={{ duration: 0.1, ease: "linear" }}
@@ -745,8 +750,8 @@ export default function MusicPlayer() {
             </div>
           </motion.div>
 
-          {/* Duration display */}
-          <motion.div variants={childVariants} className="flex justify-between text-xs text-gray-400 mt-1">
+          {/* Duration display - smaller on mobile */}
+          <motion.div variants={childVariants} className="flex justify-between text-xs text-gray-400 mt-0.5 sm:mt-1">
             <span>{formatTime(currentTime)}</span>
             <span>{formatTime(duration)}</span>
           </motion.div>
@@ -766,7 +771,7 @@ export default function MusicPlayer() {
             {/* Header */}
             <motion.div
               variants={childVariants}
-              className="flex items-center justify-between p-4 md:p-6 lg:p-8 pt-8 md:pt-12"
+              className="flex items-center justify-between p-3 md:p-6 lg:p-8 pt-6 sm:pt-8 md:pt-12"
             >
               <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
                 <Button
@@ -827,7 +832,7 @@ export default function MusicPlayer() {
               {/* Album Art */}
               <motion.div
                 variants={childVariants}
-                className="w-80 h-80 md:w-96 md:h-96 lg:w-[400px] lg:h-[400px] flex-shrink-0"
+                className="w-72 h-72 sm:w-80 sm:h-80 md:w-96 md:h-96 lg:w-[400px] lg:h-[400px] flex-shrink-0"
               >
                 <motion.div
                   initial={{ scale: 0.8, opacity: 0 }}
@@ -879,7 +884,7 @@ export default function MusicPlayer() {
                 {/* Controls */}
                 <motion.div
                   variants={childVariants}
-                  className="flex items-center justify-center space-x-6 md:space-x-8 mb-8"
+                  className="flex items-center justify-center space-x-4 sm:space-x-6 md:space-x-8 mb-6 md:mb-8"
                 >
                   <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
                     <Button
@@ -899,7 +904,7 @@ export default function MusicPlayer() {
                       onClick={handlePrevious}
                       className="text-white hover:text-gray-300"
                     >
-                      <SkipBack className="w-6 h-6 md:w-8 md:h-8" />
+                      <SkipBack className="w-5 h-5 sm:w-6 sm:h-6 md:w-8 md:h-8" />
                     </Button>
                   </motion.div>
 
@@ -907,19 +912,19 @@ export default function MusicPlayer() {
                     <Button
                       size="icon"
                       onClick={() => setIsPlaying(!isPlaying)}
-                      className="bg-white hover:bg-gray-200 text-black rounded-full w-14 h-14 md:w-16 md:h-16"
+                      className="bg-white hover:bg-gray-200 text-black rounded-full w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16"
                     >
                       {isPlaying ? (
-                        <Pause className="w-6 h-6 md:w-8 md:h-8" />
+                        <Pause className="w-5 h-5 sm:w-6 sm:h-6 md:w-8 md:h-8" />
                       ) : (
-                        <Play className="w-6 h-6 md:w-8 md:h-8 ml-1" />
+                        <Play className="w-5 h-5 sm:w-6 sm:h-6 md:w-8 md:h-8 ml-1" />
                       )}
                     </Button>
                   </motion.div>
 
                   <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
                     <Button size="icon" variant="ghost" onClick={handleNext} className="text-white hover:text-gray-300">
-                      <SkipForward className="w-6 h-6 md:w-8 md:h-8" />
+                      <SkipForward className="w-5 h-5 sm:w-6 sm:h-6 md:w-8 md:h-8" />
                     </Button>
                   </motion.div>
 

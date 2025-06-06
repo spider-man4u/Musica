@@ -22,21 +22,22 @@ const BottomNav = () => {
     <nav
       className={cn(
         "fixed bottom-0 left-0 right-0 z-40 bg-black/95 backdrop-blur-xl border-t border-gray-800/50",
+        "safe-area-inset-bottom", // iOS safe area support
         currentSong && "border-t-0", // Remove border when player is active
       )}
     >
-      <div className="max-w-7xl mx-auto px-4">
-        <ul className="flex justify-around items-center h-14">
+      <div className="max-w-7xl mx-auto px-2 sm:px-4">
+        <ul className="flex justify-around items-center h-12 sm:h-14">
           {navItems.map((item) => {
             const isActive = pathname === item.path
             return (
               <li key={item.name} className="flex-1">
                 <Link href={item.path} className="relative block">
-                  <div className="flex flex-col items-center py-2">
+                  <div className="flex flex-col items-center py-1 sm:py-2">
                     <div className="relative">
                       <item.icon
                         className={cn(
-                          "w-5 h-5 transition-colors duration-200",
+                          "w-4 h-4 sm:w-5 sm:h-5 transition-colors duration-200",
                           isActive ? "text-white" : "text-gray-400",
                         )}
                       />
@@ -50,7 +51,7 @@ const BottomNav = () => {
                     </div>
                     <span
                       className={cn(
-                        "text-xs mt-1 transition-colors duration-200",
+                        "text-[10px] sm:text-xs mt-0.5 sm:mt-1 transition-colors duration-200 leading-tight",
                         isActive ? "text-white font-medium" : "text-gray-400",
                       )}
                     >
