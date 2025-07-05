@@ -51,6 +51,19 @@ export interface Playlist {
   isPublic: boolean
 }
 
+export interface Artist {
+  id: string
+  name: string
+  image: string
+  bio: string
+  followers: number
+  verified: boolean
+  genres: string[]
+  topSongs: Song[]
+  albums: any[]
+  monthlyListeners: number
+}
+
 export interface UserData {
   id: string
   name: string
@@ -102,6 +115,7 @@ interface AppState {
   searchQuery: string
   curatedPlaylists: Playlist[]
   recommendations: Song[]
+  artists: Artist[]
 
   // UI state
   isLoading: boolean
@@ -146,6 +160,7 @@ interface AppState {
   generateAISuggestions: (baseSong: Song) => Promise<Song[]>
   addToListeningHistory: (songId: string, duration: number) => void
   getPersonalizedRecommendations: () => Song[]
+  getArtistById: (artistId: string) => Artist | null
   setError: (error: string | null) => void
   setLoading: (loading: boolean) => void
   addToSearchHistory: (query: string) => void
@@ -429,7 +444,7 @@ const sampleSongs: Song[] = [
     title: "Tum Hi Ho",
     artist: "Arijit Singh",
     album: "Aashiqui 2",
-    image: "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=300&h=300&fit=crop",
+    image: "https://images.unsplash.com/photo-1470225457124-a3eb161ffa5f?w=300&h=300&fit=crop",
     audio: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-8.mp3",
     duration: 280,
     language: "hindi",
@@ -489,7 +504,7 @@ const curatedPlaylists: Playlist[] = [
     id: "curated-2",
     name: "Chill Vibes",
     description: "Relaxing songs for any mood",
-    image: "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=300&h=300&fit=crop",
+    image: "https://images.unsplash.com/photo-1470225457124-a3eb161ffa5f?w=300&h=300&fit=crop",
     songs: [sampleSongs[4], sampleSongs[5], sampleSongs[9]],
     createdAt: new Date().toISOString(),
     isPublic: true,
@@ -545,6 +560,7 @@ export const useStore = create<AppState>()(
       searchQuery: "",
       curatedPlaylists,
       recommendations: [],
+      artists: [],
       isLoading: false,
       error: null,
       apiStatus: "unknown",
@@ -1216,6 +1232,12 @@ export const useStore = create<AppState>()(
           await get().fetchTrendingSongs()
         }
       },
+
+      // Artist management
+      getArtistById: (artistId) => {
+        const { artists } = get()
+        return artists.find((artist) => artist.id === artistId) || null
+      },
     }),
     {
       name: "enhanced-music-store",
@@ -1230,6 +1252,7 @@ export const useStore = create<AppState>()(
         queueIndex: typeof state.queueIndex === "number" ? state.queueIndex : 0,
         curatedPlaylists: state.curatedPlaylists || curatedPlaylists,
         currentUserId: state.currentUserId,
+        artists: state.artists || [],
       }),
     },
   ),
