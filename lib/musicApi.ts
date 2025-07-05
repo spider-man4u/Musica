@@ -3,10 +3,10 @@
 // Enhanced Music API integration with multiple fallback strategies
 const PRIMARY_API_ENDPOINTS = [
   "https://saavn.dev",
-  "https://jiosaavn-api-privatecvc.vercel.app",
+  "https://jiosaavn-api-2.vercel.app",
   "https://saavn-api-jade.vercel.app",
-  "https://jiosaavn-api.vercel.app",
-  "https://music-api-mohd-baquir-qureshi.vercel.app",
+  "https://jiosaavn-api-privatecvc.vercel.app",
+  "https://saavn.dev",
 ]
 
 // Backup APIs with different structures
@@ -17,7 +17,7 @@ const BACKUP_ENDPOINTS = [
 ]
 
 // --- Enhanced Interfaces ---
-export interface ApiSong {
+interface ApiSong {
   id: string
   name: string
   type?: string
@@ -64,7 +64,7 @@ export interface ApiSong {
   external_urls?: any
 }
 
-export interface ApiResponse {
+interface ApiResponse {
   success?: boolean
   status?: string
   data?: {
@@ -279,18 +279,19 @@ async function makeApiRequest<T>(
 // --- Main API Functions ---
 
 // Search with multiple endpoint strategies
-export async function searchMusic(query: string): Promise<ApiResponse> {
+export async function searchMusic(query: string, searchType: "song" | "lyrics" = "song"): Promise<ApiResponse> {
   if (!query?.trim()) {
     throw new ApiError("Search query cannot be empty")
   }
 
   const encodedQuery = encodeURIComponent(query.trim())
+  const type = searchType === "lyrics" ? "lyrics" : "song"
 
   // Try different endpoint patterns
   const searchEndpoints = [
-    `/search/songs?query=${encodedQuery}`,
-    `/api/search/songs?query=${encodedQuery}`,
-    `/search?query=${encodedQuery}&type=song`,
+    `/search/songs?query=${encodedQuery}&type=${type}`,
+    `/api/search/songs?query=${encodedQuery}&type=${type}`,
+    `/search?query=${encodedQuery}`, // Default to song search
     `/api/search?query=${encodedQuery}`,
     `/songs/search?query=${encodedQuery}`,
   ]
@@ -490,8 +491,8 @@ export async function checkApiHealth(): Promise<{ status: string; message: strin
 }
 
 // --- Utility Functions ---
-export function getHighQualityImage(images: any): string {
-  return normalizeImageUrl(images)
+export function getHighQualityImage(image: any): string {
+  return normalizeImageUrl(image)
 }
 
 export function getHighQualityAudio(downloadUrls: any): string {
@@ -517,6 +518,10 @@ export function sanitizeString(str: string | undefined): string {
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">")
     .replace(/&#39;/g, "'")
+    .trim()
 }
 
-export { ApiError }
+// --- Export Statements ---
+const ModernApiError = ApiError
+
+export { ModernApiError }
