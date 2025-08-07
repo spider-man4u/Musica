@@ -8,9 +8,6 @@ import BottomNav from "./BottomNav"
 import AuthWrapper from "./AuthWrapper"
 import MusicPlayer from "./MusicPlayer"
 import ModernApiStatusIndicator from "./ApiStatusIndicator"
-import PWAInstallPrompt from "./PWAInstallPrompt"
-import PWAUpdatePrompt from "./PWAUpdatePrompt"
-import OfflineIndicator from "./OfflineIndicator"
 import { useStore } from "@/lib/store"
 
 interface ClientLayoutProps {
@@ -52,11 +49,6 @@ export default function ClientLayout({ children }: ClientLayoutProps) {
 
   return (
     <AuthWrapper>
-      {/* PWA Components */}
-      <PWAInstallPrompt />
-      <PWAUpdatePrompt />
-      <OfflineIndicator />
-
       {/* Modern API Status Indicator */}
       <ModernApiStatusIndicator />
 
