@@ -2,14 +2,73 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { Clock, Play, Heart, MoreHorizontal, TrendingUp, Music } from "lucide-react"
+import { Clock, Play, Heart, MoreHorizontal, TrendingUp, Music, Search } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { Input } from "@/components/ui/input"
 import Image from "next/image"
 import { useStore } from "@/lib/store"
 import { cn } from "@/lib/utils"
 import { useSearchParams } from "next/navigation"
-import SearchBar from "../components/SearchBar"
+
+// Simple Ad Banner Component
+const AdBanner = ({
+  variant = "banner",
+  className = "",
+}: {
+  variant?: "banner" | "inline" | "sticky"
+  className?: string
+}) => {
+  const [isVisible, setIsVisible] = useState(true)
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (typeof window !== "undefined") {
+        try {
+          ;(window as any).atOptions = {
+            key: "98a0e0e8fc5b3f5270ede29c571d2386",
+            format: "iframe",
+            height: 50,
+            width: 320,
+            params: {},
+          }
+
+          const script = document.createElement("script")
+          script.type = "text/javascript"
+          script.src = "//www.highperformanceformat.com/98a0e0e8fc5b3f5270ede29c571d2386/invoke.js"
+          script.async = true
+          document.head.appendChild(script)
+        } catch (error) {
+          console.log("Ad loading error:", error)
+        }
+      }
+    }, 1000)
+
+    return () => clearTimeout(timer)
+  }, [])
+
+  if (!isVisible) return null
+
+  const getVariantStyles = () => {
+    switch (variant) {
+      case "inline":
+        return "my-4 mx-auto"
+      default:
+        return "my-6 mx-auto"
+    }
+  }
+
+  return (
+    <div className={`relative ${getVariantStyles()} ${className}`}>
+      <div className="bg-white/5 backdrop-blur-xl rounded-lg p-4 max-w-sm mx-auto border border-white/10">
+        <div className="flex items-center justify-center h-12 w-80 bg-gradient-to-r from-purple-500/20 to-pink-500/20 rounded">
+          <div className="text-sm text-white/60">🎵 Advertisement</div>
+        </div>
+        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-purple-500 to-pink-500 opacity-50" />
+      </div>
+    </div>
+  )
+}
 
 const browseCategories = [
   {
@@ -64,14 +123,6 @@ const browseCategories = [
 
 const popularSearches = ["Arijit Singh", "Kesariya", "Bollywood hits", "AR Rahman", "Shreya Ghoshal"]
 
-// Helper function to get a valid image URL or null
-const getValidImageSrc = (imageUrl: string | undefined | null): string | null => {
-  if (!imageUrl || typeof imageUrl !== "string" || imageUrl.trim() === "") {
-    return null
-  }
-  return imageUrl.trim()
-}
-
 // Helper function to safely render an image
 const SafeImage = ({
   src,
@@ -86,7 +137,7 @@ const SafeImage = ({
   height: number
   className?: string
 }) => {
-  const validSrc = getValidImageSrc(src)
+  const validSrc = src && typeof src === "string" && src.trim() !== "" ? src.trim() : null
 
   if (!validSrc) {
     return (
@@ -102,6 +153,7 @@ const SafeImage = ({
 export default function SearchPage() {
   const [activeTab, setActiveTab] = useState("all")
   const [hasSearched, setHasSearched] = useState(false)
+  const [searchQuery, setSearchQuery] = useState("")
   const searchParams = useSearchParams()
 
   const {
@@ -121,6 +173,7 @@ export default function SearchPage() {
   useEffect(() => {
     const q = searchParams.get("q")
     if (q && !hasSearched) {
+      setSearchQuery(q)
       setHasSearched(true)
       searchContent(q)
     }
@@ -198,7 +251,14 @@ export default function SearchPage() {
         <div className="w-full px-2 py-2 sm:px-4 sm:py-4">
           <div className="flex items-center space-x-2 sm:space-x-4">
             <div className="flex-1 relative">
-              <SearchBar placeholder="What do you want to listen to?" className="w-full" onSearch={handleSearch} />
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+              <Input
+                placeholder="What do you want to listen to?"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyPress={(e) => e.key === "Enter" && handleSearch(searchQuery)}
+                className="pl-10 bg-white/10 border-white/20 text-white placeholder:text-gray-400 w-full"
+              />
             </div>
           </div>
         </div>
@@ -228,6 +288,11 @@ export default function SearchPage() {
                     {tab}
                   </Button>
                 ))}
+              </div>
+
+              {/* Ad Banner - Search Results */}
+              <div className="mb-6">
+                <AdBanner variant="inline" className="w-full max-w-2xl mx-auto" />
               </div>
 
               {/* Search Results */}
@@ -395,6 +460,11 @@ export default function SearchPage() {
               exit={{ opacity: 0 }}
               className="space-y-6 sm:space-y-8"
             >
+              {/* Ad Banner - Search Home */}
+              <div className="mb-6">
+                <AdBanner variant="banner" className="w-full max-w-2xl mx-auto" />
+              </div>
+
               {/* Recent Searches */}
               {searchHistory.length > 0 && (
                 <div>

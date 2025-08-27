@@ -21,7 +21,6 @@ import {
   Settings,
   LogOut,
   Download,
-  Sparkles,
 } from "lucide-react"
 import { useStore } from "@/lib/store"
 import { cn } from "@/lib/utils"
@@ -33,7 +32,87 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import AIRecommendations from "./components/AIRecommendations"
+
+// Simple Ad Banner Component
+const AdBanner = ({
+  variant = "banner",
+  className = "",
+  showCloseButton = false,
+  onClose,
+}: {
+  variant?: "banner" | "inline" | "sticky"
+  className?: string
+  showCloseButton?: boolean
+  onClose?: () => void
+}) => {
+  const [isVisible, setIsVisible] = useState(true)
+
+  useEffect(() => {
+    // Simple ad loading simulation
+    const timer = setTimeout(() => {
+      if (typeof window !== "undefined") {
+        try {
+          // Set up ad options
+          ;(window as any).atOptions = {
+            key: "98a0e0e8fc5b3f5270ede29c571d2386",
+            format: "iframe",
+            height: 50,
+            width: 320,
+            params: {},
+          }
+
+          // Create and load the ad script
+          const script = document.createElement("script")
+          script.type = "text/javascript"
+          script.src = "//www.highperformanceformat.com/98a0e0e8fc5b3f5270ede29c571d2386/invoke.js"
+          script.async = true
+          document.head.appendChild(script)
+        } catch (error) {
+          console.log("Ad loading error:", error)
+        }
+      }
+    }, 1000)
+
+    return () => clearTimeout(timer)
+  }, [])
+
+  if (!isVisible) return null
+
+  const getVariantStyles = () => {
+    switch (variant) {
+      case "sticky":
+        return "fixed bottom-20 left-1/2 transform -translate-x-1/2 z-50"
+      case "inline":
+        return "my-4 mx-auto"
+      default:
+        return "my-6 mx-auto"
+    }
+  }
+
+  return (
+    <div className={`relative ${getVariantStyles()} ${className}`}>
+      <div className="bg-white/5 backdrop-blur-xl rounded-lg p-4 max-w-sm mx-auto border border-white/10">
+        {showCloseButton && (
+          <button
+            onClick={() => {
+              setIsVisible(false)
+              onClose?.()
+            }}
+            className="absolute top-2 right-2 z-10 p-1 rounded-full bg-black/20 hover:bg-black/40 transition-colors"
+          >
+            ×
+          </button>
+        )}
+
+        <div className="flex items-center justify-center h-12 w-80 bg-gradient-to-r from-purple-500/20 to-pink-500/20 rounded">
+          <div className="text-sm text-white/60">🎵 Advertisement</div>
+        </div>
+
+        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-purple-500 to-pink-500 opacity-50" />
+      </div>
+    </div>
+  )
+}
 
 // Enhanced animation variants
 const containerVariants = {
@@ -118,7 +197,7 @@ export default function Home() {
   const [currentTime, setCurrentTime] = useState("")
   const [showAllTrending, setShowAllTrending] = useState(false)
   const [trendingPage, setTrendingPage] = useState(1)
-  const [showAIRecommendations, setShowAIRecommendations] = useState(false)
+  const [showStickyAd, setShowStickyAd] = useState(true)
   const router = useRouter()
 
   const {
@@ -134,7 +213,6 @@ export default function Home() {
     addToFavorites,
     removeFromFavorites,
     searchContent,
-    getPersonalizedRecommendations,
   } = useStore()
 
   // Fetch trending songs on mount and refresh every 5 minutes
@@ -297,19 +375,6 @@ export default function Home() {
                 </Button>
               </motion.div>
 
-              {/* AI Button */}
-              <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setShowAIRecommendations(true)}
-                  className="text-purple-400 hover:text-purple-300 hover:bg-purple-500/10 px-2 sm:px-3"
-                >
-                  <Sparkles className="w-3 h-3 sm:w-4 sm:h-4 sm:mr-2" />
-                  <span className="hidden sm:inline">AI</span>
-                </Button>
-              </motion.div>
-
               {/* Profile Dropdown */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -345,13 +410,6 @@ export default function Home() {
                   </DropdownMenuItem>
                   <DropdownMenuItem
                     className="text-white hover:bg-gray-800 cursor-pointer"
-                    onClick={() => setShowAIRecommendations(true)}
-                  >
-                    <Sparkles className="mr-2 h-4 w-4" />
-                    AI Recommendations
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    className="text-white hover:bg-gray-800 cursor-pointer"
                     onClick={() => router.push("/settings")}
                   >
                     <Settings className="mr-2 h-4 w-4" />
@@ -383,6 +441,11 @@ export default function Home() {
             {getGreeting()}, {userName}
           </h2>
           <p className="text-gray-400 text-base sm:text-lg">Ready to discover some great music?</p>
+        </motion.div>
+
+        {/* Top Ad Banner */}
+        <motion.div variants={itemVariants} className="mb-6 sm:mb-8">
+          <AdBanner variant="banner" className="w-full max-w-2xl mx-auto" />
         </motion.div>
 
         {/* Quick Access Grid */}
@@ -472,6 +535,11 @@ export default function Home() {
               </motion.div>
             ))}
           </div>
+        </motion.div>
+
+        {/* Inline Ad */}
+        <motion.div variants={itemVariants} className="mb-6 sm:mb-8">
+          <AdBanner variant="inline" className="w-full max-w-2xl mx-auto" />
         </motion.div>
 
         {/* Curated Playlists */}
@@ -786,8 +854,8 @@ export default function Home() {
         </motion.div>
       </div>
 
-      {/* AI Recommendations Modal */}
-      <AIRecommendations isVisible={showAIRecommendations} onClose={() => setShowAIRecommendations(false)} />
+      {/* Sticky Ad Banner */}
+      {showStickyAd && <AdBanner variant="sticky" showCloseButton={true} onClose={() => setShowStickyAd(false)} />}
     </motion.div>
   )
 }
