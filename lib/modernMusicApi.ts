@@ -682,3 +682,25 @@ export function formatDuration(duration: number): string {
 
 export { ModernApiError as ApiError }
 export type { ModernSong as ApiSong }
+
+// --- Compatibility wrapper for older imports ---
+export type ModernMusicApi = {
+  search: (query: string) => Promise<ModernSong[]>
+  searchSongs: (query: string) => Promise<ModernSong[]>
+  getTrending: () => Promise<ModernSong[]>
+  getTrendingSongs: () => Promise<ModernSong[]>
+  getSongDetails: (songId: string) => Promise<ModernSong | null>
+  checkHealth: () => Promise<{ status: string; workingApis: string[]; message: string }>
+}
+
+export const modernMusicApi: ModernMusicApi = {
+  // aliases for compatibility
+  search: (query: string) => modernMusicService.search(query),
+  searchSongs: (query: string) => modernMusicService.search(query),
+  getTrending: () => modernMusicService.getTrending(),
+  getTrendingSongs: () => modernMusicService.getTrending(),
+  getSongDetails: (songId: string) => modernMusicService.getSongDetails(songId),
+  checkHealth: () => modernMusicService.checkHealth(),
+}
+
+export default modernMusicApi
