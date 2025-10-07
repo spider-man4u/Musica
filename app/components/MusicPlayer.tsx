@@ -34,7 +34,6 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { toast } from "@/components/ui/use-toast"
 
-// Enhanced animation variants for smoother transitions
 const playerVariants = {
   hidden: {
     opacity: 0,
@@ -109,7 +108,6 @@ const childVariants = {
   },
 }
 
-// Safe Image Component with loading optimization
 const SafeImage = ({
   src,
   alt,
@@ -149,7 +147,6 @@ const SafeImage = ({
   )
 }
 
-// Enhanced Queue Component with better animations
 const QueueView = ({ onClose }: { onClose: () => void }) => {
   const { queue, queueIndex, currentSong, setCurrentSong, removeFromQueue, clearQueue } = useStore()
 
@@ -179,7 +176,7 @@ const QueueView = ({ onClose }: { onClose: () => void }) => {
         <div className="flex items-center justify-between">
           <h3 className="text-white font-semibold">Queue ({queue.length} songs)</h3>
           <div className="flex items-center space-x-2">
-            <Button size="sm" variant="outline" onClick={clearQueue} className="text-xs">
+            <Button size="sm" variant="outline" onClick={clearQueue} className="text-xs bg-transparent border-gray-700">
               Clear All
             </Button>
             <Button size="sm" variant="ghost" onClick={onClose}>
@@ -274,13 +271,12 @@ export default function MusicPlayer() {
     addToFavorites,
     removeFromFavorites,
     addToDownloads,
-    generateAISuggestions,
   } = useStore()
 
   const isFavorite = currentSong ? userData.favorites.some((song) => song.id === currentSong.id) : false
   const isDownloaded = currentSong ? userData.downloads?.some((song) => song.id === currentSong.id) : false
 
-  // Enhanced Media Session API with better error handling
+  // Media Session API setup
   useEffect(() => {
     if (!currentSong || typeof navigator === "undefined" || !("mediaSession" in navigator)) return
 
@@ -360,36 +356,53 @@ export default function MusicPlayer() {
     }
   }, [currentSong, isPlaying, currentTime, duration, setIsPlaying, setCurrentTime])
 
-  // Enhanced audio event handlers with better performance
+  // Audio event listeners
   useEffect(() => {
     const audio = audioRef.current
     if (!audio) return
 
     const handleTimeUpdate = () => {
-      setCurrentTime(audio.currentTime)
-      if ("mediaSession" in navigator && duration && !isNaN(duration)) {
-        try {
-          navigator.mediaSession.setPositionState({
-            duration: duration,
-            playbackRate: 1,
-            position: audio.currentTime,
-          })
-        } catch (error) {
-          // Silently handle position state errors
+      const newTime = audio.currentTime
+      if (!isNaN(newTime) && isFinite(newTime)) {
+        setCurrentTime(newTime)
+
+        // Update media session position
+        if ("mediaSession" in navigator && duration && !isNaN(duration)) {
+          try {
+            navigator.mediaSession.setPositionState({
+              duration: duration,
+              playbackRate: 1,
+              position: newTime,
+            })
+          } catch (error) {
+            // Silently handle position state errors
+          }
         }
       }
     }
 
-    const handleDurationChange = () => {
-      setDuration(audio.duration)
+    const handleLoadedMetadata = () => {
+      const newDuration = audio.duration
+      console.log("🎵 Loaded metadata, duration:", newDuration)
+      if (newDuration && !isNaN(newDuration) && isFinite(newDuration) && newDuration > 0) {
+        setDuration(newDuration)
+      }
     }
 
-    const handleLoadedMetadata = () => {
-      setDuration(audio.duration)
+    const handleDurationChange = () => {
+      const newDuration = audio.duration
+      console.log("🎵 Duration changed:", newDuration)
+      if (newDuration && !isNaN(newDuration) && isFinite(newDuration) && newDuration > 0) {
+        setDuration(newDuration)
+      }
     }
 
     const handleCanPlay = () => {
       setImageLoaded(true)
+      const newDuration = audio.duration
+      if (newDuration && !isNaN(newDuration) && isFinite(newDuration) && newDuration > 0) {
+        setDuration(newDuration)
+      }
     }
 
     const handleError = (e: any) => {
@@ -405,21 +418,33 @@ export default function MusicPlayer() {
     }
 
     const handleEnded = () => {
+      console.log("🎵 Song ended, repeat mode:", repeatMode)
       if (repeatMode === "one") {
+        // Repeat the current song
         audio.currentTime = 0
-        audio.play()
+        audio.play().catch(console.error)
       } else {
+        // Play next song
         handleNext()
       }
     }
 
-    // Use passive listeners for better performance
+    const handlePlay = () => {
+      console.log("🎵 Audio playing")
+    }
+
+    const handlePause = () => {
+      console.log("🎵 Audio paused")
+    }
+
     audio.addEventListener("timeupdate", handleTimeUpdate, { passive: true })
     audio.addEventListener("durationchange", handleDurationChange, { passive: true })
     audio.addEventListener("loadedmetadata", handleLoadedMetadata, { passive: true })
     audio.addEventListener("canplay", handleCanPlay, { passive: true })
     audio.addEventListener("error", handleError)
     audio.addEventListener("ended", handleEnded)
+    audio.addEventListener("play", handlePlay, { passive: true })
+    audio.addEventListener("pause", handlePause, { passive: true })
 
     return () => {
       audio.removeEventListener("timeupdate", handleTimeUpdate)
@@ -428,10 +453,12 @@ export default function MusicPlayer() {
       audio.removeEventListener("canplay", handleCanPlay)
       audio.removeEventListener("error", handleError)
       audio.removeEventListener("ended", handleEnded)
+      audio.removeEventListener("play", handlePlay)
+      audio.removeEventListener("pause", handlePause)
     }
   }, [repeatMode, setCurrentTime, setDuration, duration])
 
-  // Enhanced play/pause control with preloading
+  // Handle audio source and playback
   useEffect(() => {
     const audio = audioRef.current
     if (!audio || !currentSong) return
@@ -443,10 +470,14 @@ export default function MusicPlayer() {
       return
     }
 
+    console.log("🎵 Loading audio:", audioUrl)
+
     if (audio.src !== audioUrl) {
       audio.src = audioUrl
       audio.load()
       setImageLoaded(false)
+      setDuration(0)
+      setCurrentTime(0)
     }
 
     if (isPlaying) {
@@ -464,9 +495,9 @@ export default function MusicPlayer() {
     } else {
       audio.pause()
     }
-  }, [isPlaying, currentSong, setIsPlaying])
+  }, [isPlaying, currentSong, setIsPlaying, setDuration, setCurrentTime])
 
-  // Volume control with smooth transitions
+  // Handle volume
   useEffect(() => {
     const audio = audioRef.current
     if (audio) {
@@ -474,41 +505,21 @@ export default function MusicPlayer() {
     }
   }, [volume, isMuted])
 
-  // Enhanced next/previous handlers
   const handleNext = useCallback(() => {
-    if (queue.length > 0 && queueIndex < queue.length - 1) {
-      playNext()
-    } else if (repeatMode === "all" && queue.length > 0) {
-      playNext()
-    } else {
-      // Generate AI suggestions when queue ends
-      if (currentSong) {
-        generateAISuggestions(currentSong)
-      }
-      toast({
-        title: "End of Queue",
-        description: "Generating AI suggestions for you...",
-      })
-    }
-  }, [queue, queueIndex, repeatMode, playNext, currentSong, generateAISuggestions])
+    console.log("🎵 handleNext called")
+    playNext()
+  }, [playNext])
 
   const handlePrevious = useCallback(() => {
-    if (queue.length > 0 && queueIndex > 0) {
-      playPrevious()
-    } else if (repeatMode === "all" && queue.length > 0) {
-      playPrevious()
-    } else {
-      if (audioRef.current) {
-        audioRef.current.currentTime = 0
-      }
-    }
-  }, [queue, queueIndex, repeatMode, playPrevious])
+    console.log("🎵 handlePrevious called")
+    playPrevious()
+  }, [playPrevious])
 
   const handleProgressChange = useCallback(
     (newValue: number[]) => {
       const [newProgress] = newValue
       const audio = audioRef.current
-      if (audio && duration && !isNaN(duration)) {
+      if (audio && duration && !isNaN(duration) && duration > 0) {
         const newTime = (newProgress / 100) * duration
         audio.currentTime = newTime
         setCurrentTime(newTime)
@@ -618,16 +629,15 @@ export default function MusicPlayer() {
     return `${minutes}:${seconds.toString().padStart(2, "0")}`
   }, [])
 
-  const progress = duration ? (currentTime / duration) * 100 : 0
+  const progress =
+    duration && !isNaN(duration) && isFinite(duration) && duration > 0 ? (currentTime / duration) * 100 : 0
 
   if (!currentSong) return null
 
   return (
     <div className="fixed bottom-0 left-0 right-0 z-50">
-      {/* Queue View with enhanced animations */}
       <AnimatePresence mode="wait">{showQueue && <QueueView onClose={() => setShowQueue(false)} />}</AnimatePresence>
 
-      {/* Mini Player with reduced height on mobile */}
       {!isExpanded && (
         <motion.div
           variants={playerVariants}
@@ -636,7 +646,6 @@ export default function MusicPlayer() {
           exit="exit"
           className="absolute bottom-16 left-0 right-0 bg-gradient-to-r from-gray-900/98 to-black/98 backdrop-blur-xl border-t border-gray-800/50 px-2 py-1 md:px-6 lg:px-8 md:py-3"
         >
-          {/* Expand indicator - smaller on mobile */}
           <motion.div variants={childVariants} className="flex justify-center mb-1 md:mb-2">
             <motion.button
               onClick={() => setIsExpanded(true)}
@@ -647,7 +656,6 @@ export default function MusicPlayer() {
           </motion.div>
 
           <motion.div variants={childVariants} className="flex items-center justify-between max-w-7xl mx-auto">
-            {/* Song Info - smaller on mobile */}
             <motion.div
               className="flex items-center space-x-2 sm:space-x-3 flex-1 min-w-0 cursor-pointer"
               onClick={() => setIsExpanded(true)}
@@ -671,7 +679,6 @@ export default function MusicPlayer() {
               </div>
             </motion.div>
 
-            {/* Mini Controls - smaller on mobile */}
             <motion.div
               variants={childVariants}
               className="flex items-center space-x-1 sm:space-x-2 md:space-x-3 lg:space-x-4"
@@ -738,7 +745,6 @@ export default function MusicPlayer() {
             </motion.div>
           </motion.div>
 
-          {/* Mini Progress Bar - thinner on mobile */}
           <motion.div variants={childVariants} className="mt-1.5 sm:mt-3">
             <div className="w-full bg-gray-700 rounded-full h-0.5">
               <motion.div
@@ -750,7 +756,6 @@ export default function MusicPlayer() {
             </div>
           </motion.div>
 
-          {/* Duration display - smaller on mobile */}
           <motion.div variants={childVariants} className="flex justify-between text-xs text-gray-400 mt-0.5 sm:mt-1">
             <span>{formatTime(currentTime)}</span>
             <span>{formatTime(duration)}</span>
@@ -758,7 +763,6 @@ export default function MusicPlayer() {
         </motion.div>
       )}
 
-      {/* Full Screen Player with enhanced animations */}
       <AnimatePresence mode="wait">
         {isExpanded && (
           <motion.div
@@ -768,7 +772,6 @@ export default function MusicPlayer() {
             exit="exit"
             className="fixed inset-0 bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 z-50 flex flex-col"
           >
-            {/* Header */}
             <motion.div
               variants={childVariants}
               className="flex items-center justify-between p-3 md:p-6 lg:p-8 pt-6 sm:pt-8 md:pt-12"
@@ -817,7 +820,6 @@ export default function MusicPlayer() {
               </DropdownMenu>
             </motion.div>
 
-            {/* Collapse indicator */}
             <motion.div variants={childVariants} className="flex justify-center mb-4">
               <motion.button
                 onClick={() => setIsExpanded(false)}
@@ -827,9 +829,7 @@ export default function MusicPlayer() {
               />
             </motion.div>
 
-            {/* Content */}
             <div className="flex-1 flex flex-col lg:flex-row items-center justify-center px-4 md:px-8 lg:px-16 gap-8">
-              {/* Album Art */}
               <motion.div
                 variants={childVariants}
                 className="w-72 h-72 sm:w-80 sm:h-80 md:w-96 md:h-96 lg:w-[400px] lg:h-[400px] flex-shrink-0"
@@ -850,12 +850,10 @@ export default function MusicPlayer() {
                 </motion.div>
               </motion.div>
 
-              {/* Controls Section */}
               <motion.div
                 variants={childVariants}
                 className="flex flex-col items-center lg:items-start w-full lg:w-auto lg:flex-1 max-w-md lg:max-w-none"
               >
-                {/* Song Info */}
                 <motion.div variants={childVariants} className="text-center lg:text-left mb-8 w-full">
                   <h1 className="text-2xl md:text-3xl lg:text-4xl font-bold text-white mb-2 truncate">
                     {currentSong.title}
@@ -866,7 +864,6 @@ export default function MusicPlayer() {
                   )}
                 </motion.div>
 
-                {/* Progress */}
                 <motion.div variants={childVariants} className="w-full mb-8">
                   <Slider
                     value={[progress]}
@@ -881,7 +878,6 @@ export default function MusicPlayer() {
                   </div>
                 </motion.div>
 
-                {/* Controls */}
                 <motion.div
                   variants={childVariants}
                   className="flex items-center justify-center space-x-4 sm:space-x-6 md:space-x-8 mb-6 md:mb-8"
@@ -944,7 +940,6 @@ export default function MusicPlayer() {
                   </motion.div>
                 </motion.div>
 
-                {/* Bottom Actions */}
                 <motion.div variants={childVariants} className="flex items-center justify-between w-full">
                   <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
                     <Button
@@ -994,7 +989,6 @@ export default function MusicPlayer() {
         )}
       </AnimatePresence>
 
-      {/* Enhanced Audio Element with preloading */}
       <audio ref={audioRef} preload="metadata" crossOrigin="anonymous" playsInline />
     </div>
   )

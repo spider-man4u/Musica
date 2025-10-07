@@ -2,9 +2,10 @@
 
 import { useState, useEffect, useCallback } from "react"
 import Image from "next/image"
-import { motion } from "framer-motion"
+import { motion, AnimatePresence } from "framer-motion"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { Button } from "@/components/ui/button"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
   Play,
   Pause,
@@ -21,6 +22,7 @@ import {
   Settings,
   LogOut,
   Download,
+  Search,
 } from "lucide-react"
 import { useStore } from "@/lib/store"
 import { cn } from "@/lib/utils"
@@ -33,7 +35,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 
-// Simple Ad Banner Component
 const AdBanner = ({
   variant = "banner",
   className = "",
@@ -46,35 +47,6 @@ const AdBanner = ({
   onClose?: () => void
 }) => {
   const [isVisible, setIsVisible] = useState(true)
-
-  useEffect(() => {
-    // Simple ad loading simulation
-    const timer = setTimeout(() => {
-      if (typeof window !== "undefined") {
-        try {
-          // Set up ad options
-          ;(window as any).atOptions = {
-            key: "98a0e0e8fc5b3f5270ede29c571d2386",
-            format: "iframe",
-            height: 50,
-            width: 320,
-            params: {},
-          }
-
-          // Create and load the ad script
-          const script = document.createElement("script")
-          script.type = "text/javascript"
-          script.src = "//www.highperformanceformat.com/98a0e0e8fc5b3f5270ede29c571d2386/invoke.js"
-          script.async = true
-          document.head.appendChild(script)
-        } catch (error) {
-          console.log("Ad loading error:", error)
-        }
-      }
-    }, 1000)
-
-    return () => clearTimeout(timer)
-  }, [])
 
   if (!isVisible) return null
 
@@ -114,7 +86,6 @@ const AdBanner = ({
   )
 }
 
-// Enhanced animation variants
 const containerVariants = {
   hidden: { opacity: 0 },
   visible: {
@@ -215,7 +186,6 @@ export default function Home() {
     searchContent,
   } = useStore()
 
-  // Fetch trending songs on mount and refresh every 5 minutes
   useEffect(() => {
     fetchTrendingSongs()
 
@@ -249,6 +219,13 @@ export default function Home() {
     if (hour < 12) return "Good morning"
     if (hour < 18) return "Good afternoon"
     return "Good evening"
+  }
+
+  const getGreetingEmoji = () => {
+    const hour = new Date().getHours()
+    if (hour < 12) return "🌅"
+    if (hour < 18) return "☀️"
+    return "🌙"
   }
 
   const handlePlaySong = useCallback(
@@ -316,6 +293,7 @@ export default function Home() {
 
   const userName = localStorage.getItem("username") || userData?.name || "Music Lover"
   const userEmail = localStorage.getItem("email") || userData?.email || ""
+  const userAvatar = localStorage.getItem("userImage") || userData?.avatar || ""
 
   const safeTrendingSongs = Array.isArray(trendingSongs) ? trendingSongs : []
   const safeRecentlyPlayed = Array.isArray(userData?.recentlyPlayed) ? userData.recentlyPlayed : []
@@ -339,7 +317,7 @@ export default function Home() {
       animate="visible"
       className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900"
     >
-      {/* Header - No Search Bar */}
+      {/* Enhanced Header */}
       <motion.div
         variants={itemVariants}
         className="sticky top-0 z-40 bg-black/20 backdrop-blur-xl border-b border-white/10"
@@ -350,8 +328,9 @@ export default function Home() {
             <div className="flex items-center space-x-2 sm:space-x-3">
               <motion.div
                 className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-r from-green-400 to-blue-500 rounded-full flex items-center justify-center"
-                whileHover={{ scale: 1.1 }}
+                whileHover={{ scale: 1.1, rotate: 180 }}
                 whileTap={{ scale: 0.9 }}
+                transition={{ type: "spring", stiffness: 200 }}
               >
                 <Music className="w-4 h-4 sm:w-6 sm:h-6 text-white" />
               </motion.div>
@@ -370,8 +349,8 @@ export default function Home() {
                   onClick={() => router.push("/search")}
                   className="text-white hover:bg-white/10 px-3"
                 >
-                  <Music className="w-4 h-4 mr-2" />
-                  Search
+                  <Search className="w-4 h-4 mr-2" />
+                  <span className="hidden sm:inline">Search</span>
                 </Button>
               </motion.div>
 
@@ -380,11 +359,12 @@ export default function Home() {
                 <DropdownMenuTrigger asChild>
                   <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
                     <Button variant="ghost" className="relative h-8 w-8 sm:h-10 sm:w-10 rounded-full p-0">
-                      <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-r from-purple-400 to-pink-500 rounded-full flex items-center justify-center">
-                        <span className="text-white text-xs sm:text-sm font-bold">
+                      <Avatar className="w-8 h-8 sm:w-10 sm:h-10">
+                        <AvatarImage src={userAvatar || "/placeholder.svg"} alt={userName} />
+                        <AvatarFallback className="bg-gradient-to-r from-purple-400 to-pink-500 text-white">
                           {userName[0]?.toUpperCase() || "U"}
-                        </span>
-                      </div>
+                        </AvatarFallback>
+                      </Avatar>
                     </Button>
                   </motion.div>
                 </DropdownMenuTrigger>
@@ -435,12 +415,59 @@ export default function Home() {
 
       {/* Main Content */}
       <div className="w-full px-2 py-4 pb-20 sm:px-4 sm:py-6 sm:pb-32">
-        {/* Greeting Section */}
+        {/* Animated Greeting Section */}
         <motion.div variants={itemVariants} className="mb-6 sm:mb-8">
-          <h2 className="text-3xl sm:text-4xl font-bold text-white mb-2">
-            {getGreeting()}, {userName}
-          </h2>
-          <p className="text-gray-400 text-base sm:text-lg">Ready to discover some great music?</p>
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={getGreeting()}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ duration: 0.5 }}
+              className="flex items-center space-x-3"
+            >
+              <motion.span
+                className="text-4xl sm:text-5xl"
+                animate={{
+                  scale: [1, 1.2, 1],
+                  rotate: [0, 10, -10, 0],
+                }}
+                transition={{
+                  duration: 2,
+                  repeat: Number.POSITIVE_INFINITY,
+                  repeatDelay: 3,
+                }}
+              >
+                {getGreetingEmoji()}
+              </motion.span>
+              <div>
+                <motion.h2
+                  className="text-3xl sm:text-4xl font-bold bg-gradient-to-r from-white via-purple-200 to-white bg-clip-text text-transparent"
+                  animate={{
+                    backgroundPosition: ["0%", "100%", "0%"],
+                  }}
+                  transition={{
+                    duration: 3,
+                    repeat: Number.POSITIVE_INFINITY,
+                    ease: "linear",
+                  }}
+                  style={{
+                    backgroundSize: "200% auto",
+                  }}
+                >
+                  {getGreeting()}, {userName}
+                </motion.h2>
+                <motion.p
+                  className="text-gray-400 text-base sm:text-lg"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.3 }}
+                >
+                  Ready to discover some great music?
+                </motion.p>
+              </div>
+            </motion.div>
+          </AnimatePresence>
         </motion.div>
 
         {/* Top Ad Banner */}

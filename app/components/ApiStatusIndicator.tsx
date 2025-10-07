@@ -13,13 +13,9 @@ export default function ModernApiStatusIndicator() {
   const [autoHide, setAutoHide] = useState(false)
 
   useEffect(() => {
-    // Check API status on mount
     checkApiStatus()
-
-    // Check API status every minute
     const interval = setInterval(checkApiStatus, 60 * 1000)
 
-    // Auto-hide the indicator after 5 seconds if status is healthy
     if (apiStatus === "healthy" && !showDetails) {
       const hideTimer = setTimeout(() => {
         setAutoHide(true)
@@ -79,7 +75,6 @@ export default function ModernApiStatusIndicator() {
 
   const config = getStatusConfig()
 
-  // Don't show the indicator if it's set to auto-hide and status is healthy
   if (autoHide && apiStatus === "healthy" && !showDetails) {
     return null
   }
@@ -129,7 +124,7 @@ export default function ModernApiStatusIndicator() {
                       e.stopPropagation()
                       handleRetry()
                     }}
-                    className="border-red-500/20 text-red-400 hover:bg-red-500/10 h-8 px-3"
+                    className="border-red-500/20 text-red-400 hover:bg-red-500/10 h-8 px-3 bg-transparent"
                   >
                     <Wifi className="w-3 h-3 mr-1" />
                     Retry
@@ -153,7 +148,6 @@ export default function ModernApiStatusIndicator() {
               </div>
             </div>
 
-            {/* Modern API Status Details */}
             {apiStatus === "healthy" && showDetails && (
               <motion.div
                 initial={{ opacity: 0, height: 0 }}
