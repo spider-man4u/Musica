@@ -1,6 +1,6 @@
 import { create } from "zustand"
 import { persist } from "zustand/middleware"
-import { searchMusic, getTrendingMusic, getSongDetails, sanitizeString, type ModernSong } from "./modernMusicApi"
+import { getSongDetails, sanitizeString, type ModernSong } from "./modernMusicApi"
 import { syncUserData, loadUserData } from "./supabase"
 
 export interface Song {
@@ -134,6 +134,7 @@ interface AppState {
   playSong: (song: Song, playlist?: Song[]) => void
   searchContent: (query: string) => Promise<void>
   fetchTrendingSongs: () => Promise<void>
+  fetchTrendingMore: (page?: number) => Promise<void>
   fetchSongDetails: (songId: string) => Promise<Song | null>
   addToFavorites: (song: Song) => void
   removeFromFavorites: (songId: string) => void
@@ -426,74 +427,34 @@ export const useStore = create<AppState>()(
         get().setIsPlaying(true)
       },
 
-      playNext: () => {
-        const { queue, queueIndex, repeatMode } = get()
-        if (!Array.isArray(queue) || queue.length === 0) return
-
-        if (repeatMode === "one") {
-          // stay on current track
-          return
-        }
-
-        let nextIndex = queueIndex + 1
-        if (nextIndex >= queue.length) {
-          if (repeatMode === "all") nextIndex = 0
-          else {
-            set({ isPlaying: false })
-            return
-          }
-        }
-
-        set({ queueIndex: nextIndex })
-        get().setCurrentSong(queue[nextIndex])
-        get().setIsPlaying(true)
-      },
-
-      playPrevious: () => {
-        const { queue, queueIndex } = get()
-        if (!Array.isArray(queue) || queue.length === 0) return
-
-        const prevIndex = queueIndex > 0 ? queueIndex - 1 : queue.length - 1
-        set({ queueIndex: prevIndex })
-        get().setCurrentSong(queue[prevIndex])
-        get().setIsPlaying(true)
-      },
-
       searchContent: async (query) => {
         if (!query?.trim()) {
           set({ searchResults: null, error: null })
           return
         }
-
         set({ isLoading: true, error: null, searchQuery: query })
-
         try {
-          const response = await searchMusic(query)
-
-          if (response.success && response.data.results?.length > 0) {
-            const songs = response.data.results.map(convertModernSongToSong)
-
+          const res = await fetch(`/api/music/search?query=${encodeURIComponent(query)}`, {
+            method: "GET",
+            headers: { "Content-Type": "application/json" },
+            cache: "no-store",
+          })
+          const json = await res.json()
+          const incoming = Array.isArray(json?.data?.results) ? json.data.results : []
+          const songs = incoming.map(convertModernSongToSong)
+          if (songs.length > 0) {
             set({
-              searchResults: {
-                songs: {
-                  data: songs,
-                  total: songs.length,
-                },
-              },
+              searchResults: { songs: { data: songs, total: songs.length } },
               recommendations: songs.slice(0, 5),
               error: null,
               apiStatus: "healthy",
             })
-
             get().addToSearchHistory(query)
           } else {
-            set({
-              searchResults: { songs: { data: [], total: 0 } },
-              error: "No songs found. Try different keywords.",
-            })
+            set({ searchResults: { songs: { data: [], total: 0 } }, error: "No songs found. Try different keywords." })
           }
-        } catch (error) {
-          console.error("Search error:", error)
+        } catch (err) {
+          console.error("Search error:", err)
           set({
             searchResults: { songs: { data: [], total: 0 } },
             error: "Search failed. Please check your connection.",
@@ -506,34 +467,52 @@ export const useStore = create<AppState>()(
 
       fetchTrendingSongs: async () => {
         set({ isLoading: true, error: null })
-
         try {
-          const response = await getTrendingMusic()
-
-          if (response.success && response.data.trending.length > 0) {
-            const songs = response.data.trending.map(convertModernSongToSong)
-
-            set({
-              trendingSongs: songs,
-              error: null,
-              apiStatus: "healthy",
-            })
-          } else {
-            set({
-              trendingSongs: [],
-              error: "No trending songs available.",
-              apiStatus: "limited",
-            })
-          }
-        } catch (error) {
-          console.error("Trending error:", error)
-          set({
-            trendingSongs: [],
-            error: "Failed to load trending songs.",
-            apiStatus: "unhealthy",
+          const res = await fetch("/api/music/trending?page=1&limit=20", {
+            method: "GET",
+            headers: { "Content-Type": "application/json" },
+            cache: "no-store",
           })
+          const json = await res.json()
+          const incoming = Array.isArray(json?.data?.trending) ? json.data.trending : []
+          const songs = incoming.map(convertModernSongToSong)
+          set({ trendingSongs: songs, error: null, apiStatus: "healthy" })
+        } catch (e) {
+          console.error("Trending error:", e)
+          set({ trendingSongs: [], error: "Failed to load trending songs.", apiStatus: "unhealthy" })
         } finally {
           set({ isLoading: false })
+        }
+      },
+
+      fetchTrendingMore: async (page = 2) => {
+        try {
+          const res = await fetch(`/api/music/trending?page=${page}&limit=20`, {
+            method: "GET",
+            headers: { "Content-Type": "application/json" },
+            cache: "no-store",
+          })
+          const json = await res.json()
+          const incoming = Array.isArray(json?.data?.trending) ? json.data.trending : []
+          const songs = incoming.map(convertModernSongToSong)
+          const deduped = (() => {
+            const seen = new Set<string>()
+            const existing = get().trendingSongs || []
+            const merged = [...existing, ...songs]
+            const out: typeof merged = []
+            for (const s of merged) {
+              const key = s.id || `${(s.title || "").toLowerCase()}::${(s.artist || "").toLowerCase()}`
+              if (!seen.has(key)) {
+                seen.add(key)
+                out.push(s)
+              }
+            }
+            return out
+          })()
+          set({ trendingSongs: deduped, apiStatus: "healthy", error: null })
+        } catch (e) {
+          console.error("Trending more error:", e)
+          set({ error: "Failed to load more trending songs.", apiStatus: "limited" })
         }
       },
 

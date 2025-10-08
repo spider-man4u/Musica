@@ -128,6 +128,7 @@ export default function Home() {
     isPlaying,
     curatedPlaylists,
     fetchTrendingSongs,
+    fetchTrendingMore, // <-- add this
     playSong,
     addToFavorites,
     removeFromFavorites,
@@ -228,7 +229,11 @@ export default function Home() {
   )
 
   const handleShowAllTrending = () => setShowAllTrending(true)
-  const loadMoreTrending = () => setTrendingPage((prev) => prev + 1)
+  const loadMoreTrending = async () => {
+    const next = trendingPage + 1
+    await fetchTrendingMore(next)
+    setTrendingPage(next)
+  }
 
   const userName =
     (typeof window !== "undefined" && localStorage.getItem("username")) || userData?.name || "Music Lover"
