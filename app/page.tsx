@@ -35,57 +35,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 
-const AdBanner = ({
-  variant = "banner",
-  className = "",
-  showCloseButton = false,
-  onClose,
-}: {
-  variant?: "banner" | "inline" | "sticky"
-  className?: string
-  showCloseButton?: boolean
-  onClose?: () => void
-}) => {
-  const [isVisible, setIsVisible] = useState(true)
-
-  if (!isVisible) return null
-
-  const getVariantStyles = () => {
-    switch (variant) {
-      case "sticky":
-        return "fixed bottom-20 left-1/2 transform -translate-x-1/2 z-50"
-      case "inline":
-        return "my-4 mx-auto"
-      default:
-        return "my-6 mx-auto"
-    }
-  }
-
-  return (
-    <div className={`relative ${getVariantStyles()} ${className}`}>
-      <div className="bg-white/5 backdrop-blur-xl rounded-lg p-4 max-w-sm mx-auto border border-white/10">
-        {showCloseButton && (
-          <button
-            onClick={() => {
-              setIsVisible(false)
-              onClose?.()
-            }}
-            className="absolute top-2 right-2 z-10 p-1 rounded-full bg-black/20 hover:bg-black/40 transition-colors"
-          >
-            ×
-          </button>
-        )}
-
-        <div className="flex items-center justify-center h-12 w-80 bg-gradient-to-r from-purple-500/20 to-pink-500/20 rounded">
-          <div className="text-sm text-white/60">🎵 Advertisement</div>
-        </div>
-
-        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-purple-500 to-pink-500 opacity-50" />
-      </div>
-    </div>
-  )
-}
-
 const containerVariants = {
   hidden: { opacity: 0 },
   visible: {
@@ -168,7 +117,6 @@ export default function Home() {
   const [currentTime, setCurrentTime] = useState("")
   const [showAllTrending, setShowAllTrending] = useState(false)
   const [trendingPage, setTrendingPage] = useState(1)
-  const [showStickyAd, setShowStickyAd] = useState(true)
   const router = useRouter()
 
   const {
@@ -188,14 +136,12 @@ export default function Home() {
 
   useEffect(() => {
     fetchTrendingSongs()
-
     const refreshInterval = setInterval(
       () => {
         fetchTrendingSongs()
       },
       5 * 60 * 1000,
     )
-
     return () => clearInterval(refreshInterval)
   }, [fetchTrendingSongs])
 
@@ -208,7 +154,6 @@ export default function Home() {
       const displayHours = hours % 12 || 12
       setCurrentTime(`${displayHours}:${minutes.toString().padStart(2, "0")} ${ampm}`)
     }
-
     updateTime()
     const interval = setInterval(updateTime, 1000)
     return () => clearInterval(interval)
@@ -238,7 +183,6 @@ export default function Home() {
   const toggleFavorite = useCallback(
     (song: any) => {
       if (!song || !userData?.favorites) return
-
       const isFavorite = userData.favorites.some((fav) => fav.id === song.id)
       if (isFavorite) {
         removeFromFavorites(song.id)
@@ -283,17 +227,13 @@ export default function Home() {
     [searchContent, router],
   )
 
-  const handleShowAllTrending = () => {
-    setShowAllTrending(true)
-  }
+  const handleShowAllTrending = () => setShowAllTrending(true)
+  const loadMoreTrending = () => setTrendingPage((prev) => prev + 1)
 
-  const loadMoreTrending = () => {
-    setTrendingPage((prev) => prev + 1)
-  }
-
-  const userName = localStorage.getItem("username") || userData?.name || "Music Lover"
-  const userEmail = localStorage.getItem("email") || userData?.email || ""
-  const userAvatar = localStorage.getItem("userImage") || userData?.avatar || ""
+  const userName =
+    (typeof window !== "undefined" && localStorage.getItem("username")) || userData?.name || "Music Lover"
+  const userEmail = (typeof window !== "undefined" && localStorage.getItem("email")) || userData?.email || ""
+  const userAvatar = (typeof window !== "undefined" && localStorage.getItem("userImage")) || userData?.avatar || ""
 
   const safeTrendingSongs = Array.isArray(trendingSongs) ? trendingSongs : []
   const safeRecentlyPlayed = Array.isArray(userData?.recentlyPlayed) ? userData.recentlyPlayed : []
@@ -317,31 +257,45 @@ export default function Home() {
       animate="visible"
       className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900"
     >
-      {/* Enhanced Header */}
+      {/* Modern Top Bar */}
       <motion.div
         variants={itemVariants}
-        className="sticky top-0 z-40 bg-black/20 backdrop-blur-xl border-b border-white/10"
+        className="sticky top-0 z-50 backdrop-blur-xl border-b border-white/10 bg-black/30"
       >
+        {/* Ambient glow */}
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-20 -z-10">
+          <div className="mx-auto h-full max-w-5xl bg-gradient-to-r from-purple-500/20 via-pink-500/10 to-purple-500/20 blur-2xl" />
+        </div>
+
         <div className="w-full px-2 py-3 sm:px-4 sm:py-4">
           <div className="flex items-center justify-between">
-            {/* Logo */}
+            {/* Brand */}
             <div className="flex items-center space-x-2 sm:space-x-3">
               <motion.div
-                className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-r from-green-400 to-blue-500 rounded-full flex items-center justify-center"
-                whileHover={{ scale: 1.1, rotate: 180 }}
-                whileTap={{ scale: 0.9 }}
-                transition={{ type: "spring", stiffness: 200 }}
+                className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-r from-green-400 to-blue-500 rounded-xl flex items-center justify-center shadow-inner"
+                whileHover={{ rotate: 8, scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                transition={{ type: "spring", stiffness: 260, damping: 18 }}
               >
                 <Music className="w-4 h-4 sm:w-6 sm:h-6 text-white" />
               </motion.div>
-              <h1 className="text-lg sm:text-xl font-bold text-white">Musica</h1>
+              <div className="flex flex-col">
+                <motion.span
+                  className="text-lg sm:text-xl font-extrabold bg-gradient-to-r from-white via-purple-200 to-white bg-clip-text text-transparent tracking-wide"
+                  animate={{ backgroundPosition: ["0% 50%", "100% 50%", "0% 50%"] }}
+                  transition={{ duration: 6, repeat: Number.POSITIVE_INFINITY, ease: "linear" }}
+                  style={{ backgroundSize: "200% 200%" }}
+                >
+                  Musica
+                </motion.span>
+                <span className="h-[2px] w-10 rounded-full bg-gradient-to-r from-purple-400/80 to-pink-400/80" />
+              </div>
             </div>
 
-            {/* Right side controls */}
+            {/* Right controls */}
             <div className="flex items-center space-x-2 sm:space-x-4">
-              <div className="text-white text-sm">{currentTime}</div>
+              <div className="hidden sm:block text-white/80 text-sm">{currentTime}</div>
 
-              {/* Search Button */}
               <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
                 <Button
                   variant="ghost"
@@ -354,7 +308,7 @@ export default function Home() {
                 </Button>
               </motion.div>
 
-              {/* Profile Dropdown */}
+              {/* Profile */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
@@ -362,7 +316,7 @@ export default function Home() {
                       <Avatar className="w-8 h-8 sm:w-10 sm:h-10">
                         <AvatarImage src={userAvatar || "/placeholder.svg"} alt={userName} />
                         <AvatarFallback className="bg-gradient-to-r from-purple-400 to-pink-500 text-white">
-                          {userName[0]?.toUpperCase() || "U"}
+                          {(userName?.[0] || "U").toUpperCase()}
                         </AvatarFallback>
                       </Avatar>
                     </Button>
@@ -399,8 +353,10 @@ export default function Home() {
                   <DropdownMenuItem
                     className="text-red-400 hover:bg-gray-800 cursor-pointer"
                     onClick={() => {
-                      localStorage.clear()
-                      window.location.reload()
+                      if (typeof window !== "undefined") {
+                        localStorage.clear()
+                        window.location.reload()
+                      }
                     }}
                   >
                     <LogOut className="mr-2 h-4 w-4" />
@@ -411,6 +367,9 @@ export default function Home() {
             </div>
           </div>
         </div>
+
+        {/* Bottom accent line */}
+        <div className="h-[1px] w-full bg-gradient-to-r from-transparent via-white/20 to-transparent" />
       </motion.div>
 
       {/* Main Content */}
@@ -428,32 +387,17 @@ export default function Home() {
             >
               <motion.span
                 className="text-4xl sm:text-5xl"
-                animate={{
-                  scale: [1, 1.2, 1],
-                  rotate: [0, 10, -10, 0],
-                }}
-                transition={{
-                  duration: 2,
-                  repeat: Number.POSITIVE_INFINITY,
-                  repeatDelay: 3,
-                }}
+                animate={{ scale: [1, 1.2, 1], rotate: [0, 10, -10, 0] }}
+                transition={{ duration: 2, repeat: Number.POSITIVE_INFINITY, repeatDelay: 3 }}
               >
                 {getGreetingEmoji()}
               </motion.span>
               <div>
                 <motion.h2
                   className="text-3xl sm:text-4xl font-bold bg-gradient-to-r from-white via-purple-200 to-white bg-clip-text text-transparent"
-                  animate={{
-                    backgroundPosition: ["0%", "100%", "0%"],
-                  }}
-                  transition={{
-                    duration: 3,
-                    repeat: Number.POSITIVE_INFINITY,
-                    ease: "linear",
-                  }}
-                  style={{
-                    backgroundSize: "200% auto",
-                  }}
+                  animate={{ backgroundPosition: ["0%", "100%", "0%"] }}
+                  transition={{ duration: 3, repeat: Number.POSITIVE_INFINITY, ease: "linear" }}
+                  style={{ backgroundSize: "200% auto" }}
                 >
                   {getGreeting()}, {userName}
                 </motion.h2>
@@ -468,11 +412,6 @@ export default function Home() {
               </div>
             </motion.div>
           </AnimatePresence>
-        </motion.div>
-
-        {/* Top Ad Banner */}
-        <motion.div variants={itemVariants} className="mb-6 sm:mb-8">
-          <AdBanner variant="banner" className="w-full max-w-2xl mx-auto" />
         </motion.div>
 
         {/* Quick Access Grid */}
@@ -562,11 +501,6 @@ export default function Home() {
               </motion.div>
             ))}
           </div>
-        </motion.div>
-
-        {/* Inline Ad */}
-        <motion.div variants={itemVariants} className="mb-6 sm:mb-8">
-          <AdBanner variant="inline" className="w-full max-w-2xl mx-auto" />
         </motion.div>
 
         {/* Curated Playlists */}
@@ -836,7 +770,6 @@ export default function Home() {
             <div className="space-y-2 sm:space-y-3">
               {safeRecentlyPlayed.slice(0, 5).map((song, index) => {
                 if (!song) return null
-
                 return (
                   <motion.div
                     key={song.id || index}
@@ -880,9 +813,6 @@ export default function Home() {
           )}
         </motion.div>
       </div>
-
-      {/* Sticky Ad Banner */}
-      {showStickyAd && <AdBanner variant="sticky" showCloseButton={true} onClose={() => setShowStickyAd(false)} />}
     </motion.div>
   )
 }

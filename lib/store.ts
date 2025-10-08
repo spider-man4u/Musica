@@ -127,6 +127,9 @@ interface AppState {
   setQueue: (songs: Song[], startIndex?: number) => void
   addToQueue: (song: Song) => void
   removeFromQueue: (index: number) => void
+  moveQueueItem: (from: number, to: number) => void
+  playFromQueue: (index: number) => void
+  saveQueueAsPlaylist: (name?: string) => Playlist
   clearQueue: () => void
   playSong: (song: Song, playlist?: Song[]) => void
   searchContent: (query: string) => Promise<void>
@@ -254,32 +257,13 @@ const defaultUserData: UserData = {
   },
 }
 
-const sampleSongs: Song[] = [
-  {
-    id: "sample-1",
-    title: "Kesariya",
-    artist: "Arijit Singh",
-    album: "Brahmastra",
-    image: "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=300&h=300&fit=crop",
-    audio: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3",
-    duration: 240,
-    language: "hindi",
-    year: "2022",
-    genre: "bollywood",
-    mood: "romantic",
-    energy: 60,
-    danceability: 70,
-    valence: 80,
-  },
-]
-
 const curatedPlaylists: Playlist[] = [
   {
     id: "curated-1",
     name: "Bollywood Hits 2024",
     description: "The biggest Bollywood songs of the year",
-    image: "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=300&h=300&fit=crop",
-    songs: [sampleSongs[0]],
+    image: "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=300&h=300&fit=crop&auto=format",
+    songs: [],
     createdAt: new Date().toISOString(),
     isPublic: true,
   },
@@ -316,7 +300,6 @@ export const useStore = create<AppState>()(
       currentUserId: null,
 
       setCurrentSong: (song) => {
-        console.log("🎵 Setting current song:", song?.title, "by", song?.artist)
         set({ currentSong: song })
         if (song) {
           get().addToRecentlyPlayed(song)
@@ -329,7 +312,6 @@ export const useStore = create<AppState>()(
 
       setDuration: (duration) => {
         if (duration && !isNaN(duration) && isFinite(duration) && duration > 0) {
-          console.log("🎵 Setting duration:", duration)
           set({ duration })
         }
       },
@@ -360,7 +342,6 @@ export const useStore = create<AppState>()(
       setRepeatMode: (mode) => set({ repeatMode: mode }),
 
       setQueue: (songs, startIndex = 0) => {
-        console.log("🎵 Setting queue:", songs.length, "songs")
         set({
           queue: songs,
           originalQueue: [...songs],
@@ -391,6 +372,40 @@ export const useStore = create<AppState>()(
         })
       },
 
+      moveQueueItem: (from, to) => {
+        set((state) => {
+          const list = [...state.queue]
+          const [spliced] = list.splice(from, 1)
+          list.splice(to, 0, spliced)
+          return { queue: list, originalQueue: [...list], queueIndex: to }
+        })
+      },
+
+      playFromQueue: (index) => {
+        const { queue } = get()
+        if (queue[index]) {
+          set({ queueIndex: index })
+          get().setCurrentSong(queue[index])
+          get().setIsPlaying(true)
+        }
+      },
+
+      saveQueueAsPlaylist: (name = "Saved Queue") => {
+        const playlist: Playlist = {
+          id: `queue-${Date.now()}`,
+          name,
+          description: "Saved from your current queue",
+          image: get().queue[0]?.image || "/placeholder.svg?height=300&width=300",
+          songs: [...get().queue],
+          createdAt: new Date().toISOString(),
+          isPublic: false,
+        }
+        set((state) => ({
+          userData: { ...state.userData, playlists: [...state.userData.playlists, playlist] },
+        }))
+        return playlist
+      },
+
       clearQueue: () => {
         set({
           queue: [],
@@ -402,57 +417,36 @@ export const useStore = create<AppState>()(
       },
 
       playSong: (song, playlist) => {
-        console.log("🎵 Playing song:", song.title)
-
         if (playlist && playlist.length > 0) {
           const songIndex = playlist.findIndex((s) => s.id === song.id)
           get().setQueue(playlist, songIndex >= 0 ? songIndex : 0)
         } else {
           get().setQueue([song], 0)
-          if (get().userData.settings.aiSuggestions) {
-            get().generateAISuggestions(song)
-          }
         }
-
         get().setIsPlaying(true)
       },
 
       playNext: () => {
-        const { queue, queueIndex, repeatMode, currentSong, userData } = get()
-
-        if (!Array.isArray(queue) || queue.length === 0) {
-          if (currentSong && userData.settings.aiSuggestions) {
-            get().generateAISuggestions(currentSong)
-          }
-          return
-        }
-
-        let nextIndex = queueIndex
+        const { queue, queueIndex, repeatMode } = get()
+        if (!Array.isArray(queue) || queue.length === 0) return
 
         if (repeatMode === "one") {
+          // stay on current track
           return
-        } else {
-          nextIndex = queueIndex + 1
-          if (nextIndex >= queue.length) {
-            if (repeatMode === "all") {
-              nextIndex = 0
-            } else {
-              if (currentSong && userData.settings.aiSuggestions && userData.settings.autoplay) {
-                get().generateAISuggestions(currentSong)
-                return
-              } else {
-                set({ isPlaying: false })
-                return
-              }
-            }
+        }
+
+        let nextIndex = queueIndex + 1
+        if (nextIndex >= queue.length) {
+          if (repeatMode === "all") nextIndex = 0
+          else {
+            set({ isPlaying: false })
+            return
           }
         }
 
-        if (nextIndex < queue.length && queue[nextIndex]) {
-          set({ queueIndex: nextIndex })
-          get().setCurrentSong(queue[nextIndex])
-          get().setIsPlaying(true)
-        }
+        set({ queueIndex: nextIndex })
+        get().setCurrentSong(queue[nextIndex])
+        get().setIsPlaying(true)
       },
 
       playPrevious: () => {
@@ -460,10 +454,9 @@ export const useStore = create<AppState>()(
         if (!Array.isArray(queue) || queue.length === 0) return
 
         const prevIndex = queueIndex > 0 ? queueIndex - 1 : queue.length - 1
-        if (queue[prevIndex]) {
-          set({ queueIndex: prevIndex })
-          get().setCurrentSong(queue[prevIndex])
-        }
+        set({ queueIndex: prevIndex })
+        get().setCurrentSong(queue[prevIndex])
+        get().setIsPlaying(true)
       },
 
       searchContent: async (query) => {
@@ -559,15 +552,9 @@ export const useStore = create<AppState>()(
       addToFavorites: (song) => {
         if (!song) return
         set((state) => {
-          const currentFavorites = Array.isArray(state.userData?.favorites) ? state.userData.favorites : []
-          const isAlreadyFavorite = currentFavorites.some((fav) => fav?.id === song.id)
-          if (isAlreadyFavorite) return state
-          return {
-            userData: {
-              ...state.userData,
-              favorites: [...currentFavorites, song],
-            },
-          }
+          const current = Array.isArray(state.userData?.favorites) ? state.userData.favorites : []
+          if (current.some((fav) => fav?.id === song.id)) return state
+          return { userData: { ...state.userData, favorites: [...current, song] } }
         })
         get().syncToCloud()
       },
@@ -577,9 +564,7 @@ export const useStore = create<AppState>()(
         set((state) => ({
           userData: {
             ...state.userData,
-            favorites: Array.isArray(state.userData?.favorites)
-              ? state.userData.favorites.filter((song) => song?.id !== songId)
-              : [],
+            favorites: (state.userData?.favorites || []).filter((song) => song?.id !== songId),
           },
         }))
         get().syncToCloud()
@@ -588,15 +573,9 @@ export const useStore = create<AppState>()(
       addToDownloads: (song) => {
         if (!song) return
         set((state) => {
-          const currentDownloads = Array.isArray(state.userData?.downloads) ? state.userData.downloads : []
-          const isAlreadyDownloaded = currentDownloads.some((download) => download?.id === song.id)
-          if (isAlreadyDownloaded) return state
-          return {
-            userData: {
-              ...state.userData,
-              downloads: [...currentDownloads, song],
-            },
-          }
+          const current = Array.isArray(state.userData?.downloads) ? state.userData.downloads : []
+          if (current.some((s) => s?.id === song.id)) return state
+          return { userData: { ...state.userData, downloads: [...current, song] } }
         })
         get().syncToCloud()
       },
@@ -606,9 +585,7 @@ export const useStore = create<AppState>()(
         set((state) => ({
           userData: {
             ...state.userData,
-            downloads: Array.isArray(state.userData?.downloads)
-              ? state.userData.downloads.filter((song) => song?.id !== songId)
-              : [],
+            downloads: (state.userData?.downloads || []).filter((song) => song?.id !== songId),
           },
         }))
         get().syncToCloud()
@@ -617,18 +594,11 @@ export const useStore = create<AppState>()(
       addToRecentlyPlayed: (song) => {
         if (!song) return
         set((state) => {
-          const currentRecentlyPlayed = Array.isArray(state.userData?.recentlyPlayed)
-            ? state.userData.recentlyPlayed
-            : []
-          const filteredRecent = currentRecentlyPlayed.filter((s) => s?.id !== song.id)
-          return {
-            userData: {
-              ...state.userData,
-              recentlyPlayed: [song, ...filteredRecent.slice(0, 19)],
-            },
-          }
+          const current = Array.isArray(state.userData?.recentlyPlayed) ? state.userData.recentlyPlayed : []
+          const filtered = current.filter((s) => s?.id !== song.id)
+          return { userData: { ...state.userData, recentlyPlayed: [song, ...filtered].slice(0, 50) } }
         })
-        setTimeout(() => get().syncToCloud(), 5000)
+        setTimeout(() => get().syncToCloud(), 2000)
       },
 
       addToListeningHistory: (songId, duration) => {
@@ -637,7 +607,7 @@ export const useStore = create<AppState>()(
           return {
             userData: {
               ...state.userData,
-              listeningHistory: [{ songId, timestamp: Date.now(), duration }, ...currentHistory.slice(0, 999)],
+              listeningHistory: [{ songId, timestamp: Date.now(), duration }, ...currentHistory].slice(0, 1000),
             },
           }
         })
@@ -675,11 +645,6 @@ export const useStore = create<AppState>()(
                 aiSuggestions: suggestions,
               },
             }))
-
-            if (userData.settings.autoplay) {
-              get().setCurrentSong(suggestions[0])
-              get().setIsPlaying(true)
-            }
           }
 
           return suggestions
@@ -770,10 +735,7 @@ export const useStore = create<AppState>()(
             ...state.userData,
             playlists: state.userData.playlists.map((playlist) =>
               playlist.id === playlistId
-                ? {
-                    ...playlist,
-                    songs: playlist.songs.filter((song) => song.id !== songId),
-                  }
+                ? { ...playlist, songs: playlist.songs.filter((song) => song.id !== songId) }
                 : playlist,
             ),
           },
@@ -789,29 +751,6 @@ export const useStore = create<AppState>()(
           },
         }))
         get().syncToCloud()
-      },
-
-      generateRecommendations: async (baseSong) => {
-        try {
-          const { trendingSongs, userData } = get()
-          const allSongs = [...trendingSongs, ...userData.favorites]
-
-          const recommendations = allSongs
-            .filter((song) => song.id !== baseSong.id)
-            .map((song) => ({
-              song,
-              similarity: calculateSimilarity(baseSong, song),
-            }))
-            .sort((a, b) => b.similarity - a.similarity)
-            .slice(0, 10)
-            .map((item) => item.song)
-
-          set({ recommendations })
-          return recommendations
-        } catch (error) {
-          console.error("Failed to generate recommendations:", error)
-          return []
-        }
       },
 
       updateUserProfile: (data) => {
@@ -833,18 +772,12 @@ export const useStore = create<AppState>()(
 
       syncToCloud: async () => {
         const { currentUserId, userData, syncStatus } = get()
-
         if (!currentUserId || syncStatus === "syncing") return
 
         try {
           set({ syncStatus: "syncing" })
           const result = await syncUserData(currentUserId, userData)
-
-          if (result.success) {
-            set({ syncStatus: "synced" })
-          } else {
-            set({ syncStatus: "error" })
-          }
+          set({ syncStatus: result.success ? "synced" : "error" })
         } catch (error) {
           console.error("Sync error:", error)
           set({ syncStatus: "error" })
@@ -853,7 +786,6 @@ export const useStore = create<AppState>()(
 
       loadFromCloud: async () => {
         const { currentUserId } = get()
-
         if (!currentUserId) return
 
         try {
@@ -895,58 +827,40 @@ export const useStore = create<AppState>()(
       checkApiStatus: async () => {
         const now = Date.now()
         const { lastApiCheck } = get()
-
         if (now - lastApiCheck < 10000) return
-
         set({ lastApiCheck: now })
 
         try {
           const response = await fetch("/api/health", {
             method: "GET",
-            headers: {
-              "Content-Type": "application/json",
-            },
+            headers: { "Content-Type": "application/json" },
             cache: "no-cache",
           })
 
-          if (!response.ok) {
-            throw new Error(`HTTP ${response.status}`)
-          }
+          if (!response.ok) throw new Error(`HTTP ${response.status}`)
 
           const contentType = response.headers.get("content-type")
           if (!contentType || !contentType.includes("application/json")) {
-            console.warn("API health check returned non-JSON response")
-            set({
-              apiStatus: "unhealthy",
-              workingApis: [],
-            })
+            set({ apiStatus: "unhealthy", workingApis: [] })
             return
           }
 
           const data = await response.json()
-
           set({
             apiStatus: data.status === "healthy" ? "healthy" : data.status === "limited" ? "limited" : "unhealthy",
             workingApis: Array.isArray(data.workingApis) ? data.workingApis : [],
           })
-        } catch (error) {
-          console.error("API health check failed:", error)
-          set({
-            apiStatus: "unhealthy",
-            workingApis: [],
-          })
+        } catch {
+          set({ apiStatus: "unhealthy", workingApis: [] })
         }
       },
 
       retryConnection: async () => {
         await get().checkApiStatus()
-
         const { searchQuery, trendingSongs } = get()
-
         if (searchQuery) {
           await get().searchContent(searchQuery)
         }
-
         if (trendingSongs.length === 0) {
           await get().fetchTrendingSongs()
         }
