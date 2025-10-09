@@ -49,22 +49,14 @@ interface Playlist {
   totalDuration?: string
 }
 
-// Safe Image Component
 const SafeImage = ({
   src,
   alt,
   width,
   height,
   className,
-}: {
-  src: string | undefined | null
-  alt: string
-  width: number
-  height: number
-  className?: string
-}) => {
+}: { src: string | undefined | null; alt: string; width: number; height: number; className?: string }) => {
   const validSrc = src && typeof src === "string" && src.trim() !== "" ? src.trim() : null
-
   if (!validSrc) {
     return (
       <div className={cn("bg-gray-800 flex items-center justify-center", className)} style={{ width, height }}>
@@ -72,7 +64,6 @@ const SafeImage = ({
       </div>
     )
   }
-
   return <Image src={validSrc || "/placeholder.svg"} alt={alt} width={width} height={height} className={className} />
 }
 
@@ -88,14 +79,10 @@ export default function Library() {
   const searchParams = useSearchParams()
 
   useEffect(() => {
-    // Check for tab parameter
     const tab = searchParams.get("tab")
-    if (tab) {
-      setActiveTab(tab)
-    }
+    if (tab) setActiveTab(tab)
   }, [searchParams])
 
-  // Create real playlists based on user data
   const realPlaylists = [
     {
       id: "favorites",
@@ -120,16 +107,10 @@ export default function Library() {
     },
   ]
 
-  const handlePlaylistClick = (playlist: Playlist) => {
-    setExpandedPlaylist(playlist)
-  }
-
-  const handleBack = () => {
-    setExpandedPlaylist(null)
-  }
+  const handlePlaylistClick = (playlist: Playlist) => setExpandedPlaylist(playlist)
+  const handleBack = () => setExpandedPlaylist(null)
 
   const handleSongClick = (song: any) => {
-    // Enhanced song data for better playback
     const enhancedSong = {
       id: song.id,
       title: song.title,
@@ -149,7 +130,6 @@ export default function Library() {
       hasLyrics: true,
       label: "Music Label",
     }
-
     setCurrentSong(enhancedSong)
     setGlobalPlaying(true)
   }
@@ -191,7 +171,7 @@ export default function Library() {
                 <ChevronLeft className="mr-2 w-5 h-5" /> Back to Library
               </Button>
 
-              {/* Enhanced Playlist Header */}
+              {/* Header */}
               <div className="flex flex-col lg:flex-row items-start lg:items-end gap-6 mb-8">
                 <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} className="relative w-64 h-64">
                   <div className="bg-white/5 backdrop-blur-xl rounded-3xl w-full h-full flex items-center justify-center overflow-hidden border border-white/10">
@@ -204,7 +184,6 @@ export default function Library() {
                     />
                   </div>
                 </motion.div>
-
                 <div className="flex-1">
                   <Badge variant="secondary" className="mb-2 bg-white/10 text-white">
                     Playlist
@@ -221,7 +200,7 @@ export default function Library() {
                 </div>
               </div>
 
-              {/* Enhanced Controls */}
+              {/* Controls */}
               <div className="flex items-center gap-4 mb-8">
                 <Button
                   size="lg"
@@ -241,7 +220,7 @@ export default function Library() {
                 </Button>
               </div>
 
-              {/* Enhanced Search and Sort */}
+              {/* Search + Sort */}
               <div className="flex flex-col sm:flex-row gap-4 mb-6">
                 <div className="relative flex-1">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
@@ -273,7 +252,7 @@ export default function Library() {
                 </div>
               </div>
 
-              {/* Enhanced Song List */}
+              {/* Songs */}
               <ScrollArea className="h-[calc(100vh-600px)]">
                 <div className="space-y-1">
                   {sortedSongs(expandedPlaylist.songList)
@@ -286,11 +265,7 @@ export default function Library() {
                       <motion.div
                         key={song.id}
                         initial={{ opacity: 0, y: 20 }}
-                        animate={{
-                          opacity: 1,
-                          y: 0,
-                          transition: { delay: index * 0.02 },
-                        }}
+                        animate={{ opacity: 1, y: 0, transition: { delay: index * 0.02 } }}
                         className="bg-white/5 backdrop-blur-xl rounded-xl p-4 flex items-center justify-between hover:bg-white/10 cursor-pointer group transition-all duration-200 border border-white/10"
                         onClick={() => handleSongClick(song)}
                       >
@@ -320,7 +295,7 @@ export default function Library() {
                             >
                               <Heart className="w-4 h-4" />
                             </Button>
-                            <span className="text-white/70 text-sm w-12 text-right">{song.duration}</span>
+                            <span className="text-white/70 text-sm w-12 text-right tabular-nums">{song.duration}</span>
                             <Button
                               size="icon"
                               variant="ghost"
@@ -344,7 +319,7 @@ export default function Library() {
               exit={{ opacity: 0 }}
               className="p-6"
             >
-              {/* Enhanced Header */}
+              {/* Header */}
               <div className="pt-8 mb-8">
                 <div className="flex items-center justify-between mb-4">
                   <div>
@@ -360,8 +335,6 @@ export default function Library() {
                     </Button>
                   </div>
                 </div>
-
-                {/* Search Bar */}
                 <div className="relative max-w-md">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                   <Input
@@ -373,7 +346,7 @@ export default function Library() {
                 </div>
               </div>
 
-              {/* Enhanced Tabs */}
+              {/* Tabs */}
               <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
                 <TabsList className="grid w-full grid-cols-4 bg-white/10 mb-8">
                   <TabsTrigger
@@ -402,40 +375,38 @@ export default function Library() {
 
                 <TabsContent value="playlists" className="space-y-6">
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {filteredPlaylists.map((playlist, index) => (
-                      <motion.div
-                        key={playlist.id}
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{
-                          opacity: 1,
-                          y: 0,
-                          transition: { delay: index * 0.1 },
-                        }}
-                        onClick={() => handlePlaylistClick(playlist)}
-                        className="bg-white/5 backdrop-blur-xl rounded-2xl p-6 cursor-pointer hover:bg-white/10 transition-all duration-300 group border border-white/10"
-                      >
-                        <div className="relative mb-4">
-                          <SafeImage
-                            src={playlist.image}
-                            alt={playlist.title}
-                            width={200}
-                            height={200}
-                            className="w-full aspect-square object-cover rounded-xl"
-                          />
-                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-xl flex items-center justify-center">
-                            <Button size="icon" className="bg-green-500 hover:bg-green-600 rounded-full w-12 h-12">
-                              <Play className="w-6 h-6 ml-0.5" />
-                            </Button>
+                    {realPlaylists
+                      .filter((p) => p.songs > 0)
+                      .map((playlist, index) => (
+                        <motion.div
+                          key={playlist.id}
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0, transition: { delay: index * 0.08 } }}
+                          onClick={() => setExpandedPlaylist(playlist)}
+                          className="bg-white/5 backdrop-blur-xl rounded-2xl p-6 cursor-pointer hover:bg-white/10 transition-all duration-300 group border border-white/10"
+                        >
+                          <div className="relative mb-4">
+                            <SafeImage
+                              src={playlist.image}
+                              alt={playlist.title}
+                              width={200}
+                              height={200}
+                              className="w-full aspect-square object-cover rounded-xl"
+                            />
+                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-xl flex items-center justify-center">
+                              <Button size="icon" className="bg-green-500 hover:bg-green-600 rounded-full w-12 h-12">
+                                <Play className="w-6 h-6 ml-0.5" />
+                              </Button>
+                            </div>
                           </div>
-                        </div>
-                        <h3 className="text-white font-semibold text-lg mb-2">{playlist.title}</h3>
-                        <p className="text-white/70 text-sm mb-3">{playlist.description}</p>
-                        <div className="flex items-center justify-between text-white/60 text-sm">
-                          <span>{playlist.songs} songs</span>
-                          <span>{playlist.totalDuration}</span>
-                        </div>
-                      </motion.div>
-                    ))}
+                          <h3 className="text-white font-semibold text-lg mb-2">{playlist.title}</h3>
+                          <p className="text-white/70 text-sm mb-3">{playlist.description}</p>
+                          <div className="flex items-center justify-between text-white/60 text-sm">
+                            <span>{playlist.songs} songs</span>
+                            <span>{playlist.totalDuration}</span>
+                          </div>
+                        </motion.div>
+                      ))}
                   </div>
                 </TabsContent>
 
@@ -446,7 +417,7 @@ export default function Library() {
                         key={song.id}
                         initial={{ opacity: 0, x: -20 }}
                         animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: index * 0.1 }}
+                        transition={{ delay: index * 0.08 }}
                         className="bg-white/5 backdrop-blur-xl rounded-xl p-4 flex items-center space-x-4 cursor-pointer hover:bg-white/10 transition-all duration-300 group border border-white/10"
                         onClick={() => handleSongClick(song)}
                       >
@@ -461,10 +432,10 @@ export default function Library() {
                           <p className="text-white/70 text-sm">{song.artist}</p>
                           <p className="text-white/50 text-xs">{song.album}</p>
                         </div>
-                        <div className="text-white/70 text-sm">
+                        <div className="text-white/70 text-sm tabular-nums">
                           {typeof song.duration === "number"
                             ? `${Math.floor(song.duration / 60)}:${(song.duration % 60).toString().padStart(2, "0")}`
-                            : "3:45"}
+                            : "0:00"}
                         </div>
                       </motion.div>
                     ))
@@ -484,7 +455,7 @@ export default function Library() {
                         key={song.id}
                         initial={{ opacity: 0, x: -20 }}
                         animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: index * 0.1 }}
+                        transition={{ delay: index * 0.08 }}
                         className="bg-white/5 backdrop-blur-xl rounded-xl p-4 flex items-center space-x-4 cursor-pointer hover:bg-white/10 transition-all duration-300 group border border-white/10"
                         onClick={() => handleSongClick(song)}
                       >
@@ -499,10 +470,10 @@ export default function Library() {
                           <p className="text-white/70 text-sm">{song.artist}</p>
                           <p className="text-white/50 text-xs">{song.album}</p>
                         </div>
-                        <div className="text-white/70 text-sm">
+                        <div className="text-white/70 text-sm tabular-nums">
                           {typeof song.duration === "number"
                             ? `${Math.floor(song.duration / 60)}:${(song.duration % 60).toString().padStart(2, "0")}`
-                            : "3:45"}
+                            : "0:00"}
                         </div>
                       </motion.div>
                     ))
