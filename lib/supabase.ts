@@ -1,6 +1,6 @@
-import { createClient } from "@supabase/supabase-js"
+import { createClient, type User } from "@supabase/supabase-js"
 
-// Supabase configuration
+// Supabase configuration (envs are pre-provisioned in this workspace)
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://zlxmcnazmnzkyhbuzafr.supabase.co"
 const supabaseAnonKey =
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
@@ -14,7 +14,6 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   },
 })
 
-// Types for our database
 export interface Profile {
   id: string
   email: string
@@ -29,17 +28,17 @@ export interface Profile {
 export interface UserPreferences {
   id: string
   user_id: string
-  theme: "dark" | "light"
-  audio_quality: "low" | "medium" | "high"
-  notifications_enabled: boolean
-  auto_play: boolean
-  ai_suggestions: boolean
-  ai_shuffle: boolean
-  crossfade: boolean
-  download_enabled: boolean
-  language: string
-  created_at: string
-  updated_at: string
+  theme?: "dark" | "light"
+  audio_quality?: "low" | "medium" | "high"
+  notifications_enabled?: boolean
+  auto_play?: boolean
+  ai_suggestions?: boolean
+  ai_shuffle?: boolean
+  crossfade?: boolean
+  download_enabled?: boolean
+  language?: string
+  created_at?: string
+  updated_at?: string
 }
 
 export interface Favorite {
@@ -125,273 +124,138 @@ export interface SearchHistory {
   searched_at: string
 }
 
-// Enhanced auth helper functions with better error handling
-export const signUp = async (email: string, password: string, username: string) => {
+// Minimal sign up; if DB triggers cause "Database error saving new user", fall back to magic link.
+export const signUp = async (email: string, password: string) => {
   try {
-    console.log("🔐 Starting sign up process...")
-
-    // Check if user already exists in profiles table
-    const { data: existingProfile, error: profileCheckError } = await supabase
-      .from("profiles")
-      .select("email")
-      .eq("email", email)
-      .maybeSingle()
-
-    if (profileCheckError && profileCheckError.code !== "PGRST116") {
-      console.error("Profile check error:", profileCheckError)
-      return { success: false, error: "Database error checking existing user" }
-    }
-
-    if (existingProfile) {
-      return {
-        success: false,
-        error: "An account with this email already exists. Please sign in instead.",
-        userExists: true,
+    const { data, error } = await supabase.auth.signUp({ email, password })
+    if (error) {
+      if (error.message?.toLowerCase().includes("database error saving new user")) {
+        const redirectTo = typeof window !== "undefined" ? `${window.location.origin}/auth/callback` : undefined
+        const { error: magicErr } = await supabase.auth.signInWithOtp({
+          email,
+          options: { emailRedirectTo: redirectTo },
+        })
+        if (magicErr) {
+          return { success: false, error: magicErr.message }
+        }
+        return {
+          success: true,
+          needsEmailConfirmation: true,
+          usedMagicLink: true,
+          message: "We emailed you a magic link. Open it to finish signing up.",
+        }
       }
+      return { success: false, error: error.message }
     }
-
-    // Sign up with Supabase Auth
-    const { data: authData, error: authError } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: {
-          username: username,
-          full_name: username,
-        },
-      },
-    })
-
-    if (authError) {
-      console.error("Auth signup error:", authError)
-      return { success: false, error: authError.message }
+    if (!data.session) {
+      return { success: true, user: data.user, needsEmailConfirmation: true }
     }
-
-    if (!authData.user) {
-      return { success: false, error: "Failed to create user account" }
-    }
-
-    console.log("✅ User created successfully:", authData.user.id)
-
-    // Check if email confirmation is required
-    if (!authData.session) {
-      return {
-        success: true,
-        user: authData.user,
-        needsEmailConfirmation: true,
-      }
-    }
-
-    // If user is immediately confirmed, wait for trigger and verify profile
-    await new Promise((resolve) => setTimeout(resolve, 2000))
-
-    // Verify profile was created
-    const { data: profile, error: profileError } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", authData.user.id)
-      .single()
-
-    if (profileError) {
-      console.error("Profile verification error:", profileError)
-      // Try to create profile manually if trigger failed
-      const { error: manualProfileError } = await supabase.from("profiles").insert({
-        id: authData.user.id,
-        email: email,
-        username: username,
-        full_name: username,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      })
-
-      if (manualProfileError) {
-        console.error("Manual profile creation error:", manualProfileError)
-        return { success: false, error: "Failed to create user profile" }
-      }
-
-      // Create preferences manually too
-      const { error: manualPrefsError } = await supabase.from("user_preferences").insert({
-        user_id: authData.user.id,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      })
-
-      if (manualPrefsError) {
-        console.error("Manual preferences creation error:", manualPrefsError)
-      }
-    }
-
-    console.log("✅ Profile verified/created successfully")
-
-    return {
-      success: true,
-      user: authData.user,
-      needsEmailConfirmation: false,
-    }
-  } catch (error) {
-    console.error("Sign up error:", error)
-    return { success: false, error: "An unexpected error occurred during sign up" }
+    return { success: true, user: data.user, needsEmailConfirmation: false }
+  } catch (err: any) {
+    return { success: false, error: err?.message || "Unexpected error during sign up" }
   }
 }
 
 export const signIn = async (email: string, password: string) => {
   try {
-    console.log("🔐 Starting sign in process...")
-
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    })
-
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) {
-      console.error("Sign in error:", error)
       if (error.message.includes("Invalid login credentials")) {
         return { success: false, error: "Invalid email or password" }
       }
       if (error.message.includes("Email not confirmed")) {
-        return { success: false, error: "Please check your email and confirm your account before signing in" }
+        return { success: false, error: "Please confirm your email before signing in" }
       }
       return { success: false, error: error.message }
     }
-
-    if (!data.user) {
-      return { success: false, error: "Sign in failed - no user data received" }
-    }
-
-    console.log("✅ Sign in successful:", data.user.id)
-
-    // Verify profile exists
-    const { data: profile, error: profileError } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", data.user.id)
-      .single()
-
-    if (profileError) {
-      console.error("Profile fetch error:", profileError)
-      // Try to create profile if it doesn't exist
-      const { error: createProfileError } = await supabase.from("profiles").insert({
-        id: data.user.id,
-        email: data.user.email || email,
-        username: data.user.user_metadata?.username || email.split("@")[0],
-        full_name: data.user.user_metadata?.full_name || data.user.user_metadata?.name,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      })
-
-      if (createProfileError) {
-        console.error("Create profile error:", createProfileError)
-        return { success: false, error: "Failed to create user profile" }
-      }
-    }
-
     return { success: true, user: data.user, session: data.session }
-  } catch (error) {
-    console.error("Sign in error:", error)
-    return { success: false, error: "An unexpected error occurred during sign in" }
+  } catch (err: any) {
+    return { success: false, error: err?.message || "Unexpected error during sign in" }
+  }
+}
+
+// Open OAuth in a new tab and redirect to /auth/callback where we exchange the code [^4]
+export const signInWithProvider = async (provider: "google" | "github" | "gitlab" | "bitbucket") => {
+  try {
+    const redirectTo = typeof window !== "undefined" ? `${window.location.origin}/auth/callback` : undefined
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider,
+      options: { redirectTo, skipBrowserRedirect: true },
+    })
+    if (error) return { success: false, error: error.message }
+    if (typeof window !== "undefined" && data?.url) {
+      window.open(data.url, "_blank", "noopener,noreferrer")
+    }
+    return { success: true, data }
+  } catch (err: any) {
+    return { success: false, error: err?.message || "Unexpected error during OAuth sign in" }
   }
 }
 
 export const signOut = async () => {
   try {
-    console.log("🔐 Signing out...")
     const { error } = await supabase.auth.signOut()
-    if (error) {
-      console.error("Sign out error:", error)
-      return { success: false, error: error.message }
-    }
-    console.log("✅ Sign out successful")
+    if (error) return { success: false, error: error.message }
     return { success: true }
-  } catch (error) {
-    console.error("Sign out error:", error)
-    return { success: false, error: "An unexpected error occurred during sign out" }
+  } catch (err: any) {
+    return { success: false, error: err?.message || "Unexpected error during sign out" }
   }
 }
 
-export const getCurrentUser = async () => {
+export const getCurrentUser = async (): Promise<User | null> => {
   try {
-    // First try to get the session
     const {
       data: { session },
-      error: sessionError,
     } = await supabase.auth.getSession()
-
-    if (sessionError) {
-      console.error("Get session error:", sessionError)
-      return null
-    }
-
-    if (!session) {
-      // No session found, user is not authenticated
-      return null
-    }
-
-    // If we have a session, get the user
+    if (!session) return null
     const {
       data: { user },
-      error: userError,
+      error,
     } = await supabase.auth.getUser()
-
-    if (userError) {
-      console.error("Get user error:", userError)
-      return null
-    }
-
+    if (error) return null
     return user
-  } catch (error) {
-    console.error("Get current user error:", error)
+  } catch {
     return null
   }
 }
 
 export const getUserProfile = async (userId: string) => {
-  try {
-    const { data, error } = await supabase.from("profiles").select("*").eq("id", userId).single()
-
-    if (error) {
-      console.error("Get user profile error:", error)
-      return null
-    }
-
-    return data
-  } catch (error) {
+  const { data, error } = await supabase.from("profiles").select("*").eq("id", userId).maybeSingle()
+  if (error) {
     console.error("Get user profile error:", error)
     return null
   }
+  return data
 }
 
-export const updateUserProfile = async (userId: string, updates: Partial<Profile>) => {
-  try {
-    const { data, error } = await supabase
-      .from("profiles")
-      .update({
-        ...updates,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", userId)
-      .select()
-      .single()
-
-    if (error) {
-      console.error("Update user profile error:", error)
-      return { success: false, error: error.message }
-    }
-
-    return { success: true, data }
-  } catch (error) {
-    console.error("Update user profile error:", error)
-    return { success: false, error: "An unexpected error occurred" }
+export const ensureProfileExists = async (user: User) => {
+  const existing = await getUserProfile(user.id)
+  if (existing) return { created: false, profile: existing }
+  const username = user.user_metadata?.username || user.email?.split("@")[0] || "User"
+  const { data, error } = await supabase
+    .from("profiles")
+    .insert({
+      id: user.id,
+      email: user.email,
+      username,
+      full_name: user.user_metadata?.name || username,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .select("*")
+    .single()
+  if (error) {
+    console.error("Create profile error:", error)
+    return { created: false, error: error.message }
   }
+  return { created: true, profile: data }
 }
 
-// Enhanced data sync functions with better error handling
+// Re-added and exported: syncUserData
 export const syncUserData = async (userId: string, userData: any) => {
   try {
-    console.log("🔄 Syncing user data to Supabase...")
-
-    // Sync favorites
-    if (userData.favorites && userData.favorites.length > 0) {
-      console.log("📝 Syncing favorites...")
+    // Favorites upsert
+    if (userData.favorites?.length) {
       const favorites = userData.favorites.map((song: any) => ({
         user_id: userId,
         song_id: song.id,
@@ -405,27 +269,13 @@ export const syncUserData = async (userId: string, userData: any) => {
         song_year: song.year,
         created_at: new Date().toISOString(),
       }))
-
-      const { error: favoritesError } = await supabase.from("favorites").upsert(favorites, {
-        onConflict: "user_id,song_id",
-        ignoreDuplicates: false,
-      })
-
-      if (favoritesError) {
-        console.error("Favorites sync error:", favoritesError)
-      } else {
-        console.log("✅ Favorites synced successfully")
-      }
+      await supabase.from("favorites").upsert(favorites, { onConflict: "user_id,song_id", ignoreDuplicates: false })
     }
 
-    // Sync recently played
-    if (userData.recentlyPlayed && userData.recentlyPlayed.length > 0) {
-      console.log("📝 Syncing recently played...")
-
-      // Clear existing recently played first
+    // Recently played reset + insert
+    if (userData.recentlyPlayed?.length) {
       await supabase.from("recently_played").delete().eq("user_id", userId)
-
-      const recentlyPlayed = userData.recentlyPlayed.map((song: any, index: number) => ({
+      const recents = userData.recentlyPlayed.map((song: any, i: number) => ({
         user_id: userId,
         song_id: song.id,
         song_title: song.title,
@@ -434,21 +284,13 @@ export const syncUserData = async (userId: string, userData: any) => {
         song_image: song.image,
         song_audio: song.audio,
         song_duration: song.duration,
-        played_at: new Date(Date.now() - index * 60000).toISOString(),
+        played_at: new Date(Date.now() - i * 60000).toISOString(),
       }))
-
-      const { error: recentlyPlayedError } = await supabase.from("recently_played").insert(recentlyPlayed)
-
-      if (recentlyPlayedError) {
-        console.error("Recently played sync error:", recentlyPlayedError)
-      } else {
-        console.log("✅ Recently played synced successfully")
-      }
+      await supabase.from("recently_played").insert(recents)
     }
 
-    // Sync downloads
-    if (userData.downloads && userData.downloads.length > 0) {
-      console.log("📝 Syncing downloads...")
+    // Downloads upsert
+    if (userData.downloads?.length) {
       const downloads = userData.downloads.map((song: any) => ({
         user_id: userId,
         song_id: song.id,
@@ -461,25 +303,13 @@ export const syncUserData = async (userId: string, userData: any) => {
         download_url: song.download_url,
         downloaded_at: new Date().toISOString(),
       }))
-
-      const { error: downloadsError } = await supabase.from("downloads").upsert(downloads, {
-        onConflict: "user_id,song_id",
-        ignoreDuplicates: false,
-      })
-
-      if (downloadsError) {
-        console.error("Downloads sync error:", downloadsError)
-      } else {
-        console.log("✅ Downloads synced successfully")
-      }
+      await supabase.from("downloads").upsert(downloads, { onConflict: "user_id,song_id", ignoreDuplicates: false })
     }
 
-    // Sync playlists
-    if (userData.playlists && userData.playlists.length > 0) {
-      console.log("📝 Syncing playlists...")
+    // Playlists + songs
+    if (userData.playlists?.length) {
       for (const playlist of userData.playlists) {
-        // Insert/update playlist
-        const { error: playlistError } = await supabase.from("playlists").upsert(
+        await supabase.from("playlists").upsert(
           {
             id: playlist.id,
             user_id: userId,
@@ -492,18 +322,10 @@ export const syncUserData = async (userId: string, userData: any) => {
           },
           { onConflict: "id" },
         )
-
-        if (playlistError) {
-          console.error("Playlist sync error:", playlistError)
-          continue
-        }
-
-        // Sync playlist songs
-        if (playlist.songs && playlist.songs.length > 0) {
-          // Clear existing songs first
-          await supabase.from("playlist_songs").delete().eq("playlist_id", playlist.id)
-
-          const playlistSongs = playlist.songs.map((song: any, index: number) => ({
+        // Reset songs
+        await supabase.from("playlist_songs").delete().eq("playlist_id", playlist.id)
+        if (playlist.songs?.length) {
+          const rows = playlist.songs.map((song: any, i: number) => ({
             playlist_id: playlist.id,
             song_id: song.id,
             song_title: song.title,
@@ -512,46 +334,28 @@ export const syncUserData = async (userId: string, userData: any) => {
             song_image: song.image,
             song_audio: song.audio,
             song_duration: song.duration,
-            position: index,
+            position: i,
             created_at: new Date().toISOString(),
           }))
-
-          const { error: playlistSongsError } = await supabase.from("playlist_songs").insert(playlistSongs)
-
-          if (playlistSongsError) {
-            console.error("Playlist songs sync error:", playlistSongsError)
-          }
+          await supabase.from("playlist_songs").insert(rows)
         }
       }
-      console.log("✅ Playlists synced successfully")
     }
 
-    // Sync search history
-    if (userData.recentSearches && userData.recentSearches.length > 0) {
-      console.log("📝 Syncing search history...")
-
-      // Clear existing search history first
+    // Search history reset + insert
+    if (userData.recentSearches?.length) {
       await supabase.from("search_history").delete().eq("user_id", userId)
-
-      const searchHistory = userData.recentSearches.map((query: string, index: number) => ({
+      const rows = userData.recentSearches.map((q: string, i: number) => ({
         user_id: userId,
-        query,
-        searched_at: new Date(Date.now() - index * 60000).toISOString(),
+        query: q,
+        searched_at: new Date(Date.now() - i * 60000).toISOString(),
       }))
-
-      const { error: searchHistoryError } = await supabase.from("search_history").insert(searchHistory)
-
-      if (searchHistoryError) {
-        console.error("Search history sync error:", searchHistoryError)
-      } else {
-        console.log("✅ Search history synced successfully")
-      }
+      await supabase.from("search_history").insert(rows)
     }
 
-    // Sync user preferences
+    // Preferences upsert
     if (userData.settings) {
-      console.log("📝 Syncing user preferences...")
-      const { error: preferencesError } = await supabase.from("user_preferences").upsert(
+      await supabase.from("user_preferences").upsert(
         {
           user_id: userId,
           theme: userData.settings.theme || "dark",
@@ -567,67 +371,40 @@ export const syncUserData = async (userId: string, userData: any) => {
         },
         { onConflict: "user_id" },
       )
-
-      if (preferencesError) {
-        console.error("Preferences sync error:", preferencesError)
-      } else {
-        console.log("✅ Preferences synced successfully")
-      }
     }
 
-    console.log("✅ All user data synced successfully")
     return { success: true }
   } catch (error) {
-    console.error("❌ Sync user data error:", error)
+    console.error("syncUserData error:", error)
     return { success: false, error: "Failed to sync user data" }
   }
 }
 
 export const loadUserData = async (userId: string) => {
   try {
-    console.log("📥 Loading user data from Supabase...")
-
-    // Load profile
     const profile = await getUserProfile(userId)
-
-    // Load preferences
     const { data: preferences } = await supabase.from("user_preferences").select("*").eq("user_id", userId).single()
-
-    // Load favorites
     const { data: favorites } = await supabase
       .from("favorites")
       .select("*")
       .eq("user_id", userId)
       .order("created_at", { ascending: false })
-
-    // Load recently played
     const { data: recentlyPlayed } = await supabase
       .from("recently_played")
       .select("*")
       .eq("user_id", userId)
       .order("played_at", { ascending: false })
       .limit(20)
-
-    // Load downloads
     const { data: downloads } = await supabase
       .from("downloads")
       .select("*")
       .eq("user_id", userId)
       .order("downloaded_at", { ascending: false })
-
-    // Load playlists with songs
     const { data: playlists } = await supabase
       .from("playlists")
-      .select(`
-        *,
-        playlist_songs (
-          *
-        )
-      `)
+      .select(`*, playlist_songs (*)`)
       .eq("user_id", userId)
       .order("created_at", { ascending: false })
-
-    // Load search history
     const { data: searchHistory } = await supabase
       .from("search_history")
       .select("*")
@@ -635,13 +412,12 @@ export const loadUserData = async (userId: string) => {
       .order("searched_at", { ascending: false })
       .limit(10)
 
-    // Convert to app format
     const userData = {
       id: userId,
       name: profile?.username || "User",
       email: profile?.email || "",
-      avatar: profile?.avatar_url || "/placeholder.svg",
-      theme: preferences?.theme || "dark",
+      avatar: profile?.avatar_url || "/diverse-avatars.png",
+      theme: (preferences as any)?.theme || "dark",
       selectedArtists: profile?.selected_artists || [],
       recentSearches: searchHistory?.map((h) => h.query) || [],
       recentlyPlayed:
@@ -650,7 +426,7 @@ export const loadUserData = async (userId: string) => {
           title: song.song_title,
           artist: song.song_artist,
           album: song.song_album || "",
-          image: song.song_image || "/placeholder.svg",
+          image: song.song_image || "/album-art.jpg",
           audio: song.song_audio || "",
           duration: song.song_duration || 0,
           language: song.song_language,
@@ -662,7 +438,7 @@ export const loadUserData = async (userId: string) => {
           title: song.song_title,
           artist: song.song_artist,
           album: song.song_album || "",
-          image: song.song_image || "/placeholder.svg",
+          image: song.song_image || "/album-art.jpg",
           audio: song.song_audio || "",
           duration: song.song_duration || 0,
           language: song.song_language,
@@ -674,26 +450,26 @@ export const loadUserData = async (userId: string) => {
           title: song.song_title,
           artist: song.song_artist,
           album: song.song_album || "",
-          image: song.song_image || "/placeholder.svg",
+          image: song.song_image || "/album-art.jpg",
           audio: song.song_audio || "",
           duration: song.song_duration || 0,
           download_url: song.download_url,
         })) || [],
       playlists:
-        playlists?.map((playlist) => ({
+        playlists?.map((playlist: any) => ({
           id: playlist.id,
           name: playlist.name,
           description: playlist.description || "",
-          image: playlist.cover_image || "/placeholder.svg",
+          image: playlist.cover_image || "/playlist-cover.jpg",
           songs:
-            playlist.playlist_songs
-              ?.sort((a: any, b: any) => a.position - b.position)
-              .map((song: any) => ({
+            (playlist.playlist_songs as any[])
+              ?.sort((a, b) => a.position - b.position)
+              .map((song) => ({
                 id: song.song_id,
                 title: song.song_title,
                 artist: song.song_artist,
                 album: song.song_album || "",
-                image: song.song_image || "/placeholder.svg",
+                image: song.song_image || "/album-art.jpg",
                 audio: song.song_audio || "",
                 duration: song.song_duration || 0,
               })) || [],
@@ -701,26 +477,24 @@ export const loadUserData = async (userId: string) => {
           isPublic: playlist.is_public,
         })) || [],
       settings: {
-        notifications: preferences?.notifications_enabled ?? true,
-        quality: preferences?.audio_quality || "high",
-        downloadEnabled: preferences?.download_enabled ?? true,
-        language: preferences?.language || "hindi",
-        autoplay: preferences?.auto_play ?? true,
-        crossfade: preferences?.crossfade ?? false,
-        aiShuffle: preferences?.ai_shuffle ?? true,
-        aiSuggestions: preferences?.ai_suggestions ?? true,
+        notifications: (preferences as any)?.notifications_enabled ?? true,
+        quality: (preferences as any)?.audio_quality || "high",
+        downloadEnabled: (preferences as any)?.download_enabled ?? true,
+        language: (preferences as any)?.language || "hindi",
+        autoplay: (preferences as any)?.auto_play ?? true,
+        crossfade: (preferences as any)?.crossfade ?? false,
+        aiShuffle: (preferences as any)?.ai_shuffle ?? true,
+        aiSuggestions: (preferences as any)?.ai_suggestions ?? true,
       },
     }
 
-    console.log("✅ User data loaded successfully")
     return { success: true, userData }
   } catch (error) {
-    console.error("❌ Load user data error:", error)
+    console.error("loadUserData error:", error)
     return { success: false, error: "Failed to load user data" }
   }
 }
 
-// Real-time sync setup
 export const setupRealtimeSync = (userId: string, onDataChange: (payload: any) => void) => {
   const channels = [
     supabase
@@ -745,10 +519,6 @@ export const setupRealtimeSync = (userId: string, onDataChange: (payload: any) =
         onDataChange,
       ),
   ]
-
-  channels.forEach((channel) => channel.subscribe())
-
-  return () => {
-    channels.forEach((channel) => supabase.removeChannel(channel))
-  }
+  channels.forEach((c) => c.subscribe())
+  return () => channels.forEach((c) => supabase.removeChannel(c))
 }
