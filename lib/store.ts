@@ -25,6 +25,7 @@ export interface Song {
   energy?: number
   danceability?: number
   valence?: number
+  lrc?: string | null
 }
 
 export interface SearchResults {
@@ -91,7 +92,6 @@ type ApiStatus = "unknown" | "healthy" | "unhealthy" | "limited"
 type SyncStatus = "idle" | "syncing" | "synced" | "error"
 
 interface AppState {
-  // Playback
   currentSong: Song | null
   isPlaying: boolean
   currentTime: number
@@ -101,12 +101,10 @@ interface AppState {
   isShuffled: boolean
   repeatMode: RepeatMode
 
-  // Queue
   queue: Song[]
   queueIndex: number
   originalQueue: Song[]
 
-  // Data
   userData: UserData
   searchHistory: string[]
   searchResults: SearchResults | null
@@ -116,7 +114,6 @@ interface AppState {
   recommendations: Song[]
   artists: Artist[]
 
-  // Status
   isLoading: boolean
   error: string | null
   apiStatus: ApiStatus
@@ -125,7 +122,6 @@ interface AppState {
   syncStatus: SyncStatus
   currentUserId: string | null
 
-  // Actions - playback and queue
   setCurrentSong: (song: Song | null) => void
   setIsPlaying: (playing: boolean) => void
   setCurrentTime: (time: number) => void
@@ -145,12 +141,10 @@ interface AppState {
   saveQueueAsPlaylist: (name?: string) => Playlist
   playSong: (song: Song, playlist?: Song[]) => void
 
-  // Data fetching
   searchContent: (query: string) => Promise<void>
   fetchTrendingSongs: () => Promise<void>
   fetchSongDetails: (songId: string) => Promise<Song | null>
 
-  // User data
   addToFavorites: (song: Song) => void
   removeFromFavorites: (songId: string) => void
   addToDownloads: (song: Song) => void
@@ -164,13 +158,11 @@ interface AppState {
   removeFromPlaylist: (playlistId: string, songId: string) => void
   deletePlaylist: (playlistId: string) => void
 
-  // Recommendations
   generateAISuggestions: (baseSong: Song) => Promise<Song[]>
   getPersonalizedRecommendations: () => Song[]
   generateRelatedSongs: (baseSong: Song, count?: number) => Promise<Song[]>
   generateRecommendations: (baseSong: Song, count?: number) => Promise<Song[]>
 
-  // Misc
   setError: (error: string | null) => void
   setLoading: (loading: boolean) => void
   addToSearchHistory: (query: string) => void
@@ -183,6 +175,9 @@ interface AppState {
   setCurrentUserId: (userId: string | null) => void
   getArtistById: (artistId: string) => Artist | null
   updateSongDuration: (songId: string, duration: number) => void
+
+  getOrCreateMoodPlaylist: (slug: string, keywords: string[]) => Playlist
+  updateMoodPlaylists: () => void
 }
 
 /* Utilities */
@@ -225,6 +220,7 @@ const convertModernSongToSong = (modernSong: ModernSong): Song => {
     energy: Math.random() * 100,
     danceability: Math.random() * 100,
     valence: Math.random() * 100,
+    lrc: null,
   }
 }
 
@@ -248,7 +244,7 @@ const calculateSimilarity = (song1: Song, song2: Song): number => {
   return similarity
 }
 
-/* Client-side metadata probing for durations (runs only when called) */
+/* Client-side duration probing (invoked on demand) */
 async function probeAudioDuration(url: string): Promise<number> {
   return new Promise((resolve) => {
     try {
@@ -339,12 +335,50 @@ const curatedPlaylistsDefault: Playlist[] = [
   },
 ]
 
+const moodCatalog: Record<string, { name: string; keywords: string[]; image: string; description: string }> = {
+  happy: {
+    name: "Happy",
+    keywords: ["happy", "upbeat", "cheer", "smile", "joy"],
+    image: "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=300&h=300&fit=crop&auto=format",
+    description: "Feel‑good tunes to lift your mood",
+  },
+  chill: {
+    name: "Chill",
+    keywords: ["chill", "relaxed", "calm", "lofi", "ambient"],
+    image: "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=300&h=300&fit=crop&auto=format",
+    description: "Laid‑back beats for unwinding",
+  },
+  energetic: {
+    name: "Energetic",
+    keywords: ["energetic", "workout", "pump", "dance", "party", "edm"],
+    image: "https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=300&h=300&fit=crop&auto=format",
+    description: "High‑energy tracks to get you moving",
+  },
+  romantic: {
+    name: "Romantic",
+    keywords: ["romantic", "love", "ballad", "heart", "valentine"],
+    image: "https://images.unsplash.com/photo-1518199266791-5375a83190b7?w=300&h=300&fit=crop&auto=format",
+    description: "Love songs and heartfelt ballads",
+  },
+  focus: {
+    name: "Focus",
+    keywords: ["focus", "study", "concentration", "work", "instrumental"],
+    image: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300&h=300&fit=crop&auto=format",
+    description: "Keep your mind on the task",
+  },
+  party: {
+    name: "Party",
+    keywords: ["party", "dance", "celebration", "club", "festival"],
+    image: "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=300&h=300&fit=crop&auto=format",
+    description: "Hit the dance floor any time",
+  },
+}
+
 /* Store */
 
 export const useStore = create<AppState>()(
   persist(
     (set, get) => ({
-      // Playback
       currentSong: null,
       isPlaying: false,
       currentTime: 0,
@@ -354,12 +388,10 @@ export const useStore = create<AppState>()(
       isShuffled: false,
       repeatMode: "off",
 
-      // Queue
       queue: [],
       queueIndex: 0,
       originalQueue: [],
 
-      // Data
       userData: defaultUserData,
       searchHistory: [],
       searchResults: null,
@@ -369,7 +401,6 @@ export const useStore = create<AppState>()(
       recommendations: [],
       artists: [],
 
-      // Status
       isLoading: false,
       error: null,
       apiStatus: "unknown",
@@ -378,7 +409,6 @@ export const useStore = create<AppState>()(
       syncStatus: "idle",
       currentUserId: null,
 
-      /* Playback and queue */
       setCurrentSong: (song) => {
         set({ currentSong: song })
         if (song) {
@@ -401,18 +431,40 @@ export const useStore = create<AppState>()(
           volume: isMuted ? (volume === 0 ? 0.7 : volume) : 0,
         })
       },
+
       toggleShuffle: () => {
-        const { isShuffled, queue } = get()
-        const newShuffled = !isShuffled
-        if (newShuffled) {
-          const shuffledQueue = [...queue].sort(() => Math.random() - 0.5)
-          set({ isShuffled: newShuffled, queue: shuffledQueue, queueIndex: 0 })
+        const { isShuffled, queue, queueIndex, originalQueue } = get()
+        const current = queue[queueIndex]
+        if (!current) {
+          set({ isShuffled: !isShuffled })
+          return
+        }
+
+        if (!isShuffled) {
+          // Enable shuffle: keep current track first, shuffle the rest
+          const rest = queue.filter((_, i) => i !== queueIndex)
+          const shuffled = [...rest].sort(() => Math.random() - 0.5)
+          const newQueue = [current, ...shuffled]
+          set({
+            isShuffled: true,
+            queue: newQueue,
+            originalQueue: originalQueue.length ? originalQueue : [...queue], // remember original once
+            queueIndex: 0,
+          })
         } else {
-          const { originalQueue } = get()
-          set({ isShuffled: newShuffled, queue: originalQueue })
+          // Disable shuffle: restore original order and keep current track index
+          const orig = originalQueue.length ? originalQueue : queue
+          const idx = orig.findIndex((s) => s.id === current.id)
+          set({
+            isShuffled: false,
+            queue: orig,
+            queueIndex: idx >= 0 ? idx : 0,
+          })
         }
       },
+
       setRepeatMode: (mode) => set({ repeatMode: mode }),
+
       setQueue: (songs, startIndex = 0) => {
         set({
           queue: songs,
@@ -423,12 +475,14 @@ export const useStore = create<AppState>()(
           get().setCurrentSong(songs[startIndex])
         }
       },
+
       addToQueue: (song) => {
         set((state) => ({
           queue: [...state.queue, song],
           originalQueue: [...state.originalQueue, song],
         }))
       },
+
       removeFromQueue: (index) => {
         set((state) => {
           if (index < 0 || index >= state.queue.length) return state
@@ -436,24 +490,18 @@ export const useStore = create<AppState>()(
           const newOriginalQueue = state.originalQueue.filter((_, i) => i !== index)
           let newIndex = state.queueIndex
           if (index < state.queueIndex) newIndex = Math.max(0, state.queueIndex - 1)
-          if (index === state.queueIndex) {
-            // If we removed current track, move to same index (now next item) or previous if at end
-            newIndex = Math.min(newQueue.length - 1, state.queueIndex)
-          }
-          const next: Partial<AppState> = {
+          if (index === state.queueIndex) newIndex = Math.min(newQueue.length - 1, newIndex)
+
+          return {
             queue: newQueue,
             originalQueue: newOriginalQueue,
             queueIndex: Math.max(0, newIndex),
+            currentSong: newQueue.length ? newQueue[Math.max(0, newIndex)] : null,
+            isPlaying: newQueue.length ? state.isPlaying : false,
           }
-          if (newQueue.length === 0) {
-            next.currentSong = null
-            next.isPlaying = false
-          } else {
-            next.currentSong = newQueue[Math.max(0, newIndex)]
-          }
-          return next as any
         })
       },
+
       moveQueueItem: (from, to) => {
         set((state) => {
           if (from === to || from < 0 || to < 0 || from >= state.queue.length || to >= state.queue.length) return state
@@ -473,6 +521,7 @@ export const useStore = create<AppState>()(
           return { queue: newQueue, originalQueue: newOriginal, queueIndex: newIndex }
         })
       },
+
       playFromQueue: (index) => {
         const { queue } = get()
         if (queue[index]) {
@@ -481,13 +530,13 @@ export const useStore = create<AppState>()(
           get().setIsPlaying(true)
         }
       },
+
       playNext: async () => {
         const { queue, queueIndex, repeatMode, currentSong, userData } = get()
         if (!Array.isArray(queue) || queue.length === 0) {
           if (currentSong && userData.settings.autoplay) {
             const related = await get().generateRelatedSongs(currentSong)
             if (related.length > 0) {
-              // Start with first related
               set({ queue: related, originalQueue: related, queueIndex: 0 })
               get().setCurrentSong(related[0])
               get().setIsPlaying(true)
@@ -510,21 +559,19 @@ export const useStore = create<AppState>()(
           if (repeatMode === "all") {
             nextIndex = 0
           } else {
-            // Append related and continue
             const base = queue[queueIndex]
             if (base && userData.settings.autoplay) {
               const related = await get().generateRelatedSongs(base)
               if (related.length > 0) {
                 const newQueue = [...queue, ...related]
                 set({ queue: newQueue, originalQueue: newQueue })
-                nextIndex = queue.length // first newly appended
+                nextIndex = queue.length
                 set({ queueIndex: nextIndex })
                 get().setCurrentSong(newQueue[nextIndex])
                 get().setIsPlaying(true)
                 return
               }
             }
-            // Stop if nothing to append
             set({ isPlaying: false })
             return
           }
@@ -534,6 +581,7 @@ export const useStore = create<AppState>()(
         get().setCurrentSong(get().queue[nextIndex])
         get().setIsPlaying(true)
       },
+
       playPrevious: () => {
         const { queueIndex, queue, repeatMode } = get()
         if (!Array.isArray(queue) || queue.length === 0) return
@@ -552,7 +600,6 @@ export const useStore = create<AppState>()(
           if (repeatMode === "all") {
             prevIndex = Math.max(0, queue.length - 1)
           } else {
-            // Restart current
             prevIndex = 0
           }
         }
@@ -560,6 +607,7 @@ export const useStore = create<AppState>()(
         get().setCurrentSong(get().queue[prevIndex])
         get().setIsPlaying(true)
       },
+
       clearQueue: () => {
         set({
           queue: [],
@@ -569,6 +617,7 @@ export const useStore = create<AppState>()(
           isPlaying: false,
         })
       },
+
       saveQueueAsPlaylist: (name = "Saved Queue") => {
         const { queue } = get()
         const playlist: Playlist = {
@@ -581,10 +630,11 @@ export const useStore = create<AppState>()(
           isPublic: false,
         }
         set((state) => ({
-          userData: { ...state.userData, playlists: [...state.userData.playlists, playlist] },
+          userData: { ...state.userData, playlists: [playlist, ...state.userData.playlists] },
         }))
         return playlist
       },
+
       playSong: (song, playlist) => {
         if (playlist && playlist.length > 0) {
           const songIndex = playlist.findIndex((s) => s.id === song.id)
@@ -616,8 +666,7 @@ export const useStore = create<AppState>()(
               apiStatus: "healthy",
             })
             get().addToSearchHistory(query)
-
-            // Probe durations in background and patch
+            // Enrich durations in background and patch
             enrichSongDurations(songs, (id, d) => get().updateSongDuration(id, d)).catch(() => {})
           } else {
             set({
@@ -637,6 +686,7 @@ export const useStore = create<AppState>()(
           set({ isLoading: false })
         }
       },
+
       fetchTrendingSongs: async () => {
         set({ isLoading: true, error: null })
         try {
@@ -647,6 +697,9 @@ export const useStore = create<AppState>()(
 
             // Enrich durations in background
             enrichSongDurations(songs, (id, d) => get().updateSongDuration(id, d)).catch(() => {})
+
+            // Update mood playlists to auto-sync with new trending
+            get().updateMoodPlaylists()
           } else {
             set({
               trendingSongs: [],
@@ -665,6 +718,7 @@ export const useStore = create<AppState>()(
           set({ isLoading: false })
         }
       },
+
       fetchSongDetails: async (songId: string) => {
         try {
           const response = await getSongDetails(songId)
@@ -687,12 +741,15 @@ export const useStore = create<AppState>()(
           return {
             userData: {
               ...state.userData,
-              favorites: [...currentFavorites, song],
+              favorites: [song, ...currentFavorites],
             },
           }
         })
         get().syncToCloud()
+        // Update mood playlists since favorites changed
+        get().updateMoodPlaylists()
       },
+
       removeFromFavorites: (songId) => {
         if (!songId) return
         set((state) => ({
@@ -704,7 +761,9 @@ export const useStore = create<AppState>()(
           },
         }))
         get().syncToCloud()
+        get().updateMoodPlaylists()
       },
+
       addToDownloads: (song) => {
         if (!song) return
         set((state) => {
@@ -714,12 +773,13 @@ export const useStore = create<AppState>()(
           return {
             userData: {
               ...state.userData,
-              downloads: [...currentDownloads, song],
+              downloads: [song, ...currentDownloads],
             },
           }
         })
         get().syncToCloud()
       },
+
       removeFromDownloads: (songId) => {
         if (!songId) return
         set((state) => ({
@@ -732,6 +792,7 @@ export const useStore = create<AppState>()(
         }))
         get().syncToCloud()
       },
+
       addToRecentlyPlayed: (song) => {
         if (!song) return
         set((state) => {
@@ -746,6 +807,7 @@ export const useStore = create<AppState>()(
         })
         setTimeout(() => get().syncToCloud(), 5000)
       },
+
       addToListeningHistory: (songId, duration) => {
         set((state) => {
           const currentHistory = Array.isArray(state.userData?.listeningHistory) ? state.userData.listeningHistory : []
@@ -757,12 +819,14 @@ export const useStore = create<AppState>()(
           }
         })
       },
+
       updateUserProfile: (data) => {
         set((state) => ({
           userData: { ...state.userData, ...data },
         }))
         get().syncToCloud()
       },
+
       updateUserSettings: (settings) => {
         set((state) => ({
           userData: {
@@ -789,6 +853,7 @@ export const useStore = create<AppState>()(
         }))
         return playlist
       },
+
       addToPlaylist: (playlistId, song) => {
         set((state) => {
           const playlists = state.userData.playlists.map((pl) =>
@@ -800,6 +865,7 @@ export const useStore = create<AppState>()(
         })
         get().syncToCloud()
       },
+
       removeFromPlaylist: (playlistId, songId) => {
         set((state) => {
           const playlists = state.userData.playlists.map((pl) =>
@@ -809,6 +875,7 @@ export const useStore = create<AppState>()(
         })
         get().syncToCloud()
       },
+
       deletePlaylist: (playlistId) => {
         set((state) => ({
           userData: { ...state.userData, playlists: state.userData.playlists.filter((pl) => pl.id !== playlistId) },
@@ -846,6 +913,7 @@ export const useStore = create<AppState>()(
           return []
         }
       },
+
       getPersonalizedRecommendations: () => {
         const { userData, trendingSongs } = get()
         if (!userData.listeningHistory.length) return trendingSongs.slice(0, 10)
@@ -878,9 +946,9 @@ export const useStore = create<AppState>()(
 
         return recs
       },
+
       generateRelatedSongs: async (baseSong, count = 10) => {
         const { trendingSongs, userData, queue } = get()
-        // Pool from trending, favorites, recently played and avoid ones already in queue
         const inQueue = new Set(queue.map((s) => s.id))
         const pool = [...trendingSongs, ...userData.favorites, ...userData.recentlyPlayed].filter(
           (s) => s.id !== baseSong.id && !inQueue.has(s.id),
@@ -897,26 +965,14 @@ export const useStore = create<AppState>()(
         }
         return ranked
       },
+
       generateRecommendations: async (baseSong, count = 10) => {
         const recs = await get().generateRelatedSongs(baseSong, count)
         set({ recommendations: recs })
         return recs
       },
 
-      /* Misc */
-      setError: (error) => set({ error }),
-      setLoading: (loading) => set({ isLoading: loading }),
-
-      addToSearchHistory: (query) => {
-        if (!query?.trim()) return
-        set((state) => {
-          const current = Array.isArray(state.searchHistory) ? state.searchHistory : []
-          const filtered = current.filter((q) => q !== query)
-          return { searchHistory: [query, ...filtered.slice(0, 9)] }
-        })
-      },
-      clearSearchHistory: () => set({ searchHistory: [] }),
-
+      /* Lyrics duration updates, results patching */
       updateSongDuration: (songId, duration) => {
         if (!songId || !duration || !Number.isFinite(duration) || duration <= 0) return
         set((state) => {
@@ -959,7 +1015,80 @@ export const useStore = create<AppState>()(
         })
       },
 
-      /* Health and connectivity */
+      /* Mood playlists: build or update on demand */
+      getOrCreateMoodPlaylist: (slug, keywords) => {
+        const state = get()
+        const id = `mood-${slug}`
+        const existing = state.userData.playlists.find((p) => p.id === id)
+        const all = [...state.trendingSongs, ...state.userData.favorites, ...state.userData.recentlyPlayed]
+        const matches = all.filter((s) => {
+          const text = `${s.title} ${s.artist} ${s.album} ${s.genre ?? ""}`.toLowerCase()
+          return keywords.some((k) => text.includes(k.toLowerCase()))
+        })
+        const uniqueMap = new Map<string, Song>()
+        matches.forEach((m) => uniqueMap.set(m.id, m))
+        const songs = Array.from(uniqueMap.values()).slice(0, 100)
+
+        const mood = moodCatalog[slug]
+        const base: Playlist = {
+          id,
+          name: mood?.name || slug,
+          description: mood?.description || "Auto‑updated playlist",
+          image: mood?.image || "/music-playlist.png",
+          songs,
+          createdAt: existing?.createdAt || new Date().toISOString(),
+          isPublic: false,
+        }
+
+        if (existing) {
+          // Update songs in place
+          set((st) => ({
+            userData: {
+              ...st.userData,
+              playlists: st.userData.playlists.map((p) => (p.id === id ? { ...base } : p)),
+            },
+          }))
+          // Also push to curated list
+          set((st) => ({
+            curatedPlaylists: [
+              ...curatedPlaylistsDefault,
+              ...Object.keys(moodCatalog).map((ms) => st.userData.playlists.find((p) => p.id === `mood-${ms}`) || base),
+            ],
+          }))
+          return { ...base }
+        } else {
+          set((st) => ({
+            userData: { ...st.userData, playlists: [{ ...base }, ...st.userData.playlists] },
+          }))
+          set((st) => ({
+            curatedPlaylists: [
+              ...curatedPlaylistsDefault,
+              ...Object.keys(moodCatalog).map((ms) => st.userData.playlists.find((p) => p.id === `mood-${ms}`) || base),
+            ],
+          }))
+          return { ...base }
+        }
+      },
+
+      updateMoodPlaylists: () => {
+        Object.entries(moodCatalog).forEach(([slug, cfg]) => {
+          get().getOrCreateMoodPlaylist(slug, cfg.keywords)
+        })
+      },
+
+      /* Health */
+      setError: (error) => set({ error }),
+      setLoading: (loading) => set({ isLoading: loading }),
+      addToSearchHistory: (query) => {
+        if (!query?.trim()) return
+        set((state) => {
+          const current = Array.isArray(state.searchHistory) ? state.searchHistory : []
+          const filtered = current.filter((q) => q !== query)
+          return { searchHistory: [query, ...filtered.slice(0, 9)] }
+        })
+      },
+      clearSearchHistory: () => set({ searchHistory: [] }),
+
       checkApiStatus: async () => {
         const now = Date.now()
         const { lastApiCheck } = get()
@@ -987,6 +1116,7 @@ export const useStore = create<AppState>()(
           set({ apiStatus: "unhealthy", workingApis: [] })
         }
       },
+
       retryConnection: async () => {
         await get().checkApiStatus()
         const { searchQuery, trendingSongs } = get()
@@ -998,7 +1128,6 @@ export const useStore = create<AppState>()(
         }
       },
 
-      /* Cloud sync */
       syncToCloud: async () => {
         const { currentUserId, userData, syncStatus } = get()
         if (!currentUserId || syncStatus === "syncing") return
@@ -1011,6 +1140,7 @@ export const useStore = create<AppState>()(
           set({ syncStatus: "error" })
         }
       },
+
       loadFromCloud: async () => {
         const { currentUserId } = get()
         if (!currentUserId) return
@@ -1027,10 +1157,10 @@ export const useStore = create<AppState>()(
           set({ syncStatus: "error" })
         }
       },
+
       setSyncStatus: (status) => set({ syncStatus: status }),
       setCurrentUserId: (userId) => set({ currentUserId: userId }),
 
-      /* Artists */
       getArtistById: (artistId) => {
         const { artists } = get()
         return artists.find((artist) => artist.id === artistId) || null

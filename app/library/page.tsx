@@ -1,49 +1,38 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useMemo, useState } from "react"
 import Image from "next/image"
 import { motion, AnimatePresence } from "framer-motion"
-import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
-import {
-  Play,
-  Pause,
-  Heart,
-  MoreHorizontal,
-  ChevronLeft,
-  Download,
-  Shuffle,
-  Search,
-  Filter,
-  Grid,
-  List,
-  Clock,
-  Music,
-  Star,
-} from "lucide-react"
+import { Play, Pause, MoreHorizontal, ChevronLeft, Download, Shuffle, Search, Music, Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { useStore } from "@/lib/store"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
-import { useSearchParams } from "next/navigation"
+import { useStore } from "@/lib/store"
+import { useToast } from "@/hooks/use-toast"
 
-interface Song {
+type SortKey = "recent" | "name" | "artist" | "duration"
+
+interface UISong {
   id: string
   title: string
   artist: string
-  duration: string
+  duration: string // mm:ss
   album?: string
   image?: string
   dateAdded?: string
+  audio?: string
 }
 
-interface Playlist {
+interface UIPlaylist {
   id: string
   title: string
   songs: number
   image: string
-  songList: Song[]
+  songList: UISong[]
   description?: string
   dateCreated?: string
   totalDuration?: string
@@ -55,73 +44,161 @@ const SafeImage = ({
   width,
   height,
   className,
-}: { src: string | undefined | null; alt: string; width: number; height: number; className?: string }) => {
+}: {
+  src: string | undefined | null
+  alt: string
+  width: number
+  height: number
+  className?: string
+}) => {
   const validSrc = src && typeof src === "string" && src.trim() !== "" ? src.trim() : null
   if (!validSrc) {
     return (
-      <div className={cn("bg-gray-800 flex items-center justify-center", className)} style={{ width, height }}>
+      <div
+        className={cn("bg-gray-800/70 flex items-center justify-center rounded-md", className)}
+        style={{ width, height }}
+        role="img"
+        aria-label={alt}
+      >
         <Music className="w-6 h-6 text-gray-400" />
       </div>
     )
   }
-  return <Image src={validSrc || "/placeholder.svg"} alt={alt} width={width} height={height} className={className} />
+  return (
+    <Image
+      src={validSrc || "/placeholder.svg?height=300&width=300&query=music%20cover"}
+      alt={alt}
+      width={width}
+      height={height}
+      className={className}
+    />
+  )
 }
 
-export default function Library() {
-  const [expandedPlaylist, setExpandedPlaylist] = useState<Playlist | null>(null)
+function formatMinutes(totalSongs: number) {
+  const totalMinutes = totalSongs * 3.5
+  const h = Math.floor(totalMinutes / 60)
+  const m = Math.floor(totalMinutes % 60)
+  return `${h}h ${m}m`
+}
+
+export default function LibraryPage() {
+  const { toast } = useToast()
+  const { setCurrentSong, setIsPlaying: setGlobalPlaying, userData, createPlaylist } = useStore()
+
+  const [expandedPlaylist, setExpandedPlaylist] = useState<UIPlaylist | null>(null)
   const [isPlaying, setIsPlaying] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
-  const [viewMode, setViewMode] = useState<"grid" | "list">("grid")
-  const [sortBy, setSortBy] = useState<"recent" | "name" | "artist" | "duration">("recent")
-  const [activeTab, setActiveTab] = useState("playlists")
+  const [sortBy, setSortBy] = useState<SortKey>("recent")
+  const [openCreate, setOpenCreate] = useState(false)
+  const [plName, setPlName] = useState("")
+  const [plDesc, setPlDesc] = useState("")
 
-  const { setCurrentSong, setIsPlaying: setGlobalPlaying, userData } = useStore()
-  const searchParams = useSearchParams()
+  const allPlaylists: UIPlaylist[] = useMemo(() => {
+    const favorites = Array.isArray(userData?.favorites) ? userData.favorites : []
+    const playlists = Array.isArray(userData?.playlists) ? userData.playlists : []
 
-  useEffect(() => {
-    const tab = searchParams.get("tab")
-    if (tab) setActiveTab(tab)
-  }, [searchParams])
-
-  const realPlaylists = [
-    {
+    const liked: UIPlaylist = {
       id: "favorites",
       title: "Liked Songs",
-      songs: userData.favorites.length,
-      image: "/placeholder.svg?height=150&width=150",
+      songs: favorites.length,
+      image: "/liked-songs-cover.jpg",
       description: "Your favorite tracks",
       dateCreated: "Always updating",
-      totalDuration: `${Math.floor((userData.favorites.length * 3.5) / 60)}h ${Math.floor((userData.favorites.length * 3.5) % 60)}m`,
-      songList: userData.favorites.map((song, index) => ({
+      totalDuration: formatMinutes(favorites.length),
+      songList: favorites.map((song: any) => ({
         id: song.id,
         title: song.title,
         artist: song.artist,
         album: song.album || "Unknown Album",
         duration:
           typeof song.duration === "number"
-            ? `${Math.floor(song.duration / 60)}:${(song.duration % 60).toString().padStart(2, "0")}`
-            : "3:45",
+            ? `${Math.floor(song.duration / 60)}:${String(song.duration % 60).padStart(2, "0")}`
+            : typeof song.duration === "string"
+              ? song.duration
+              : "0:00",
         dateAdded: `${Math.floor(Math.random() * 30) + 1} days ago`,
         image: song.image,
+        audio: song.audio,
       })),
-    },
-  ]
+    }
 
-  const handlePlaylistClick = (playlist: Playlist) => setExpandedPlaylist(playlist)
+    const others: UIPlaylist[] = playlists.map((p: any) => ({
+      id: p.id,
+      title: p.name,
+      songs: p.songs.length,
+      image: p.image || "/playlist-cover.png",
+      description: p.description,
+      dateCreated: p.createdAt ? new Date(p.createdAt).toDateString() : "Recently",
+      totalDuration: formatMinutes(p.songs.length),
+      songList: p.songs.map((song: any) => ({
+        id: song.id,
+        title: song.title,
+        artist: song.artist,
+        album: song.album || "Unknown Album",
+        duration:
+          typeof song.duration === "number"
+            ? `${Math.floor(song.duration / 60)}:${String(song.duration % 60).padStart(2, "0")}`
+            : typeof song.duration === "string"
+              ? song.duration
+              : "0:00",
+        dateAdded: `${Math.floor(Math.random() * 30) + 1} days ago`,
+        image: song.image,
+        audio: song.audio,
+      })),
+    }))
+
+    return [liked, ...others]
+  }, [userData?.favorites, userData?.playlists])
+
+  const filteredPlaylists = useMemo(
+    () =>
+      allPlaylists.filter(
+        (p) =>
+          p.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          (p.description?.toLowerCase() || "").includes(searchQuery.toLowerCase()),
+      ),
+    [allPlaylists, searchQuery],
+  )
+
+  const sortedSongs = (songs: UISong[]) => {
+    const arr = [...songs]
+    switch (sortBy) {
+      case "name":
+        return arr.sort((a, b) => a.title.localeCompare(b.title))
+      case "artist":
+        return arr.sort((a, b) => a.artist.localeCompare(b.artist))
+      case "duration":
+        // safely compare mm:ss by converting to seconds
+        const toSec = (d: string) => {
+          const [m, s] = d.split(":").map((n) => Number.parseInt(n || "0", 10))
+          return (isNaN(m) ? 0 : m) * 60 + (isNaN(s) ? 0 : s)
+        }
+        return arr.sort((a, b) => toSec(a.duration) - toSec(b.duration))
+      case "recent":
+      default:
+        return arr // original order
+    }
+  }
+
+  const handlePlayToggle = () => setIsPlaying((p) => !p)
+
+  const handlePlaylistClick = (playlist: UIPlaylist) => setExpandedPlaylist(playlist)
   const handleBack = () => setExpandedPlaylist(null)
 
-  const handleSongClick = (song: any) => {
+  const handleSongClick = (song: UISong) => {
     const enhancedSong = {
       id: song.id,
       title: song.title,
       artist: song.artist,
       album: song.album || "Unknown Album",
-      image: song.image || "/placeholder.svg?height=300&width=300",
+      image: song.image || "/abstract-album-art.png",
       audio: song.audio || "",
       duration:
         typeof song.duration === "string"
-          ? Number.parseInt(song.duration.split(":")[0]) * 60 + Number.parseInt(song.duration.split(":")[1])
-          : song.duration || 0,
+          ? Number.parseInt(song.duration.split(":")[0] || "0", 10) * 60 +
+            Number.parseInt(song.duration.split(":")[1] || "0", 10)
+          : 0,
       language: "hindi",
       year: "2023",
       playCount: "1000000",
@@ -134,30 +211,82 @@ export default function Library() {
     setGlobalPlaying(true)
   }
 
-  const filteredPlaylists = realPlaylists.filter(
-    (playlist) =>
-      playlist.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      playlist.description?.toLowerCase().includes(searchQuery.toLowerCase()),
-  )
-
-  const sortedSongs = (songs: Song[]) => {
-    return [...songs].sort((a, b) => {
-      switch (sortBy) {
-        case "name":
-          return a.title.localeCompare(b.title)
-        case "artist":
-          return a.artist.localeCompare(b.artist)
-        case "duration":
-          return a.duration.localeCompare(b.duration)
-        default:
-          return 0
-      }
-    })
-  }
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
-      <div className="pb-20">
+      <div className="pb-40">
+        {/* Header */}
+        <div className="p-6 flex items-center justify-between">
+          <div>
+            <p className="text-white/70 text-sm">Welcome back</p>
+            <h1 className="text-4xl font-bold text-white mt-2">Your Library</h1>
+          </div>
+
+          {/* Create Playlist */}
+          <Dialog open={openCreate} onOpenChange={setOpenCreate}>
+            <DialogTrigger asChild>
+              <Button className="bg-white/10 hover:bg-white/20 border border-white/20">
+                <Plus className="w-4 h-4 mr-2" /> Create Playlist
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="bg-gray-900 border border-gray-700">
+              <DialogHeader>
+                <DialogTitle className="text-white">Create a Playlist</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="pl-name" className="text-white">
+                    Name
+                  </Label>
+                  <Input
+                    id="pl-name"
+                    value={plName}
+                    onChange={(e) => setPlName(e.target.value)}
+                    placeholder="My Playlist"
+                    className="bg-white/10 border-white/20 text-white placeholder:text-gray-400"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="pl-desc" className="text-white">
+                    Description
+                  </Label>
+                  <Textarea
+                    id="pl-desc"
+                    value={plDesc}
+                    onChange={(e) => setPlDesc(e.target.value)}
+                    placeholder="Describe your playlist"
+                    className="bg-white/10 border-white/20 text-white placeholder:text-gray-400"
+                  />
+                </div>
+                <div className="flex justify-end gap-2">
+                  <Button variant="ghost" onClick={() => setOpenCreate(false)} className="text-white hover:bg-white/10">
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      const name = plName.trim()
+                      if (!name) {
+                        toast({
+                          title: "Name required",
+                          description: "Please enter a playlist name",
+                          variant: "destructive",
+                        })
+                        return
+                      }
+                      const pl = createPlaylist(name, plDesc.trim())
+                      toast({ title: "Playlist created", description: `Created "${pl.name}"` })
+                      setPlName("")
+                      setPlDesc("")
+                      setOpenCreate(false)
+                    }}
+                  >
+                    Create
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+        </div>
+
         <AnimatePresence mode="wait">
           {expandedPlaylist ? (
             <motion.div
@@ -171,7 +300,7 @@ export default function Library() {
                 <ChevronLeft className="mr-2 w-5 h-5" /> Back to Library
               </Button>
 
-              {/* Header */}
+              {/* Expanded Header */}
               <div className="flex flex-col lg:flex-row items-start lg:items-end gap-6 mb-8">
                 <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} className="relative w-64 h-64">
                   <div className="bg-white/5 backdrop-blur-xl rounded-3xl w-full h-full flex items-center justify-center overflow-hidden border border-white/10">
@@ -188,13 +317,13 @@ export default function Library() {
                   <Badge variant="secondary" className="mb-2 bg-white/10 text-white">
                     Playlist
                   </Badge>
-                  <h1 className="text-4xl lg:text-6xl font-bold text-white mb-4">{expandedPlaylist.title}</h1>
+                  <h2 className="text-4xl lg:text-6xl font-bold text-white mb-4">{expandedPlaylist.title}</h2>
                   <p className="text-white/70 text-lg mb-4">{expandedPlaylist.description}</p>
                   <div className="flex items-center gap-4 text-white/60 text-sm">
                     <span>{expandedPlaylist.songs} songs</span>
-                    <span>•</span>
+                    <span>{"•"}</span>
                     <span>{expandedPlaylist.totalDuration}</span>
-                    <span>•</span>
+                    <span>{"•"}</span>
                     <span>{expandedPlaylist.dateCreated}</span>
                   </div>
                 </div>
@@ -205,7 +334,7 @@ export default function Library() {
                 <Button
                   size="lg"
                   className="rounded-full w-16 h-16 bg-green-500 hover:bg-green-600 text-black"
-                  onClick={() => setIsPlaying(!isPlaying)}
+                  onClick={handlePlayToggle}
                 >
                   {isPlaying ? <Pause className="w-8 h-8" /> : <Play className="w-8 h-8 ml-1" />}
                 </Button>
@@ -223,7 +352,7 @@ export default function Library() {
               {/* Search + Sort */}
               <div className="flex flex-col sm:flex-row gap-4 mb-6">
                 <div className="relative flex-1">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
                   <Input
                     placeholder="Search in playlist"
                     value={searchQuery}
@@ -235,265 +364,123 @@ export default function Library() {
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => setViewMode(viewMode === "grid" ? "list" : "grid")}
-                    className="text-white hover:bg-white/10"
-                  >
-                    {viewMode === "grid" ? <List className="w-4 h-4" /> : <Grid className="w-4 h-4" />}
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
                     onClick={() => setSortBy(sortBy === "recent" ? "name" : "recent")}
                     className="text-white hover:bg-white/10"
                   >
-                    <Filter className="w-4 h-4 mr-2" />
-                    Sort
+                    Sort: {sortBy === "recent" ? "Recent" : "Name"}
                   </Button>
                 </div>
               </div>
 
               {/* Songs */}
-              <ScrollArea className="h-[calc(100vh-600px)]">
+              <div className="max-h-[calc(100vh-520px)] overflow-y-auto">
                 <div className="space-y-1">
-                  {sortedSongs(expandedPlaylist.songList)
-                    .filter(
+                  {sortedSongs(
+                    expandedPlaylist.songList.filter(
                       (song) =>
                         song.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
                         song.artist.toLowerCase().includes(searchQuery.toLowerCase()),
-                    )
-                    .map((song, index) => (
-                      <motion.div
-                        key={song.id}
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0, transition: { delay: index * 0.02 } }}
-                        className="bg-white/5 backdrop-blur-xl rounded-xl p-4 flex items-center justify-between hover:bg-white/10 cursor-pointer group transition-all duration-200 border border-white/10"
-                        onClick={() => handleSongClick(song)}
-                      >
-                        <div className="flex items-center gap-4">
-                          <div className="relative">
-                            <span className="w-8 text-white/70 text-sm group-hover:opacity-0 transition-opacity">
-                              {index + 1}
-                            </span>
-                            <Play className="w-4 h-4 text-white absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity" />
-                          </div>
-                          <SafeImage src={song.image} alt={song.title} width={48} height={48} className="rounded-lg" />
-                          <div>
-                            <p className="font-medium text-white group-hover:text-green-400 transition-colors">
-                              {song.title}
-                            </p>
-                            <p className="text-sm text-white/70">{song.artist}</p>
-                          </div>
+                    ),
+                  ).map((song, index) => (
+                    <motion.div
+                      key={song.id}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0, transition: { delay: index * 0.02 } }}
+                      className="bg-white/5 backdrop-blur-xl rounded-xl p-4 flex items-center justify-between hover:bg-white/10 cursor-pointer group transition-all duration-200 border border-white/10"
+                      onClick={() => handleSongClick(song)}
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className="relative w-8">
+                          <span className="inline-block w-8 text-white/70 text-sm group-hover:opacity-0 transition-opacity">
+                            {index + 1}
+                          </span>
+                          <Play className="w-4 h-4 text-white absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity" />
                         </div>
-                        <div className="flex items-center gap-4">
-                          <span className="text-white/70 text-sm hidden sm:block">{song.album}</span>
-                          <span className="text-white/70 text-sm hidden sm:block">{song.dateAdded}</span>
-                          <div className="flex items-center gap-2">
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              className="h-8 w-8 text-white/70 hover:text-white opacity-0 group-hover:opacity-100 transition-opacity"
-                            >
-                              <Heart className="w-4 h-4" />
-                            </Button>
-                            <span className="text-white/70 text-sm w-12 text-right tabular-nums">{song.duration}</span>
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              className="h-8 w-8 text-white/70 hover:text-white opacity-0 group-hover:opacity-100 transition-opacity"
-                            >
-                              <MoreHorizontal className="w-4 h-4" />
-                            </Button>
-                          </div>
+                        <SafeImage src={song.image} alt={song.title} width={48} height={48} className="rounded-lg" />
+                        <div>
+                          <p className="font-medium text-white group-hover:text-green-400 transition-colors">
+                            {song.title}
+                          </p>
+                          <p className="text-sm text-white/70">{song.artist}</p>
                         </div>
-                      </motion.div>
-                    ))}
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <span className="text-white/70 text-sm hidden sm:block">{song.album}</span>
+                        <span className="text-white/70 text-sm hidden sm:block">{song.dateAdded}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-white/70 text-sm w-12 text-right tabular-nums">{song.duration}</span>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-8 w-8 text-white/70 hover:text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              toast({ title: "Menu", description: "Track options coming soon." })
+                            }}
+                          >
+                            <MoreHorizontal className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    </motion.div>
+                  ))}
                 </div>
-                <ScrollBar />
-              </ScrollArea>
+              </div>
             </motion.div>
           ) : (
             <motion.div
-              key="library"
+              key="grid"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               className="p-6"
             >
-              {/* Header */}
-              <div className="pt-8 mb-8">
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <p className="text-white/70 text-sm">Good evening</p>
-                    <h1 className="text-4xl font-bold text-white mt-2">Your Library</h1>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button variant="ghost" className="text-white hover:bg-white/10">
-                      <Search className="w-5 h-5" />
-                    </Button>
-                    <Button variant="ghost" className="text-white hover:bg-white/10">
-                      <Filter className="w-5 h-5" />
-                    </Button>
-                  </div>
-                </div>
-                <div className="relative max-w-md">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                  <Input
-                    placeholder="Search your library"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-10 bg-white/10 border-white/20 text-white placeholder:text-gray-400"
-                  />
-                </div>
+              {/* Search */}
+              <div className="relative max-w-md mb-8">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
+                <Input
+                  placeholder="Search your playlists"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10 bg-white/10 border-white/20 text-white placeholder:text-gray-400"
+                />
               </div>
 
-              {/* Tabs */}
-              <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                <TabsList className="grid w-full grid-cols-4 bg-white/10 mb-8">
-                  <TabsTrigger
-                    value="playlists"
-                    className="data-[state=active]:bg-white data-[state=active]:text-black"
+              {/* Playlist Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {filteredPlaylists.map((playlist, index) => (
+                  <motion.div
+                    key={playlist.id}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0, transition: { delay: index * 0.06 } }}
+                    onClick={() => handlePlaylistClick(playlist)}
+                    className="bg-white/5 backdrop-blur-xl rounded-2xl p-6 cursor-pointer hover:bg-white/10 transition-all duration-300 group border border-white/10"
                   >
-                    <Music className="w-4 h-4 mr-2" />
-                    Playlists
-                  </TabsTrigger>
-                  <TabsTrigger value="recent" className="data-[state=active]:bg-white data-[state=active]:text-black">
-                    <Clock className="w-4 h-4 mr-2" />
-                    Recent
-                  </TabsTrigger>
-                  <TabsTrigger
-                    value="favorites"
-                    className="data-[state=active]:bg-white data-[state=active]:text-black"
-                  >
-                    <Heart className="w-4 h-4 mr-2" />
-                    Favorites
-                  </TabsTrigger>
-                  <TabsTrigger value="albums" className="data-[state=active]:bg-white data-[state=active]:text-black">
-                    <Star className="w-4 h-4 mr-2" />
-                    Albums
-                  </TabsTrigger>
-                </TabsList>
-
-                <TabsContent value="playlists" className="space-y-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {realPlaylists
-                      .filter((p) => p.songs > 0)
-                      .map((playlist, index) => (
-                        <motion.div
-                          key={playlist.id}
-                          initial={{ opacity: 0, y: 20 }}
-                          animate={{ opacity: 1, y: 0, transition: { delay: index * 0.08 } }}
-                          onClick={() => setExpandedPlaylist(playlist)}
-                          className="bg-white/5 backdrop-blur-xl rounded-2xl p-6 cursor-pointer hover:bg-white/10 transition-all duration-300 group border border-white/10"
-                        >
-                          <div className="relative mb-4">
-                            <SafeImage
-                              src={playlist.image}
-                              alt={playlist.title}
-                              width={200}
-                              height={200}
-                              className="w-full aspect-square object-cover rounded-xl"
-                            />
-                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-xl flex items-center justify-center">
-                              <Button size="icon" className="bg-green-500 hover:bg-green-600 rounded-full w-12 h-12">
-                                <Play className="w-6 h-6 ml-0.5" />
-                              </Button>
-                            </div>
-                          </div>
-                          <h3 className="text-white font-semibold text-lg mb-2">{playlist.title}</h3>
-                          <p className="text-white/70 text-sm mb-3">{playlist.description}</p>
-                          <div className="flex items-center justify-between text-white/60 text-sm">
-                            <span>{playlist.songs} songs</span>
-                            <span>{playlist.totalDuration}</span>
-                          </div>
-                        </motion.div>
-                      ))}
-                  </div>
-                </TabsContent>
-
-                <TabsContent value="recent" className="space-y-4">
-                  {userData.recentlyPlayed.length > 0 ? (
-                    userData.recentlyPlayed.map((song, index) => (
-                      <motion.div
-                        key={song.id}
-                        initial={{ opacity: 0, x: -20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: index * 0.08 }}
-                        className="bg-white/5 backdrop-blur-xl rounded-xl p-4 flex items-center space-x-4 cursor-pointer hover:bg-white/10 transition-all duration-300 group border border-white/10"
-                        onClick={() => handleSongClick(song)}
-                      >
-                        <div className="relative">
-                          <SafeImage src={song.image} alt={song.title} width={64} height={64} className="rounded-lg" />
-                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center">
-                            <Play className="w-4 h-4 text-white" />
-                          </div>
-                        </div>
-                        <div className="flex-1">
-                          <h3 className="text-white font-medium">{song.title}</h3>
-                          <p className="text-white/70 text-sm">{song.artist}</p>
-                          <p className="text-white/50 text-xs">{song.album}</p>
-                        </div>
-                        <div className="text-white/70 text-sm tabular-nums">
-                          {typeof song.duration === "number"
-                            ? `${Math.floor(song.duration / 60)}:${(song.duration % 60).toString().padStart(2, "0")}`
-                            : "0:00"}
-                        </div>
-                      </motion.div>
-                    ))
-                  ) : (
-                    <div className="text-center py-12">
-                      <Clock className="w-16 h-16 text-gray-600 mx-auto mb-4" />
-                      <p className="text-gray-400 mb-2">No recently played songs</p>
-                      <p className="text-gray-500 text-sm">Start listening to see your history here</p>
+                    <div className="relative mb-4">
+                      <SafeImage
+                        src={playlist.image}
+                        alt={playlist.title}
+                        width={200}
+                        height={200}
+                        className="w-full aspect-square object-cover rounded-xl"
+                      />
+                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-xl flex items-center justify-center">
+                        <Button size="icon" className="bg-green-500 hover:bg-green-600 rounded-full w-12 h-12">
+                          <Play className="w-6 h-6 ml-0.5" />
+                        </Button>
+                      </div>
                     </div>
-                  )}
-                </TabsContent>
-
-                <TabsContent value="favorites" className="space-y-4">
-                  {userData.favorites.length > 0 ? (
-                    userData.favorites.map((song, index) => (
-                      <motion.div
-                        key={song.id}
-                        initial={{ opacity: 0, x: -20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: index * 0.08 }}
-                        className="bg-white/5 backdrop-blur-xl rounded-xl p-4 flex items-center space-x-4 cursor-pointer hover:bg-white/10 transition-all duration-300 group border border-white/10"
-                        onClick={() => handleSongClick(song)}
-                      >
-                        <div className="relative">
-                          <SafeImage src={song.image} alt={song.title} width={64} height={64} className="rounded-lg" />
-                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center">
-                            <Play className="w-4 h-4 text-white" />
-                          </div>
-                        </div>
-                        <div className="flex-1">
-                          <h3 className="text-white font-medium">{song.title}</h3>
-                          <p className="text-white/70 text-sm">{song.artist}</p>
-                          <p className="text-white/50 text-xs">{song.album}</p>
-                        </div>
-                        <div className="text-white/70 text-sm tabular-nums">
-                          {typeof song.duration === "number"
-                            ? `${Math.floor(song.duration / 60)}:${(song.duration % 60).toString().padStart(2, "0")}`
-                            : "0:00"}
-                        </div>
-                      </motion.div>
-                    ))
-                  ) : (
-                    <div className="text-center py-12">
-                      <Heart className="w-16 h-16 text-gray-600 mx-auto mb-4" />
-                      <p className="text-gray-400 mb-2">No favorite songs yet</p>
-                      <p className="text-gray-500 text-sm">Like songs to see them here</p>
+                    <h3 className="text-white font-semibold text-lg mb-2">{playlist.title}</h3>
+                    {playlist.description && (
+                      <p className="text-white/70 text-sm mb-3 line-clamp-2">{playlist.description}</p>
+                    )}
+                    <div className="flex items-center justify-between text-white/60 text-sm">
+                      <span>{playlist.songs} songs</span>
+                      <span>{playlist.totalDuration}</span>
                     </div>
-                  )}
-                </TabsContent>
-
-                <TabsContent value="albums" className="space-y-4">
-                  <div className="text-center py-12">
-                    <Star className="w-16 h-16 text-gray-600 mx-auto mb-4" />
-                    <p className="text-gray-400 mb-2">No albums yet</p>
-                    <p className="text-gray-500 text-sm">Albums will appear here as you explore music</p>
-                  </div>
-                </TabsContent>
-              </Tabs>
+                  </motion.div>
+                ))}
+              </div>
             </motion.div>
           )}
         </AnimatePresence>

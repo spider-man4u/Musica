@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef, useCallback } from "react"
+import { useState, useEffect, useRef, useCallback, useMemo } from "react"
 import Image from "next/image"
 import { motion, AnimatePresence } from "framer-motion"
 import {
@@ -24,6 +24,7 @@ import {
   ArrowDown,
   Save,
   Sparkles,
+  ScrollText,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useStore } from "@/lib/store"
@@ -37,6 +38,9 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { toast } from "@/components/ui/use-toast"
+
+const NAV_HEIGHT = 64 // approx bottom nav height
+const MINI_HEIGHT = 68 // approx mini player height
 
 const playerVariants = {
   hidden: { opacity: 0, y: 100, scale: 0.95, transition: { duration: 0.2, ease: [0.4, 0.0, 0.2, 1] } },
@@ -109,6 +113,126 @@ function formatTimeSec(time: number) {
   return `${minutes}:${seconds.toString().padStart(2, "0")}`
 }
 
+/* Lyrics panel with real-time sync */
+type LrcLine = { t: number; text: string }
+function parseLRC(raw: string): LrcLine[] {
+  const lines = raw.split(/\r?\n/).filter(Boolean)
+  const parsed: LrcLine[] = []
+  const timeTag = /^\[(\d{1,2}):(\d{1,2})(?:\.(\d{1,2}))?\]/
+  for (const line of lines) {
+    const match = line.match(timeTag)
+    if (match) {
+      const m = Number.parseInt(match[1] || "0", 10)
+      const s = Number.parseInt(match[2] || "0", 10)
+      const cs = Number.parseInt(match[3] || "0", 10)
+      const t = m * 60 + s + cs / 100
+      const text = line.replace(timeTag, "").trim()
+      if (text) parsed.push({ t, text })
+    }
+  }
+  return parsed.sort((a, b) => a.t - b.t)
+}
+
+function makeAutoSyncLines(raw: string, totalDuration: number): LrcLine[] {
+  const lines = raw
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter(Boolean)
+  if (lines.length === 0) return []
+  const chunk = Math.max(1, Math.floor(totalDuration / lines.length))
+  return lines.map((text, i) => ({ t: Math.min(totalDuration - 1, i * chunk), text }))
+}
+
+function LyricsPanel({
+  title,
+  artist,
+  currentTime,
+  duration,
+}: {
+  title: string
+  artist: string
+  currentTime: number
+  duration: number
+}) {
+  const [raw, setRaw] = useState<string>("")
+  const [lrc, setLrc] = useState<LrcLine[]>([])
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    let active = true
+    async function loadLyrics() {
+      try {
+        const res = await fetch(`/api/lyrics?title=${encodeURIComponent(title)}&artist=${encodeURIComponent(artist)}`)
+        if (!res.ok) throw new Error("lyrics fetch failed")
+        const data = await res.json()
+        if (!active) return
+        const text: string = data?.lyrics || ""
+        setRaw(text)
+        const parsed =
+          text.includes("[") && text.includes("]") ? parseLRC(text) : makeAutoSyncLines(text, duration || 180)
+        setLrc(parsed)
+      } catch {
+        // Fallback: simple placeholder synced to duration
+        const fallback =
+          `${title} - ${artist}\n\n` +
+          "Enjoy the music while we fetch lyrics...\n" +
+          "Real-time sync active\n" +
+          "Stay tuned for the full lyrics!"
+        setRaw(fallback)
+        setLrc(makeAutoSyncLines(fallback, duration || 180))
+      }
+    }
+    loadLyrics()
+    return () => {
+      active = false
+    }
+  }, [title, artist, duration])
+
+  const activeIndex = useMemo(() => {
+    if (!lrc.length) return -1
+    let idx = lrc.findIndex((ln, i) => {
+      const next = lrc[i + 1]
+      if (next) {
+        return currentTime >= ln.t && currentTime < next.t
+      }
+      return currentTime >= ln.t
+    })
+    if (idx === -1) idx = lrc.length - 1
+    return idx
+  }, [lrc, currentTime])
+
+  useEffect(() => {
+    if (activeIndex < 0) return
+    const el = containerRef.current?.querySelector(`[data-idx="${activeIndex}"]`)
+    if (el && "scrollIntoView" in el) {
+      ;(el as HTMLElement).scrollIntoView({ behavior: "smooth", block: "center" })
+    }
+  }, [activeIndex])
+
+  return (
+    <div className="w-full h-64 md:h-80 lg:h-[400px] bg-black/30 border border-white/10 rounded-xl overflow-hidden">
+      <div ref={containerRef} className="h-full overflow-y-auto p-4 space-y-2">
+        {lrc.length ? (
+          lrc.map((line, i) => (
+            <div
+              key={i}
+              data-idx={i}
+              className={cn(
+                "text-gray-300 text-sm md:text-base transition-colors duration-300",
+                i === activeIndex ? "text-white font-semibold" : "text-gray-400",
+              )}
+            >
+              {line.text}
+            </div>
+          ))
+        ) : (
+          <div className="text-gray-400 text-sm">{raw || "Lyrics not available."}</div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 const QueueView = ({ onClose }: { onClose: () => void }) => {
   const {
     queue,
@@ -124,14 +248,17 @@ const QueueView = ({ onClose }: { onClose: () => void }) => {
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20, scale: 0.95 }}
+      initial={{ opacity: 0, y: 20, scale: 0.98 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
-      exit={{ opacity: 0, y: 20, scale: 0.95 }}
-      transition={{ duration: 0.3, ease: [0.0, 0.0, 0.2, 1] }}
-      className="absolute bottom-full left-0 right-0 bg-gray-900/95 backdrop-blur-xl border border-gray-700 rounded-t-lg max-h-96 overflow-hidden shadow-2xl"
+      exit={{ opacity: 0, y: 20, scale: 0.98 }}
+      transition={{ duration: 0.25, ease: [0.0, 0.0, 0.2, 1] }}
+      className="fixed inset-x-2 md:inset-x-10 z-[70]"
+      style={{
+        bottom: `calc(${NAV_HEIGHT}px + ${MINI_HEIGHT}px + env(safe-area-inset-bottom, 0px) + 12px)`,
+      }}
     >
-      <motion.div variants={childVariants} className="p-4 border-b border-gray-700">
-        <div className="flex items-center justify-between gap-2 flex-wrap">
+      <div className="bg-gray-900/95 backdrop-blur-xl border border-gray-700 rounded-xl max-h-[60vh] overflow-hidden shadow-2xl">
+        <div className="p-4 border-b border-gray-700 flex items-center justify-between gap-2 flex-wrap">
           <h3 className="text-white font-semibold">Queue ({queue.length})</h3>
           <div className="flex items-center gap-2">
             <Button
@@ -166,79 +293,74 @@ const QueueView = ({ onClose }: { onClose: () => void }) => {
             </Button>
           </div>
         </div>
-      </motion.div>
-      <div className="overflow-y-auto max-h-80">
-        {queue.length === 0 ? (
-          <motion.div variants={childVariants} className="p-8 text-center text-gray-400">
-            <ListMusic className="w-12 h-12 mx-auto mb-4 opacity-50" />
-            <p>No songs in queue</p>
-          </motion.div>
-        ) : (
-          queue.map((song, index) => (
-            <motion.div
-              key={`${song.id}-${index}`}
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: index * 0.02, duration: 0.25, ease: [0.0, 0.0, 0.2, 1] }}
-              className={cn(
-                "flex items-center gap-3 p-3 hover:bg-gray-800/50 cursor-pointer border-l-2 transition-all duration-200",
-                index === queueIndex ? "border-l-green-500 bg-gray-800/30" : "border-l-transparent",
-              )}
-              onClick={() => playFromQueue(index)}
-              whileHover={{ x: 4 }}
-              whileTap={{ scale: 0.98 }}
-            >
-              <div className="w-8 text-center">
-                {index === queueIndex && currentSong?.id === song.id ? (
-                  <div className="w-2 h-2 bg-green-500 rounded-full mx-auto animate-pulse" />
-                ) : (
-                  <span className="text-gray-500 text-sm">{index + 1}</span>
+        <div className="overflow-y-auto max-h-[50vh]">
+          {queue.length === 0 ? (
+            <div className="p-8 text-center text-gray-400">
+              <ListMusic className="w-12 h-12 mx-auto mb-4 opacity-50" />
+              <p>No songs in queue</p>
+            </div>
+          ) : (
+            queue.map((song, index) => (
+              <div
+                key={`${song.id}-${index}`}
+                className={cn(
+                  "flex items-center gap-3 p-3 hover:bg-gray-800/50 cursor-pointer border-l-2 transition-all duration-200",
+                  index === queueIndex ? "border-l-green-500 bg-gray-800/30" : "border-l-transparent",
                 )}
+                onClick={() => playFromQueue(index)}
+              >
+                <div className="w-8 text-center">
+                  {index === queueIndex && currentSong?.id === song.id ? (
+                    <div className="w-2 h-2 bg-green-500 rounded-full mx-auto animate-pulse" />
+                  ) : (
+                    <span className="text-gray-500 text-sm">{index + 1}</span>
+                  )}
+                </div>
+                <SafeImage src={song.image} alt={song.title} width={40} height={40} className="rounded" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-white text-sm font-medium truncate">{song.title}</p>
+                  <p className="text-gray-400 text-xs truncate">{song.artist}</p>
+                </div>
+                <div className="text-gray-400 text-xs w-12 text-right">{formatTimeSec(song.duration)}</div>
+                <div className="flex items-center gap-1">
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      moveQueueItem(index, Math.max(0, index - 1))
+                    }}
+                    className="text-gray-400 hover:text-white w-7 h-7"
+                  >
+                    <ArrowUp className="w-3.5 h-3.5" />
+                  </Button>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      moveQueueItem(index, Math.min(queue.length - 1, index + 1))
+                    }}
+                    className="text-gray-400 hover:text-white w-7 h-7"
+                  >
+                    <ArrowDown className="w-3.5 h-3.5" />
+                  </Button>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      removeFromQueue(index)
+                    }}
+                    className="text-gray-400 hover:text-white w-7 h-7"
+                  >
+                    <MoreHorizontal className="w-3.5 h-3.5" />
+                  </Button>
+                </div>
               </div>
-              <SafeImage src={song.image} alt={song.title} width={40} height={40} className="rounded" />
-              <div className="flex-1 min-w-0">
-                <p className="text-white text-sm font-medium truncate">{song.title}</p>
-                <p className="text-gray-400 text-xs truncate">{song.artist}</p>
-              </div>
-              <div className="text-gray-400 text-xs w-12 text-right">{formatTimeSec(song.duration)}</div>
-              <div className="flex items-center gap-1">
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    moveQueueItem(index, Math.max(0, index - 1))
-                  }}
-                  className="text-gray-400 hover:text-white w-7 h-7"
-                >
-                  <ArrowUp className="w-3.5 h-3.5" />
-                </Button>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    moveQueueItem(index, Math.min(queue.length - 1, index + 1))
-                  }}
-                  className="text-gray-400 hover:text-white w-7 h-7"
-                >
-                  <ArrowDown className="w-3.5 h-3.5" />
-                </Button>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    removeFromQueue(index)
-                  }}
-                  className="text-gray-400 hover:text-white w-7 h-7"
-                >
-                  <MoreHorizontal className="w-3.5 h-3.5" />
-                </Button>
-              </div>
-            </motion.div>
-          ))
-        )}
+            ))
+          )}
+        </div>
       </div>
     </motion.div>
   )
@@ -247,6 +369,7 @@ const QueueView = ({ onClose }: { onClose: () => void }) => {
 export default function MusicPlayer() {
   const [isExpanded, setIsExpanded] = useState(false)
   const [showQueue, setShowQueue] = useState(false)
+  const [showLyrics, setShowLyrics] = useState(true)
   const audioRef = useRef<HTMLAudioElement>(null)
 
   const {
@@ -277,7 +400,7 @@ export default function MusicPlayer() {
   const isFavorite = currentSong ? userData.favorites.some((song) => song.id === currentSong.id) : false
   const isDownloaded = currentSong ? userData.downloads?.some((song) => song.id === currentSong.id) : false
 
-  // Media Session API setup (unchanged logic with safe guards)
+  // Media Session API setup
   useEffect(() => {
     if (!currentSong || typeof navigator === "undefined" || !("mediaSession" in navigator)) return
     try {
@@ -323,15 +446,9 @@ export default function MusicPlayer() {
       }
     }
 
-    const handleLoadedMetadata = () => {
-      patchDurationEverywhere(audio.duration)
-    }
-    const handleDurationChange = () => {
-      patchDurationEverywhere(audio.duration)
-    }
-    const handleCanPlay = () => {
-      patchDurationEverywhere(audio.duration)
-    }
+    const handleLoadedMetadata = () => patchDurationEverywhere(audio.duration)
+    const handleDurationChange = () => patchDurationEverywhere(audio.duration)
+    const handleCanPlay = () => patchDurationEverywhere(audio.duration)
     const handleError = () => {
       toast({
         title: "Playback Error",
@@ -351,18 +468,18 @@ export default function MusicPlayer() {
       }
     }
 
-    audio.addEventListener("timeupdate", handleTimeUpdate, { passive: true } as any)
-    audio.addEventListener("durationchange", handleDurationChange, { passive: true } as any)
-    audio.addEventListener("loadedmetadata", handleLoadedMetadata, { passive: true } as any)
-    audio.addEventListener("canplay", handleCanPlay, { passive: true } as any)
+    audio.addEventListener("timeupdate", handleTimeUpdate as any, { passive: true } as any)
+    audio.addEventListener("durationchange", handleDurationChange as any, { passive: true } as any)
+    audio.addEventListener("loadedmetadata", handleLoadedMetadata as any, { passive: true } as any)
+    audio.addEventListener("canplay", handleCanPlay as any, { passive: true } as any)
     audio.addEventListener("error", handleError)
     audio.addEventListener("ended", handleEnded)
 
     return () => {
-      audio.removeEventListener("timeupdate", handleTimeUpdate)
-      audio.removeEventListener("durationchange", handleDurationChange)
-      audio.removeEventListener("loadedmetadata", handleLoadedMetadata)
-      audio.removeEventListener("canplay", handleCanPlay)
+      audio.removeEventListener("timeupdate", handleTimeUpdate as any)
+      audio.removeEventListener("durationchange", handleDurationChange as any)
+      audio.removeEventListener("loadedmetadata", handleLoadedMetadata as any)
+      audio.removeEventListener("canplay", handleCanPlay as any)
       audio.removeEventListener("error", handleError)
       audio.removeEventListener("ended", handleEnded)
     }
@@ -426,14 +543,20 @@ export default function MusicPlayer() {
     }
   }, [currentSong, isFavorite, addToFavorites, removeFromFavorites])
 
-  const toggleRepeat = useCallback(() => {
-    const modes: Array<"off" | "one" | "all"> = ["off", "all", "one"]
-    const currentIndex = modes.indexOf(repeatMode)
-    const nextMode = modes[(currentIndex + 1) % modes.length]
-    setRepeatMode(nextMode)
+  const cycleRepeat = useCallback(() => {
+    // Enhanced repeat: off -> all -> one -> off
+    const modes: Array<"off" | "all" | "one"> = ["off", "all", "one"]
+    const idx = modes.indexOf(repeatMode as any)
+    const next = modes[(idx + 1) % modes.length]
+    setRepeatMode(next)
     const names = { off: "Repeat Off", one: "Repeat One", all: "Repeat All" }
-    toast({ title: names[nextMode], description: `Repeat mode set to ${names[nextMode]}` })
+    toast({ title: names[next], description: `Repeat mode set to ${names[next]}` })
   }, [repeatMode, setRepeatMode])
+
+  const doShuffle = useCallback(() => {
+    toggleShuffle()
+    toast({ title: "Shuffle", description: "Shuffle toggled" })
+  }, [toggleShuffle])
 
   const handleDownload = useCallback(() => {
     if (!currentSong) return
@@ -450,7 +573,7 @@ export default function MusicPlayer() {
     const shareData = {
       title: `${currentSong.title} by ${currentSong.artist}`,
       text: `Check out this song: ${currentSong.title} by ${currentSong.artist}`,
-      url: window.location.href,
+      url: typeof window !== "undefined" ? window.location.href : "",
     }
     try {
       if (navigator.share) {
@@ -470,17 +593,20 @@ export default function MusicPlayer() {
   if (!currentSong) return null
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-50">
+    <div className="fixed left-0 right-0 z-[60]" style={{ bottom: 0 }}>
       <AnimatePresence mode="wait">{showQueue && <QueueView onClose={() => setShowQueue(false)} />}</AnimatePresence>
 
-      {/* Mini player */}
+      {/* Mini player: placed above bottom nav using offset, avoiding overlap */}
       {!isExpanded && (
         <motion.div
           variants={playerVariants}
           initial="hidden"
           animate="visible"
           exit="exit"
-          className="absolute bottom-16 left-0 right-0 bg-gradient-to-r from-gray-900/98 to-black/98 backdrop-blur-xl border-t border-gray-800/50 px-2 py-1 md:px-6 lg:px-8 md:py-3"
+          className="fixed left-0 right-0 bg-gradient-to-r from-gray-900/98 to-black/98 backdrop-blur-xl border-t border-gray-800/50 px-2 py-1 md:px-6 lg:px-8 md:py-3"
+          style={{
+            bottom: `calc(${NAV_HEIGHT}px + env(safe-area-inset-bottom, 0px) + 8px)`,
+          }}
         >
           <motion.div variants={childVariants} className="flex justify-center mb-1 md:mb-2">
             <motion.button
@@ -581,12 +707,9 @@ export default function MusicPlayer() {
             initial="hidden"
             animate="visible"
             exit="exit"
-            className="fixed inset-0 bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 z-50 flex flex-col"
+            className="fixed inset-0 bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 z-[65] flex flex-col"
           >
-            <motion.div
-              variants={childVariants}
-              className="flex items-center justify-between p-3 md:p-6 lg:p-8 pt-6 sm:pt-8 md:pt-12"
-            >
+            <motion.div variants={childVariants} className="flex items-center justify-between p-3 md:p-6 lg:p-8 pt-6">
               <Button
                 size="icon"
                 variant="ghost"
@@ -627,51 +750,36 @@ export default function MusicPlayer() {
               </DropdownMenu>
             </motion.div>
 
-            <motion.div variants={childVariants} className="flex justify-center mb-4">
-              <motion.button
-                onClick={() => setIsExpanded(false)}
-                className="w-12 h-1 bg-gray-600 rounded-full hover:bg-gray-500 transition-colors"
-                whileHover={{ scaleX: 1.2 }}
-                whileTap={{ scaleY: 0.8 }}
-              />
-            </motion.div>
-
             <div className="flex-1 flex flex-col lg:flex-row items-center justify-center px-4 md:px-8 lg:px-16 gap-8">
               <motion.div
                 variants={childVariants}
                 className="w-72 h-72 sm:w-80 sm:h-80 md:w-96 md:h-96 lg:w-[400px] lg:h-[400px] flex-shrink-0"
               >
-                <motion.div
-                  initial={{ scale: 0.8, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  transition={{ duration: 0.5, ease: [0.0, 0.0, 0.2, 1] }}
-                >
-                  <SafeImage
-                    src={currentSong.image}
-                    alt={currentSong.title}
-                    width={400}
-                    height={400}
-                    className="w-full h-full object-cover rounded-2xl shadow-2xl"
-                    priority
-                  />
-                </motion.div>
+                <SafeImage
+                  src={currentSong.image}
+                  alt={currentSong.title}
+                  width={400}
+                  height={400}
+                  className="w-full h-full object-cover rounded-2xl shadow-2xl"
+                  priority
+                />
               </motion.div>
 
               <motion.div
                 variants={childVariants}
                 className="flex flex-col items-center lg:items-start w-full lg:w-auto lg:flex-1 max-w-md lg:max-w-none"
               >
-                <motion.div variants={childVariants} className="text-center lg:text-left mb-8 w-full">
-                  <h1 className="text-2xl md:text-3xl lg:text-4xl font-bold text-white mb-2 truncate">
+                <div className="text-center lg:text-left mb-4 w-full">
+                  <h1 className="text-2xl md:text-3xl lg:text-4xl font-bold text-white mb-1 truncate">
                     {currentSong.title}
                   </h1>
                   <p className="text-lg md:text-xl text-gray-400 truncate">{currentSong.artist}</p>
                   {currentSong.album && (
                     <p className="text-base md:text-lg text-gray-500 truncate mt-1">{currentSong.album}</p>
                   )}
-                </motion.div>
+                </div>
 
-                <motion.div variants={childVariants} className="w-full mb-8">
+                <div className="w-full mb-4">
                   <Slider
                     value={[progress]}
                     max={100}
@@ -683,16 +791,13 @@ export default function MusicPlayer() {
                     <span>{formatTimeSec(currentTime)}</span>
                     <span>{formatTimeSec(duration)}</span>
                   </div>
-                </motion.div>
+                </div>
 
-                <motion.div
-                  variants={childVariants}
-                  className="flex items-center justify-center space-x-4 sm:space-x-6 md:space-x-8 mb-6 md:mb-8"
-                >
+                <div className="flex items-center justify-center space-x-4 sm:space-x-6 md:space-x-8 mb-3">
                   <Button
                     size="icon"
                     variant="ghost"
-                    onClick={toggleShuffle}
+                    onClick={doShuffle}
                     className={cn("text-gray-400 hover:text-white", isShuffled && "text-green-500")}
                   >
                     <Shuffle className="w-5 h-5 md:w-6 md:h-6" />
@@ -722,7 +827,7 @@ export default function MusicPlayer() {
                   <Button
                     size="icon"
                     variant="ghost"
-                    onClick={toggleRepeat}
+                    onClick={cycleRepeat}
                     className={cn("text-gray-400 hover:text-white", repeatMode !== "off" && "text-green-500")}
                   >
                     {repeatMode === "one" ? (
@@ -731,9 +836,17 @@ export default function MusicPlayer() {
                       <Repeat className="w-5 h-5 md:w-6 md:h-6" />
                     )}
                   </Button>
-                </motion.div>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    onClick={() => setShowLyrics((v) => !v)}
+                    className="text-gray-400 hover:text-white"
+                  >
+                    <ScrollText className="w-5 h-5 md:w-6 md:h-6" />
+                  </Button>
+                </div>
 
-                <motion.div variants={childVariants} className="flex items-center justify-between w-full">
+                <div className="flex items-center justify-between w-full mb-4">
                   <Button
                     size="icon"
                     variant="ghost"
@@ -757,7 +870,16 @@ export default function MusicPlayer() {
                   <Button size="icon" variant="ghost" onClick={handleShare} className="text-gray-400 hover:text-white">
                     <Share className="w-5 h-5 md:w-6 md:h-6" />
                   </Button>
-                </motion.div>
+                </div>
+
+                {showLyrics && (
+                  <LyricsPanel
+                    title={currentSong.title}
+                    artist={currentSong.artist}
+                    currentTime={currentTime}
+                    duration={duration || currentSong.duration || 180}
+                  />
+                )}
               </motion.div>
             </div>
           </motion.div>

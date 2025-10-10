@@ -55,6 +55,7 @@ const quickAccessItems = [
 
 const moodCategories = [
   {
+    slug: "happy",
     name: "Happy",
     emoji: "😊",
     color: "from-yellow-400 to-orange-400",
@@ -62,6 +63,7 @@ const moodCategories = [
     thumbnail: "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=150&h=150&fit=crop&crop=faces",
   },
   {
+    slug: "chill",
     name: "Chill",
     emoji: "😌",
     color: "from-blue-400 to-cyan-400",
@@ -69,6 +71,7 @@ const moodCategories = [
     thumbnail: "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=150&h=150&fit=crop&crop=center",
   },
   {
+    slug: "energetic",
     name: "Energetic",
     emoji: "⚡",
     color: "from-red-400 to-pink-400",
@@ -76,6 +79,7 @@ const moodCategories = [
     thumbnail: "https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=150&h=150&fit=crop&crop=center",
   },
   {
+    slug: "romantic",
     name: "Romantic",
     emoji: "💕",
     color: "from-pink-400 to-rose-400",
@@ -83,6 +87,7 @@ const moodCategories = [
     thumbnail: "https://images.unsplash.com/photo-1518199266791-5375a83190b7?w=150&h=150&fit=crop&crop=center",
   },
   {
+    slug: "focus",
     name: "Focus",
     emoji: "🎯",
     color: "from-green-400 to-emerald-400",
@@ -90,6 +95,7 @@ const moodCategories = [
     thumbnail: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop&crop=center",
   },
   {
+    slug: "party",
     name: "Party",
     emoji: "🎉",
     color: "from-purple-400 to-pink-400",
@@ -116,6 +122,7 @@ export default function Home() {
     addToFavorites,
     removeFromFavorites,
     searchContent,
+    updateMoodPlaylists,
   } = useStore()
 
   useEffect(() => {
@@ -123,11 +130,12 @@ export default function Home() {
     const refreshInterval = setInterval(
       () => {
         fetchTrendingSongs()
+        updateMoodPlaylists()
       },
       5 * 60 * 1000,
     )
     return () => clearInterval(refreshInterval)
-  }, [fetchTrendingSongs])
+  }, [fetchTrendingSongs, updateMoodPlaylists])
 
   useEffect(() => {
     const updateTime = () => {
@@ -188,11 +196,9 @@ export default function Home() {
 
   const handleMoodClick = useCallback(
     async (mood: any) => {
-      const randomKeyword = mood.keywords[Math.floor(Math.random() * mood.keywords.length)]
-      await searchContent(randomKeyword)
-      router.push(`/search?q=${randomKeyword}`)
+      router.push(`/mood/${mood.slug}`)
     },
-    [searchContent, router],
+    [router],
   )
 
   const userName =
@@ -221,19 +227,17 @@ export default function Home() {
       animate="visible"
       className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900"
     >
-      {/* Improved Top Bar */}
+      {/* Top Bar */}
       <motion.header variants={itemVariants} className="sticky top-0 z-40 border-b border-white/10">
         <div className="w-full px-3 py-2 sm:px-6 sm:py-3 bg-black/30 backdrop-blur-xl">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="relative">
-                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-emerald-400 to-cyan-500 flex items-center justify-center shadow-lg shadow-emerald-500/20">
-                  <Music className="w-5 h-5 text-white" />
-                </div>
+              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-emerald-400 to-cyan-500 flex items-center justify-center shadow-lg shadow-emerald-500/20">
+                <Music className="w-5 h-5 text-white" />
               </div>
               <div className="relative">
                 <h1
-                  className="text-xl sm:text-2xl font-extrabold bg-clip-text text-transparent bg-gradient-to-r from-white via-purple-200 to-white animate-[shimmer_6s_linear_infinite]"
+                  className="text-xl sm:text-2xl font-extrabold bg-clip-text text-transparent bg-gradient-to-r from-white via-purple-200 to-white"
                   style={{ backgroundSize: "200% auto" }}
                 >
                   Musica
@@ -311,7 +315,7 @@ export default function Home() {
       </motion.header>
 
       {/* Main */}
-      <div className="w-full px-2 py-4 pb-20 sm:px-4 sm:py-6 sm:pb-32">
+      <div className="w-full px-2 py-4 pb-40 sm:px-4 sm:py-6 sm:pb-40">
         {/* Greeting */}
         <motion.div variants={itemVariants} className="mb-6 sm:mb-8">
           <AnimatePresence mode="wait">
@@ -396,7 +400,7 @@ export default function Home() {
           <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3 sm:gap-4">
             {moodCategories.map((mood, index) => (
               <motion.div
-                key={mood.name}
+                key={mood.slug}
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ delay: index * 0.08 }}
@@ -699,7 +703,6 @@ export default function Home() {
                     transition={{ delay: index * 0.06 }}
                     className="flex items-center space-x-4 sm:space-x-6 p-3 sm:p-4 rounded-xl hover:bg-white/5 cursor-pointer group transition-colors"
                     onClick={() => handlePlaySong(song, safeRecentlyPlayed)}
-                    whileHover={{ x: 4 }}
                   >
                     <div className="relative">
                       <Image
