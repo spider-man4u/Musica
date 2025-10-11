@@ -1,205 +1,289 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import type React from "react"
+
+import { useMemo, useState } from "react"
 import Image from "next/image"
-import { supabase, getCurrentUser } from "@/lib/supabase"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Loader2 } from "lucide-react"
-import { useToast } from "@/hooks/use-toast"
-
-export const dynamic = "force-static"
-
-type PlaylistItem = {
-  id: string
-  name: string
-  description?: string
-  cover_image?: string
-  is_public: boolean
-  created_at: string
-  songs?: {
-    id: string
-    song_id: string
-    song_title: string
-    song_artist: string
-    song_duration?: number
-    position: number
-  }[]
-}
-
-const playlists = [
-  { id: "liked", name: "Liked Songs", image: "/playlist-cover.jpg", count: 42 },
-  { id: "focus", name: "Deep Focus", image: "/abstract-album-cover.png", count: 27 },
-  { id: "chill", name: "Chill Vibes", image: "/abstract-album-cover.png", count: 19 },
-  { id: "workout", name: "Beast Mode", image: "/abstract-album-cover.png", count: 33 },
-]
+import { useRouter } from "next/navigation"
+import { motion } from "framer-motion"
+import { Plus, Play, Heart, Clock, Music, Trash2, ListMusic } from "lucide-react"
+import { useStore } from "@/lib/store"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Card, CardContent } from "@/components/ui/card"
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Badge } from "@/components/ui/badge"
 
 export default function LibraryPage() {
-  const { toast } = useToast()
-  const [loading, setLoading] = useState(true)
-  const [userId, setUserId] = useState<string | null>(null)
-  const [playlistsState, setPlaylists] = useState<PlaylistItem[]>([])
+  const router = useRouter()
+  const { userData, createPlaylist, deletePlaylist, playSong } = useStore()
   const [query, setQuery] = useState("")
-  const [creating, setCreating] = useState(false)
   const [open, setOpen] = useState(false)
-  const [form, setForm] = useState({ name: "", description: "" })
+  const [plName, setPlName] = useState("")
+  const [plDesc, setPlDesc] = useState("")
 
-  useEffect(() => {
-    let mounted = true
-    const load = async () => {
-      try {
-        setLoading(true)
-        const user = await getCurrentUser()
-        if (!mounted) return
-        if (!user) {
-          setUserId(null)
-          setPlaylists([])
-          setLoading(false)
-          return
-        }
-        setUserId(user.id)
-        const { data, error } = await supabase
-          .from("playlists")
-          .select(`id, name, description, cover_image, is_public, created_at, playlist_songs:playlist_songs (*)`)
-          .eq("user_id", user.id)
-          .order("created_at", { ascending: false })
+  const playlists = userData.playlists || []
+  const favorites = userData.favorites || []
+  const recent = userData.recentlyPlayed || []
 
-        if (error) {
-          console.error(error)
-          toast({ title: "Error", description: "Could not load your library.", variant: "destructive" })
-          setPlaylists([])
-        } else {
-          const mapped: PlaylistItem[] =
-            (data as any[])?.map((p: any) => ({
-              id: p.id,
-              name: p.name,
-              description: p.description || "",
-              cover_image: p.cover_image || "/playlist-cover.jpg",
-              is_public: p.is_public,
-              created_at: p.created_at,
-              songs:
-                (p.playlist_songs as any[])?.map((s) => ({
-                  id: s.id,
-                  song_id: s.song_id,
-                  song_title: s.song_title,
-                  song_artist: s.song_artist,
-                  song_duration: s.song_duration ?? undefined,
-                  position: s.position,
-                })) || [],
-            })) || []
-          setPlaylists(mapped)
-        }
-      } finally {
-        if (mounted) setLoading(false)
-      }
-    }
-    load()
-    return () => {
-      mounted = false
-    }
-  }, [toast])
+  const filteredPlaylists = useMemo(() => {
+    if (!query.trim()) return playlists
+    const q = query.toLowerCase()
+    return playlists.filter((p) => `${p.name} ${p.description}`.toLowerCase().includes(q))
+  }, [playlists, query])
 
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase()
-    if (!q) return playlistsState
-    return playlistsState.filter((p) => p.name.toLowerCase().includes(q) || p.description?.toLowerCase().includes(q))
-  }, [playlistsState, query])
-
-  const createPlaylist = async () => {
-    if (!userId) {
-      toast({ title: "Sign in required", description: "Please sign in to create playlists." })
-      return
-    }
-    if (!form.name.trim()) {
-      toast({ title: "Name required", description: "Please enter a playlist name.", variant: "destructive" })
-      return
-    }
-    setCreating(true)
-    try {
-      const id = crypto.randomUUID()
-      const now = new Date().toISOString()
-      const { error } = await supabase.from("playlists").insert({
-        id,
-        user_id: userId,
-        name: form.name.trim(),
-        description: form.description.trim(),
-        cover_image: "/playlist-cover.jpg",
-        is_public: false,
-        created_at: now,
-        updated_at: now,
-      })
-      if (error) {
-        toast({ title: "Create failed", description: error.message, variant: "destructive" })
-      } else {
-        toast({ title: "Playlist created", description: `"${form.name}" has been added.` })
-        // Optimistic refresh
-        setPlaylists((prev) => [
-          {
-            id,
-            name: form.name.trim(),
-            description: form.description.trim(),
-            cover_image: "/playlist-cover.jpg",
-            is_public: false,
-            created_at: now,
-            songs: [],
-          },
-          ...prev,
-        ])
-        setForm({ name: "", description: "" })
-        setOpen(false)
-      }
-    } finally {
-      setCreating(false)
-    }
+  const handleCreate = () => {
+    if (!plName.trim()) return
+    const pl = createPlaylist(plName.trim(), plDesc.trim())
+    setPlName("")
+    setPlDesc("")
+    setOpen(false)
+    // Navigate into the new playlist for immediate editing
+    router.push(`/library/${pl.id}`)
   }
 
   return (
-    <main className="min-h-screen bg-gradient-to-b from-purple-900/30 to-slate-900/60 text-white">
-      <section className="px-4 sm:px-6 lg:px-8 pt-6 pb-2">
-        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Your Library</h1>
-        <p className="text-white/60 mt-1">Playlists you love and collections you have created.</p>
-      </section>
-
-      <section className="px-4 sm:px-6 lg:px-8 pb-[7rem] md:pb-[6rem]">
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
-          {userId ? (
-            filtered.length > 0 ? (
-              filtered.map((pl) => (
-                <Card
-                  key={pl.id}
-                  className="bg-white/5 border-white/10 hover:bg-white/10 transition-colors overflow-hidden"
-                  role="button"
-                  tabIndex={0}
-                >
-                  <CardHeader className="p-0">
-                    <div className="relative w-full aspect-square">
-                      <Image
-                        src={pl.cover_image || "/placeholder.svg"}
-                        alt={`${pl.name} cover`}
-                        fill
-                        sizes="(max-width: 768px) 50vw, 25vw"
-                        className="object-cover"
-                        priority={false}
-                      />
-                    </div>
-                  </CardHeader>
-                  <CardContent className="p-3 sm:p-4">
-                    <CardTitle className="text-base sm:text-lg">{pl.name}</CardTitle>
-                    <p className="text-xs text-white/60 mt-1">{pl.songs?.length || 0} songs</p>
-                  </CardContent>
-                </Card>
-              ))
-            ) : (
-              <div className="text-center text-sm text-white/60 py-20">No playlists found.</div>
-            )
-          ) : loading ? (
-            <div className="flex items-center justify-center py-24">
-              <Loader2 className="h-6 w-6 animate-spin text-white/60" />
-            </div>
-          ) : (
-            <div className="text-center text-sm text-white/60 py-20">Sign in to view and manage your playlists.</div>
-          )}
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 pb-[120px]">
+      <header className="sticky top-0 z-30 bg-black/20 backdrop-blur-xl border-b border-white/10">
+        <div className="max-w-6xl mx-auto px-4 py-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-white flex items-center gap-3">
+              <ListMusic className="w-7 h-7" />
+              Library
+            </h1>
+            <p className="text-white/60 text-sm">
+              {playlists.length} playlists • {favorites.length} liked • {recent.length} recent
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+            <Input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search your library..."
+              className="bg-white/10 border-white/20 text-white placeholder:text-white/50 w-60"
+            />
+            <Dialog open={open} onOpenChange={setOpen}>
+              <DialogTrigger asChild>
+                <Button className="bg-white text-purple-900 hover:bg-white/90">
+                  <Plus className="w-4 h-4 mr-2" />
+                  New Playlist
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="bg-slate-900/90 border-white/10">
+                <DialogHeader>
+                  <DialogTitle className="text-white">Create playlist</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <Input
+                    value={plName}
+                    onChange={(e) => setPlName(e.target.value)}
+                    placeholder="Playlist name"
+                    className="bg-white/10 border-white/20 text-white placeholder:text-white/50"
+                  />
+                  <Input
+                    value={plDesc}
+                    onChange={(e) => setPlDesc(e.target.value)}
+                    placeholder="Description (optional)"
+                    className="bg-white/10 border-white/20 text-white placeholder:text-white/50"
+                  />
+                </div>
+                <DialogFooter>
+                  <Button variant="ghost" onClick={() => setOpen(false)} className="text-white/80">
+                    Cancel
+                  </Button>
+                  <Button onClick={handleCreate} className="bg-white text-purple-900 hover:bg-white/90">
+                    Create
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </div>
         </div>
-      </section>
-    </main>
+      </header>
+
+      <main className="max-w-6xl mx-auto px-4 py-8 space-y-10">
+        {/* Liked Songs */}
+        <section>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-white text-xl font-semibold">Liked Songs</h2>
+            <Badge className="bg-white/10 text-white">{favorites.length}</Badge>
+          </div>
+          {favorites.length === 0 ? (
+            <EmptyState icon={Heart} title="No liked songs yet" description="Like songs to save them here." />
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {favorites.map((s, i) => (
+                <SongTile key={s.id} song={s} onPlay={() => playSong(s, favorites)} delay={i * 0.03} />
+              ))}
+            </div>
+          )}
+        </section>
+
+        {/* Recently Played */}
+        <section>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-white text-xl font-semibold">Recently Played</h2>
+            <Badge className="bg-white/10 text-white">{recent.length}</Badge>
+          </div>
+          {recent.length === 0 ? (
+            <EmptyState
+              icon={Clock}
+              title="Nothing here yet"
+              description="Your recently played songs will show up here."
+            />
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {recent.map((s, i) => (
+                <SongTile key={s.id} song={s} onPlay={() => playSong(s, recent)} delay={i * 0.03} />
+              ))}
+            </div>
+          )}
+        </section>
+
+        {/* Playlists */}
+        <section>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-white text-xl font-semibold">Your Playlists</h2>
+            <Badge className="bg-white/10 text-white">{filteredPlaylists.length}</Badge>
+          </div>
+          {filteredPlaylists.length === 0 ? (
+            <EmptyState
+              icon={Music}
+              title="No playlists yet"
+              description="Create a playlist to start organizing your music."
+            />
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+              {filteredPlaylists.map((pl, i) => (
+                <motion.div
+                  key={pl.id}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: i * 0.03 }}
+                >
+                  <Card className="bg-white/5 border-white/10 overflow-hidden group">
+                    <CardContent className="p-0">
+                      <div
+                        className="relative cursor-pointer"
+                        onClick={() => router.push(`/library/${pl.id}`)}
+                        role="button"
+                        aria-label={`Open ${pl.name}`}
+                      >
+                        <Image
+                          src={pl.image || "/playlist-cover.jpg"}
+                          alt={pl.name}
+                          width={600}
+                          height={600}
+                          className="w-full aspect-square object-cover"
+                        />
+                        <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition" />
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            if (pl.songs.length > 0) {
+                              useStore.getState().setQueue(pl.songs, 0)
+                              useStore.getState().setIsPlaying(true)
+                            }
+                          }}
+                          className="absolute bottom-2 right-2 bg-white text-purple-900 rounded-full p-3 opacity-0 group-hover:opacity-100 transition"
+                          aria-label={`Play ${pl.name}`}
+                        >
+                          <Play className="w-5 h-5" />
+                        </button>
+                      </div>
+                      <div className="p-3">
+                        <div className="flex items-start justify-between">
+                          <div className="min-w-0">
+                            <h3 className="text-white font-semibold truncate">{pl.name}</h3>
+                            <p className="text-white/60 text-xs truncate">{pl.description || "Playlist"}</p>
+                            <p className="text-white/50 text-xs mt-1">{pl.songs.length} songs</p>
+                          </div>
+                          <button
+                            onClick={() => deletePlaylist(pl.id)}
+                            className="text-white/60 hover:text-red-400 p-2 rounded-lg"
+                            aria-label="Delete playlist"
+                            title="Delete playlist"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </motion.div>
+              ))}
+            </div>
+          )}
+        </section>
+      </main>
+    </div>
+  )
+}
+
+function EmptyState({
+  icon: Icon,
+  title,
+  description,
+}: {
+  icon: React.ComponentType<React.SVGProps<SVGSVGElement>>
+  title: string
+  description: string
+}) {
+  return (
+    <div className="rounded-2xl border border-dashed border-white/10 p-8 text-center text-white/70">
+      <Icon className="w-10 h-10 mx-auto mb-3" />
+      <div className="font-medium">{title}</div>
+      <div className="text-sm">{description}</div>
+    </div>
+  )
+}
+
+function SongTile({
+  song,
+  onPlay,
+  delay = 0,
+}: {
+  song: {
+    id: string
+    title: string
+    artist: string
+    image: string
+    duration?: number
+  }
+  onPlay: () => void
+  delay?: number
+}) {
+  return (
+    <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay }}>
+      <div className="flex items-center gap-3 p-3 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 transition group">
+        <div className="relative">
+          <Image
+            src={song.image || "/album-art.jpg"}
+            alt={song.title}
+            width={56}
+            height={56}
+            className="rounded-lg object-cover"
+          />
+          <button
+            onClick={onPlay}
+            className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition flex items-center justify-center rounded-lg"
+            aria-label="Play"
+          >
+            <Play className="w-4 h-4 text-white" />
+          </button>
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="text-white font-medium truncate">{song.title}</div>
+          <div className="text-white/60 text-sm truncate">{song.artist}</div>
+        </div>
+        {typeof song.duration === "number" && song.duration > 0 ? (
+          <div className="text-white/60 text-xs">
+            {Math.floor(song.duration / 60)}:{String(song.duration % 60).padStart(2, "0")}
+          </div>
+        ) : (
+          <div className="text-white/40 text-xs">--:--</div>
+        )}
+      </div>
+    </motion.div>
   )
 }

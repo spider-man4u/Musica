@@ -1,49 +1,54 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { useRouter, useSearchParams } from "next/navigation"
-import { supabase } from "@/lib/supabase"
-import { Loader2, CheckCircle, AlertTriangle } from "lucide-react"
+import { useEffect } from "react"
+import { useRouter } from "next/navigation"
+import { Loader2 } from "lucide-react"
+import { supabase, ensureProfileExists, loadUserData } from "@/lib/supabase"
+import { useStore } from "@/lib/store"
 
 export default function AuthCallbackPage() {
   const router = useRouter()
-  const searchParams = useSearchParams()
-  const [status, setStatus] = useState<"loading" | "success" | "error">("loading")
-  const [message, setMessage] = useState("Completing sign in...")
+  const { setCurrentUserId, setSyncStatus } = useStore()
 
   useEffect(() => {
-    const code = searchParams.get("code")
-    const next = searchParams.get("next")
-    if (!code) {
-      setStatus("error")
-      setMessage("Missing authorization code.")
-      return
-    }
-    // Exchange code for session on the client. After success, redirect. [^4]
-    ;(async () => {
-      const { error } = await supabase.auth.exchangeCodeForSession(code)
-      if (error) {
-        setStatus("error")
-        setMessage(error.message || "Failed to complete sign in.")
-        return
+    let active = true
+    const completeAuth = async () => {
+      try {
+        // detectSessionInUrl=true will parse the URL and set the session automatically
+        const {
+          data: { session },
+        } = await supabase.auth.getSession()
+
+        if (!active) return
+        if (session?.user) {
+          await ensureProfileExists(session.user)
+          setCurrentUserId(session.user.id)
+          setSyncStatus("syncing")
+          const res = await loadUserData(session.user.id)
+          if (res.success && res.userData) {
+            useStore.setState({ userData: res.userData })
+            setSyncStatus("synced")
+          } else {
+            setSyncStatus("error")
+          }
+        }
+      } catch (e) {
+        // no-op
+      } finally {
+        if (active) router.replace("/")
       }
-      setStatus("success")
-      setMessage("Signed in! Redirecting...")
-      setTimeout(() => {
-        const target = next && next.startsWith("/") ? next : "/"
-        router.replace(target)
-      }, 800)
-    })()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+    }
+    completeAuth()
+    return () => {
+      active = false
+    }
+  }, [router, setCurrentUserId, setSyncStatus])
 
   return (
-    <div className="min-h-[60vh] flex items-center justify-center">
-      <div className="flex flex-col items-center gap-3 text-center">
-        {status === "loading" && <Loader2 className="w-6 h-6 animate-spin text-white/80" />}
-        {status === "success" && <CheckCircle className="w-6 h-6 text-green-400" />}
-        {status === "error" && <AlertTriangle className="w-6 h-6 text-yellow-400" />}
-        <p className="text-white/90">{message}</p>
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
+      <div className="flex items-center gap-3 text-white/80">
+        <Loader2 className="w-5 h-5 animate-spin" />
+        <span>Signing you in...</span>
       </div>
     </div>
   )

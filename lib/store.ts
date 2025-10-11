@@ -178,6 +178,14 @@ interface AppState {
 
   getOrCreateMoodPlaylist: (slug: string, keywords: string[]) => Playlist
   updateMoodPlaylists: () => void
+
+  addSongsToPlaylist: (playlistId: string, songs: Song[]) => void
+  updatePlaylistMeta: (
+    playlistId: string,
+    data: Partial<Pick<Playlist, "name" | "description" | "image" | "isPublic">>,
+  ) => void
+  reorderPlaylistItem: (playlistId: string, from: number, to: number) => void
+  getPlaylistById: (playlistId: string) => Playlist | null
 }
 
 /* Utilities */
@@ -851,6 +859,8 @@ export const useStore = create<AppState>()(
         set((state) => ({
           userData: { ...state.userData, playlists: [playlist, ...state.userData.playlists] },
         }))
+        // persist to cloud if signed in
+        get().syncToCloud()
         return playlist
       },
 
@@ -881,6 +891,48 @@ export const useStore = create<AppState>()(
           userData: { ...state.userData, playlists: state.userData.playlists.filter((pl) => pl.id !== playlistId) },
         }))
         get().syncToCloud()
+      },
+
+      addSongsToPlaylist: (playlistId, songs) => {
+        if (!Array.isArray(songs) || songs.length === 0) return
+        set((state) => {
+          const playlists = state.userData.playlists.map((pl) => {
+            if (pl.id !== playlistId) return pl
+            const existingIds = new Set(pl.songs.map((s) => s.id))
+            const toAdd = songs.filter((s) => !existingIds.has(s.id))
+            return { ...pl, songs: [...toAdd, ...pl.songs] }
+          })
+          return { userData: { ...state.userData, playlists } }
+        })
+        get().syncToCloud()
+      },
+
+      updatePlaylistMeta: (playlistId, data) => {
+        set((state) => {
+          const playlists = state.userData.playlists.map((pl) => (pl.id === playlistId ? { ...pl, ...data } : pl))
+          return { userData: { ...state.userData, playlists } }
+        })
+        get().syncToCloud()
+      },
+
+      reorderPlaylistItem: (playlistId, from, to) => {
+        set((state) => {
+          const playlists = state.userData.playlists.map((pl) => {
+            if (pl.id !== playlistId) return pl
+            const arr = [...pl.songs]
+            if (from === to || from < 0 || to < 0 || from >= arr.length || to >= arr.length) return pl
+            const [item] = arr.splice(from, 1)
+            arr.splice(to, 0, item)
+            return { ...pl, songs: arr }
+          })
+          return { userData: { ...state.userData, playlists } }
+        })
+        get().syncToCloud()
+      },
+
+      getPlaylistById: (playlistId) => {
+        const { userData } = get()
+        return userData.playlists.find((p) => p.id === playlistId) || null
       },
 
       /* Recommendations */

@@ -174,7 +174,7 @@ export const signIn = async (email: string, password: string) => {
   }
 }
 
-// Open OAuth in a new tab and redirect to /auth/callback where we exchange the code [^4]
+// Open OAuth in a new tab and redirect to /auth/callback where we exchange the code
 export const signInWithProvider = async (provider: "google" | "github" | "gitlab" | "bitbucket") => {
   try {
     const redirectTo = typeof window !== "undefined" ? `${window.location.origin}/auth/callback` : undefined
@@ -251,10 +251,27 @@ export const ensureProfileExists = async (user: User) => {
   return { created: true, profile: data }
 }
 
-// Re-added and exported: syncUserData
+export const updateProfile = async (
+  userId: string,
+  updates: Partial<Pick<Profile, "username" | "full_name" | "avatar_url" | "email">>,
+) => {
+  try {
+    const { data, error } = await supabase
+      .from("profiles")
+      .update({ ...updates, updated_at: new Date().toISOString() })
+      .eq("id", userId)
+      .select("*")
+      .single()
+    if (error) return { success: false, error: error.message }
+    return { success: true, data }
+  } catch (err: any) {
+    return { success: false, error: err?.message || "Failed to update profile" }
+  }
+}
+
+// Persist likes, recent, downloads, playlists, search history, preferences
 export const syncUserData = async (userId: string, userData: any) => {
   try {
-    // Favorites upsert
     if (userData.favorites?.length) {
       const favorites = userData.favorites.map((song: any) => ({
         user_id: userId,
@@ -272,7 +289,6 @@ export const syncUserData = async (userId: string, userData: any) => {
       await supabase.from("favorites").upsert(favorites, { onConflict: "user_id,song_id", ignoreDuplicates: false })
     }
 
-    // Recently played reset + insert
     if (userData.recentlyPlayed?.length) {
       await supabase.from("recently_played").delete().eq("user_id", userId)
       const recents = userData.recentlyPlayed.map((song: any, i: number) => ({
@@ -289,7 +305,6 @@ export const syncUserData = async (userId: string, userData: any) => {
       await supabase.from("recently_played").insert(recents)
     }
 
-    // Downloads upsert
     if (userData.downloads?.length) {
       const downloads = userData.downloads.map((song: any) => ({
         user_id: userId,
@@ -306,7 +321,6 @@ export const syncUserData = async (userId: string, userData: any) => {
       await supabase.from("downloads").upsert(downloads, { onConflict: "user_id,song_id", ignoreDuplicates: false })
     }
 
-    // Playlists + songs
     if (userData.playlists?.length) {
       for (const playlist of userData.playlists) {
         await supabase.from("playlists").upsert(
@@ -322,7 +336,6 @@ export const syncUserData = async (userId: string, userData: any) => {
           },
           { onConflict: "id" },
         )
-        // Reset songs
         await supabase.from("playlist_songs").delete().eq("playlist_id", playlist.id)
         if (playlist.songs?.length) {
           const rows = playlist.songs.map((song: any, i: number) => ({
@@ -342,18 +355,16 @@ export const syncUserData = async (userId: string, userData: any) => {
       }
     }
 
-    // Search history reset + insert
-    if (userData.recentSearches?.length) {
+    if (Array.isArray(userData.recentSearches)) {
       await supabase.from("search_history").delete().eq("user_id", userId)
       const rows = userData.recentSearches.map((q: string, i: number) => ({
         user_id: userId,
         query: q,
         searched_at: new Date(Date.now() - i * 60000).toISOString(),
       }))
-      await supabase.from("search_history").insert(rows)
+      if (rows.length) await supabase.from("search_history").insert(rows)
     }
 
-    // Preferences upsert
     if (userData.settings) {
       await supabase.from("user_preferences").upsert(
         {
@@ -495,30 +506,61 @@ export const loadUserData = async (userId: string) => {
   }
 }
 
+// Subscribe to all relevant tables; rely on Postgres Changes for realtime.
+// NOTE: Ensure realtime is enabled on these tables in the Supabase dashboard.
 export const setupRealtimeSync = (userId: string, onDataChange: (payload: any) => void) => {
   const channels = [
     supabase
-      .channel("favorites_changes")
+      .channel(`favorites_changes_${userId}`)
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "favorites", filter: `user_id=eq.${userId}` },
         onDataChange,
       ),
     supabase
-      .channel("playlists_changes")
+      .channel(`playlists_changes_${userId}`)
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "playlists", filter: `user_id=eq.${userId}` },
         onDataChange,
       ),
     supabase
-      .channel("preferences_changes")
+      .channel(`playlist_songs_changes_${userId}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "playlist_songs" }, (payload) => {
+        // Filter by playlists that belong to this user on client side since playlist_songs doesn't have user_id
+        onDataChange(payload)
+      }),
+    supabase
+      .channel(`preferences_changes_${userId}`)
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "user_preferences", filter: `user_id=eq.${userId}` },
         onDataChange,
       ),
+    supabase
+      .channel(`recently_played_changes_${userId}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "recently_played", filter: `user_id=eq.${userId}` },
+        onDataChange,
+      ),
+    supabase
+      .channel(`downloads_changes_${userId}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "downloads", filter: `user_id=eq.${userId}` },
+        onDataChange,
+      ),
+    supabase
+      .channel(`search_history_changes_${userId}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "search_history", filter: `user_id=eq.${userId}` },
+        onDataChange,
+      ),
   ]
+
   channels.forEach((c) => c.subscribe())
+
   return () => channels.forEach((c) => supabase.removeChannel(c))
 }

@@ -3,7 +3,27 @@
 import type React from "react"
 import { useState, useEffect, useRef } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { ArrowLeft, ChevronRight, Lock, Clock, HelpCircle, Settings, LogOut, Edit, Camera, Music, Heart, Users, Bell, Download, Globe, Check, User, Mail, MapPin } from 'lucide-react'
+import {
+  ArrowLeft,
+  ChevronRight,
+  Lock,
+  Clock,
+  HelpCircle,
+  Settings,
+  LogOut,
+  Edit,
+  Camera,
+  Music,
+  Heart,
+  Users,
+  Bell,
+  Download,
+  Globe,
+  Check,
+  User,
+  Mail,
+  MapPin,
+} from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -13,6 +33,7 @@ import Link from "next/link"
 import { useStore } from "@/lib/store"
 import { useRouter } from "next/navigation"
 import { useDateTime } from "@/hooks/useDateTime"
+import { updateProfile as updateSupabaseProfile } from "@/lib/supabase"
 
 export default function ProfilePage() {
   const [isEditing, setIsEditing] = useState(false)
@@ -68,6 +89,10 @@ export default function ProfilePage() {
         setProfileImage(result)
         localStorage.setItem("userImage", result)
         updateUserProfile({ avatar: result })
+        const uid = localStorage.getItem("supabase_user_id") || userData.id
+        if (uid) {
+          updateSupabaseProfile(uid, { avatar_url: result }).catch(() => {})
+        }
         setUploadingImage(false)
       }
       reader.readAsDataURL(file)
@@ -85,6 +110,16 @@ export default function ProfilePage() {
       email: editedEmail,
       avatar: profileImage,
     })
+
+    const uid = localStorage.getItem("supabase_user_id") || userData.id
+    if (uid) {
+      updateSupabaseProfile(uid, {
+        username: editedName,
+        full_name: editedName,
+        email: editedEmail,
+        avatar_url: profileImage || undefined,
+      }).catch(() => {})
+    }
 
     setIsEditing(false)
   }

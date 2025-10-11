@@ -14,6 +14,14 @@ interface ClientLayoutProps {
   children: React.ReactNode
 }
 
+function onIdle(cb: () => void, timeout = 1000) {
+  if (typeof window !== "undefined" && "requestIdleCallback" in window) {
+    ;(window as any).requestIdleCallback(cb, { timeout })
+  } else {
+    setTimeout(cb, 0)
+  }
+}
+
 export default function ClientLayout({ children }: ClientLayoutProps) {
   const pathname = usePathname()
   const [isPageTransitioning, setIsPageTransitioning] = useState(false)
@@ -21,35 +29,31 @@ export default function ClientLayout({ children }: ClientLayoutProps) {
 
   useEffect(() => {
     setIsPageTransitioning(true)
-    const timer = setTimeout(() => setIsPageTransitioning(false), 150)
+    const timer = setTimeout(() => setIsPageTransitioning(false), 120)
     return () => clearTimeout(timer)
   }, [pathname])
 
   useEffect(() => {
-    // Initialize modern APIs on app load with error handling
-    const initializeApp = async () => {
+    // Defer non-critical work to idle so splash doesn't feel long
+    onIdle(() => {
       try {
-        console.log("🚀 Initializing modern music app...")
-
-        // Check if functions exist before calling them
-        if (typeof checkApiStatus === "function") {
-          await checkApiStatus()
-        }
-
-        if (typeof fetchTrendingSongs === "function") {
-          await fetchTrendingSongs()
-        }
-      } catch (error) {
-        console.error("Failed to initialize app:", error)
+        if (typeof checkApiStatus === "function") checkApiStatus()
+      } catch (e) {
+        console.warn("checkApiStatus failed", e)
       }
-    }
-
-    initializeApp()
+      // Stagger trending after a brief delay
+      setTimeout(() => {
+        try {
+          if (typeof fetchTrendingSongs === "function") fetchTrendingSongs()
+        } catch (e) {
+          console.warn("fetchTrendingSongs failed", e)
+        }
+      }, 600)
+    }, 800)
   }, [checkApiStatus, fetchTrendingSongs])
 
   return (
     <AuthWrapper>
-      {/* Modern API Status Indicator */}
       <ModernApiStatusIndicator />
 
       <AnimatePresence mode="wait">
@@ -65,10 +69,7 @@ export default function ClientLayout({ children }: ClientLayoutProps) {
         </motion.main>
       </AnimatePresence>
 
-      {/* Music Player */}
       <MusicPlayer />
-
-      {/* Bottom Navigation */}
       <BottomNav />
     </AuthWrapper>
   )

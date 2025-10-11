@@ -10,6 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Music, Mail, Lock, Eye, EyeOff, CheckCircle, Loader2, AlertCircle, Shield, User, LogOut } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
+import { useStore } from "@/lib/store"
 import {
   supabase,
   signIn,
@@ -27,6 +28,14 @@ interface AuthWrapperProps {
   children: React.ReactNode
 }
 
+function onIdle(cb: () => void, timeout = 800) {
+  if (typeof window !== "undefined" && "requestIdleCallback" in window) {
+    ;(window as any).requestIdleCallback(cb, { timeout })
+  } else {
+    setTimeout(cb, 0)
+  }
+}
+
 export default function AuthWrapper({ children }: AuthWrapperProps) {
   const { toast } = useToast()
   const [user, setUser] = useState<SupaUser | null>(null)
@@ -37,68 +46,52 @@ export default function AuthWrapper({ children }: AuthWrapperProps) {
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState("login")
+
+  const { setCurrentUserId, setSyncStatus } = useStore()
+
   const unsubscribeRef = useRef<(() => void) | null>(null)
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const lastHydrateAtRef = useRef<number>(0)
+  const splashTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const HYDRATE_MIN_INTERVAL_MS = 5000
+  const POLL_INTERVAL_MS = 20000
+  const INITIAL_SPLASH_MAX_MS = 400
 
   const [loginForm, setLoginForm] = useState({ email: "", password: "" })
   const [signupForm, setSignupForm] = useState({ username: "", email: "", password: "", confirmPassword: "" })
 
-  useEffect(() => {
-    let mounted = true
-
-    const init = async () => {
-      try {
-        const u = await getCurrentUser()
-        if (!mounted) return
-        if (u) {
-          await onAuthReady(u)
-        }
-      } catch (err) {
-        console.error("Auth init error:", err)
-      } finally {
-        if (mounted) setIsLoading(false)
-      }
-    }
-
-    const { data: authListener } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      const u = session?.user ?? null
-      if (u) await onAuthReady(u)
-      else {
-        setUser(null)
-        unsubscribeRealtime()
-      }
-    })
-
-    init()
-
-    return () => {
-      mounted = false
-      authListener.subscription.unsubscribe()
-      unsubscribeRealtime()
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
-  const onAuthReady = async (u: SupaUser) => {
-    setUser(u)
-    await ensureProfileExists(u)
-    // Preload user data if desired
+  const safeHydrate = async (uid: string) => {
+    const now = Date.now()
+    if (now - lastHydrateAtRef.current < HYDRATE_MIN_INTERVAL_MS) return
+    lastHydrateAtRef.current = now
     try {
-      const res = await loadUserData(u.id)
-      if (!res.success) {
-        console.warn("Could not load user data:", res.error)
+      setSyncStatus("syncing")
+      const res = await loadUserData(uid)
+      if (res.success && res.userData) {
+        useStore.setState({ userData: res.userData })
+        setSyncStatus("synced")
+      } else {
+        setSyncStatus("error")
       }
     } catch (e) {
-      console.warn("User data hydration error:", e)
+      console.warn("Hydration failed:", e)
+      setSyncStatus("error")
     }
-    subscribeRealtime(u.id)
   }
 
   const subscribeRealtime = (userId: string) => {
     unsubscribeRealtime()
     const off = setupRealtimeSync(userId, () => {
-      // Optionally refetch data; noop for brevity
+      // Debounced hydrate on change events
+      onIdle(() => safeHydrate(userId))
     })
     unsubscribeRef.current = off
+
+    // Fallback polling in case realtime is blocked/not enabled
+    if (pollRef.current) clearInterval(pollRef.current)
+    pollRef.current = setInterval(() => {
+      safeHydrate(userId)
+    }, POLL_INTERVAL_MS)
   }
 
   const unsubscribeRealtime = () => {
@@ -108,7 +101,88 @@ export default function AuthWrapper({ children }: AuthWrapperProps) {
       } catch {}
       unsubscribeRef.current = null
     }
+    if (pollRef.current) {
+      clearInterval(pollRef.current)
+      pollRef.current = null
+    }
   }
+
+  useEffect(() => {
+    let mounted = true
+
+    const onAuthReady = async (u: SupaUser) => {
+      setUser(u)
+      setCurrentUserId(u.id)
+      await ensureProfileExists(u)
+      // Fast, non-blocking hydration
+      onIdle(() => safeHydrate(u.id), 500)
+      subscribeRealtime(u.id)
+    }
+
+    const init = async () => {
+      try {
+        // Start a short guard so splash doesn't block longer than ~400ms
+        splashTimeoutRef.current = setTimeout(() => {
+          setIsLoading(false)
+        }, INITIAL_SPLASH_MAX_MS)
+
+        const u = await getCurrentUser()
+        if (!mounted) return
+        if (u) {
+          await onAuthReady(u)
+        }
+      } catch (err) {
+        console.error("Auth init error:", err)
+      } finally {
+        // If the timeout already fired, this won't flicker; otherwise drop splash now.
+        setIsLoading(false)
+      }
+    }
+
+    const { data: authListener } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      const u = session?.user ?? null
+      if (u) {
+        await onAuthReady(u)
+      } else {
+        setUser(null)
+        setCurrentUserId(null)
+        unsubscribeRealtime()
+      }
+    })
+
+    init()
+
+    // Rehydrate when app becomes visible or network is back
+    const onVisible = () => {
+      const uid = supabase.auth.getUser().then((res) => {
+        const current = res.data.user
+        if (current) onIdle(() => safeHydrate(current.id))
+      })
+      return uid
+    }
+    const onOnline = () => {
+      const uid = supabase.auth.getUser().then((res) => {
+        const current = res.data.user
+        if (current) onIdle(() => safeHydrate(current.id))
+      })
+      return uid
+    }
+
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") onVisible()
+    })
+    window.addEventListener("online", onOnline)
+
+    return () => {
+      mounted = false
+      authListener.subscription.unsubscribe()
+      unsubscribeRealtime()
+      if (splashTimeoutRef.current) clearTimeout(splashTimeoutRef.current)
+      document.removeEventListener("visibilitychange", onVisible as any)
+      window.removeEventListener("online", onOnline as any)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [setCurrentUserId, setSyncStatus])
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -161,7 +235,6 @@ export default function AuthWrapper({ children }: AuthWrapperProps) {
             res.error || "Please try again. You can also use Google or request a magic link if the issue continues.",
           variant: "destructive",
         })
-        setAuthLoading(false)
         return
       }
       if (res.needsEmailConfirmation) {
@@ -212,6 +285,7 @@ export default function AuthWrapper({ children }: AuthWrapperProps) {
       await signOut()
       unsubscribeRealtime()
       setUser(null)
+      setCurrentUserId(null)
       toast({ title: "Signed out", description: "You have been signed out successfully." })
     } catch (err) {
       console.error("Sign out error:", err)
@@ -219,16 +293,17 @@ export default function AuthWrapper({ children }: AuthWrapperProps) {
     }
   }
 
+  // Fast-first-paint: show minimal splash briefly, but never block > 400ms
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center">
         <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="text-center">
-          <div className="w-20 h-20 bg-gradient-to-r from-purple-500 to-blue-500 rounded-full flex items-center justify-center mx-auto mb-6">
-            <Music className="w-10 h-10 text-white animate-pulse" />
+          <div className="w-16 h-16 bg-gradient-to-r from-purple-500 to-blue-500 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Music className="w-8 h-8 text-white animate-pulse" />
           </div>
-          <h1 className="text-3xl font-bold text-white mb-4">Musica</h1>
+          <h1 className="text-2xl font-bold text-white mb-2">Musica</h1>
           <div className="flex items-center justify-center gap-2 text-gray-400">
-            <Loader2 className="w-5 h-5 animate-spin" />
+            <Loader2 className="w-4 h-4 animate-spin" />
             <span>Loading...</span>
           </div>
         </motion.div>
