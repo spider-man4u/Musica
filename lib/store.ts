@@ -888,9 +888,24 @@ export const useStore = create<AppState>()(
 
       deletePlaylist: (playlistId) => {
         set((state) => ({
-          userData: { ...state.userData, playlists: state.userData.playlists.filter((pl) => pl.id !== playlistId) },
+          userData: {
+            ...state.userData,
+            playlists: state.userData.playlists.filter((pl) => pl.id !== playlistId),
+          },
         }))
-        get().syncToCloud()
+        // Sync immediately to ensure deletion persists
+        setTimeout(() => get().syncToCloud(), 100)
+      },
+
+      updatePlaylistMeta: (playlistId, data) => {
+        set((state) => {
+          const playlists = state.userData.playlists.map((pl) => (pl.id === playlistId ? { ...pl, ...data } : pl))
+          return { userData: { ...state.userData, playlists } }
+        })
+        // Sync immediately with forced refresh
+        setTimeout(() => {
+          get().syncToCloud()
+        }, 50)
       },
 
       addSongsToPlaylist: (playlistId, songs) => {
@@ -902,14 +917,6 @@ export const useStore = create<AppState>()(
             const toAdd = songs.filter((s) => !existingIds.has(s.id))
             return { ...pl, songs: [...toAdd, ...pl.songs] }
           })
-          return { userData: { ...state.userData, playlists } }
-        })
-        get().syncToCloud()
-      },
-
-      updatePlaylistMeta: (playlistId, data) => {
-        set((state) => {
-          const playlists = state.userData.playlists.map((pl) => (pl.id === playlistId ? { ...pl, ...data } : pl))
           return { userData: { ...state.userData, playlists } }
         })
         get().syncToCloud()

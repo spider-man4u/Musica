@@ -8,7 +8,7 @@ export default function AboutDeveloper() {
         <div className="flex items-center">
           <div className="w-12 h-12 rounded-full overflow-hidden mr-4">
             <Image
-              src="https://i.ibb.co/M6GsjVV/IMG-20250105-234526.png"
+              src="/images/design-mode/IMG-20250105-234526.png"
               alt="Ali Sheikh"
               width={48}
               height={48}

@@ -4,7 +4,21 @@ import { useEffect, useMemo, useState } from "react"
 import Image from "next/image"
 import { useParams, useRouter } from "next/navigation"
 import { motion } from "framer-motion"
-import { ChevronLeft, Play, Pause, ListPlus, Pencil, Trash2, MoveUp, MoveDown, MinusCircle, Globe } from "lucide-react"
+import {
+  ChevronLeft,
+  Play,
+  Pause,
+  ListPlus,
+  Pencil,
+  Trash2,
+  MoveUp,
+  MoveDown,
+  MinusCircle,
+  Globe,
+  Shuffle,
+  Repeat,
+  Repeat1,
+} from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -19,28 +33,16 @@ export default function PlaylistDetailsPage() {
   const router = useRouter()
   const { toast } = useToast()
   const id = (params?.id as string) || ""
-  const {
-    getPlaylistById,
-    updatePlaylistMeta,
-    deletePlaylist,
-    playSong,
-    setQueue,
-    setIsPlaying,
-    removeFromPlaylist,
-    reorderPlaylistItem,
-    addSongsToPlaylist,
-    searchContent,
-    searchResults,
-    isPlaying,
-    currentSong,
-  } = useStore()
 
-  const playlist = getPlaylistById(id)
+  // Get fresh state directly from store each render
+  const store = useStore()
+  const playlist = store.getPlaylistById(id)
+
   const [editOpen, setEditOpen] = useState(false)
   const [addOpen, setAddOpen] = useState(false)
-  const [name, setName] = useState(playlist?.name || "")
-  const [description, setDescription] = useState(playlist?.description || "")
-  const [isPublic, setIsPublic] = useState<boolean>(playlist?.isPublic || false)
+  const [name, setName] = useState("")
+  const [description, setDescription] = useState("")
+  const [isPublic, setIsPublic] = useState(false)
   const [query, setQuery] = useState("")
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
 
@@ -50,39 +52,52 @@ export default function PlaylistDetailsPage() {
       setDescription(playlist.description)
       setIsPublic(playlist.isPublic)
     }
-  }, [playlist])
+  }, [playlist]) // Updated dependency to [playlist]
 
   const handlePlayAll = () => {
-    if (!playlist || playlist.songs.length === 0) return
-    setQueue(playlist.songs, 0)
-    setIsPlaying(true)
+    const pl = store.getPlaylistById(id)
+    if (!pl || pl.songs.length === 0) return
+    store.setQueue(pl.songs, 0)
+    store.setIsPlaying(true)
+  }
+
+  const handleToggleShuffle = () => {
+    store.toggleShuffle()
+  }
+
+  const handleCycleRepeat = () => {
+    const modes: Array<"off" | "one" | "all"> = ["off", "one", "all"]
+    const current = store.repeatMode
+    const idx = modes.indexOf(current)
+    const next = modes[(idx + 1) % modes.length]
+    store.setRepeatMode(next)
   }
 
   const handleTogglePublic = (value: boolean) => {
-    updatePlaylistMeta(id, { isPublic: value })
+    store.updatePlaylistMeta(id, { isPublic: value })
     setIsPublic(value)
     toast({
       title: value ? "Playlist is now public" : "Playlist set to private",
-      description: value ? "Anyone can discover it. You can share the link." : "Only you can see this playlist.",
+      description: value ? "Anyone can discover it." : "Only you can see this playlist.",
     })
   }
 
   const handleSaveMeta = () => {
     if (!name.trim()) {
-      toast({ title: "Name required", description: "Please enter a name for the playlist.", variant: "destructive" })
+      toast({ title: "Name required", description: "Please enter a name.", variant: "destructive" })
       return
     }
-    updatePlaylistMeta(id, { name: name.trim(), description: description.trim() })
+    store.updatePlaylistMeta(id, { name: name.trim(), description: description.trim() })
     setEditOpen(false)
     toast({ title: "Playlist updated", description: "Your changes have been saved." })
   }
 
   const handleSearch = async () => {
     if (!query.trim()) return
-    await searchContent(query.trim())
+    await store.searchContent(query.trim())
   }
 
-  const resultSongs = useMemo(() => searchResults?.songs?.data || [], [searchResults?.songs?.data])
+  const resultSongs = useMemo(() => store.searchResults?.songs?.data || [], [store.searchResults?.songs?.data])
 
   const toggleSelected = (sid: string) => {
     setSelectedIds((prev) => {
@@ -97,13 +112,19 @@ export default function PlaylistDetailsPage() {
     if (!playlist) return
     const songsToAdd = resultSongs.filter((s) => selectedIds.has(s.id))
     if (songsToAdd.length === 0) {
-      toast({ title: "No songs selected", description: "Choose at least one song to add.", variant: "destructive" })
+      toast({ title: "No songs selected", description: "Choose at least one song.", variant: "destructive" })
       return
     }
-    addSongsToPlaylist(id, songsToAdd)
+    store.addSongsToPlaylist(id, songsToAdd)
     setSelectedIds(new Set())
     setAddOpen(false)
-    toast({ title: "Songs added", description: `${songsToAdd.length} song(s) were added to this playlist.` })
+    toast({ title: "Songs added", description: `${songsToAdd.length} song(s) added.` })
+  }
+
+  const handleDeletePlaylist = () => {
+    store.deletePlaylist(id)
+    toast({ title: "Playlist deleted", description: "It has been removed from your library." })
+    router.push("/library")
   }
 
   if (!playlist) {
@@ -118,7 +139,7 @@ export default function PlaylistDetailsPage() {
     )
   }
 
-  const playingThisPlaylist = currentSong && playlist.songs.some((s) => s.id === currentSong.id)
+  const playingThisPlaylist = store.currentSong && playlist.songs.some((s) => s.id === store.currentSong?.id)
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 pb-[120px]">
@@ -144,12 +165,28 @@ export default function PlaylistDetailsPage() {
               className="border-white/20 text-white hover:bg-white/10 bg-transparent"
               onClick={handlePlayAll}
             >
-              {isPlaying && playingThisPlaylist ? (
+              {store.isPlaying && playingThisPlaylist ? (
                 <Pause className="w-4 h-4 mr-2" />
               ) : (
                 <Play className="w-4 h-4 mr-2" />
               )}
-              {isPlaying && playingThisPlaylist ? "Pause" : "Play all"}
+              {store.isPlaying && playingThisPlaylist ? "Pause" : "Play"}
+            </Button>
+            <Button
+              variant="ghost"
+              className={cn("text-white/80 hover:text-white", store.isShuffled && "text-emerald-400")}
+              onClick={handleToggleShuffle}
+              title={`Shuffle: ${store.isShuffled ? "on" : "off"}`}
+            >
+              <Shuffle className="w-4 h-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              className={cn("text-white/80 hover:text-white", store.repeatMode !== "off" && "text-emerald-400")}
+              onClick={handleCycleRepeat}
+              title={`Repeat: ${store.repeatMode}`}
+            >
+              {store.repeatMode === "one" ? <Repeat1 className="w-4 h-4" /> : <Repeat className="w-4 h-4" />}
             </Button>
             <Button
               variant="ghost"
@@ -162,11 +199,7 @@ export default function PlaylistDetailsPage() {
             <Button
               variant="ghost"
               className="text-red-400 hover:text-red-300"
-              onClick={() => {
-                deletePlaylist(id)
-                toast({ title: "Playlist deleted", description: "It has been removed from your library." })
-                router.push("/library")
-              }}
+              onClick={handleDeletePlaylist}
               title="Delete playlist"
             >
               <Trash2 className="w-4 h-4" />
@@ -198,7 +231,7 @@ export default function PlaylistDetailsPage() {
             </div>
             <div className="flex gap-2 mt-5">
               <Button onClick={handlePlayAll} className="bg-white text-purple-900 hover:bg-white/90">
-                <Play className="w-4 h-4 mr-2" /> Play
+                <Play className="w-4 h-4 mr-2" /> Play all
               </Button>
               <Button
                 variant="outline"
@@ -214,7 +247,7 @@ export default function PlaylistDetailsPage() {
         {/* Songs list */}
         {playlist.songs.length === 0 ? (
           <div className="rounded-xl border border-dashed border-white/10 p-8 text-center text-white/70">
-            No songs yet. Click “Add songs” to get started.
+            No songs yet. Click "Add songs" to get started.
           </div>
         ) : (
           <div className="space-y-2">
@@ -225,7 +258,7 @@ export default function PlaylistDetailsPage() {
                 animate={{ opacity: 1, y: 0 }}
                 className="flex items-center gap-3 p-3 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 transition group"
               >
-                <div className="w-6 text-center text-white/50">{idx + 1}</div>
+                <div className="w-6 text-center text-white/50 text-sm">{idx + 1}</div>
                 <div className="relative">
                   <Image
                     src={song.image || "/album-art.jpg"}
@@ -235,7 +268,7 @@ export default function PlaylistDetailsPage() {
                     className="rounded-lg object-cover"
                   />
                   <button
-                    onClick={() => playSong(song, playlist.songs)}
+                    onClick={() => store.playSong(song, playlist.songs)}
                     className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition flex items-center justify-center rounded-lg"
                     aria-label={`Play ${song.title}`}
                   >
@@ -256,7 +289,7 @@ export default function PlaylistDetailsPage() {
                     size="icon"
                     variant="ghost"
                     className="text-white/70 hover:text-white w-8 h-8"
-                    onClick={() => reorderPlaylistItem(playlist.id, idx, Math.max(0, idx - 1))}
+                    onClick={() => store.reorderPlaylistItem(id, idx, Math.max(0, idx - 1))}
                     title="Move up"
                   >
                     <MoveUp className="w-4 h-4" />
@@ -265,7 +298,7 @@ export default function PlaylistDetailsPage() {
                     size="icon"
                     variant="ghost"
                     className="text-white/70 hover:text-white w-8 h-8"
-                    onClick={() => reorderPlaylistItem(playlist.id, idx, Math.min(playlist.songs.length - 1, idx + 1))}
+                    onClick={() => store.reorderPlaylistItem(id, idx, Math.min(playlist.songs.length - 1, idx + 1))}
                     title="Move down"
                   >
                     <MoveDown className="w-4 h-4" />
@@ -274,7 +307,7 @@ export default function PlaylistDetailsPage() {
                     size="icon"
                     variant="ghost"
                     className="text-red-400 hover:text-red-300 w-8 h-8"
-                    onClick={() => removeFromPlaylist(playlist.id, song.id)}
+                    onClick={() => store.removeFromPlaylist(id, song.id)}
                     title="Remove from playlist"
                   >
                     <MinusCircle className="w-4 h-4" />
@@ -325,7 +358,7 @@ export default function PlaylistDetailsPage() {
       <Dialog open={addOpen} onOpenChange={setAddOpen}>
         <DialogContent className="bg-slate-900/95 border-white/10 max-w-2xl">
           <DialogHeader>
-            <DialogTitle className="text-white">Add songs</DialogTitle>
+            <DialogTitle className="text-white">Add songs to playlist</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div className="flex gap-2">
@@ -342,7 +375,9 @@ export default function PlaylistDetailsPage() {
 
             <div className="max-h-[50vh] overflow-y-auto space-y-2">
               {resultSongs.length === 0 ? (
-                <div className="text-white/60 text-sm">No results. Try searching above.</div>
+                <div className="text-white/60 text-sm text-center py-8">
+                  {query ? "No results. Try a different search." : "Search above to find songs."}
+                </div>
               ) : (
                 resultSongs.slice(0, 50).map((s) => {
                   const checked = selectedIds.has(s.id)

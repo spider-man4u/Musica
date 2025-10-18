@@ -315,10 +315,7 @@ export default function AuthWrapper({ children }: AuthWrapperProps) {
     return (
       <>
         <div className="fixed top-3 right-3 z-40">
-          <Button variant="ghost" size="sm" onClick={handleSignOut} className="text-white/70 hover:text-white">
-            <LogOut className="w-4 h-4 mr-2" />
-            Sign out
-          </Button>
+          
         </div>
         {children}
       </>

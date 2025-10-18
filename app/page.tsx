@@ -12,7 +12,6 @@ import {
   Heart,
   MoreHorizontal,
   TrendingUp,
-  Music,
   Headphones,
   Radio,
   Clock,
@@ -23,6 +22,7 @@ import {
   LogOut,
   Download,
   Search,
+  Music,
 } from "lucide-react"
 import { useStore } from "@/lib/store"
 import { cn } from "@/lib/utils"
@@ -84,7 +84,7 @@ const moodCategories = [
     emoji: "💕",
     color: "from-pink-400 to-rose-400",
     keywords: ["romantic", "love", "ballad"],
-    thumbnail: "https://images.unsplash.com/photo-1518199266791-5375a83190b7?w=150&h=150&fit=crop&crop=center",
+    thumbnail: "https://images.unsplash.com/photo-1518199266791-0a1dd7228f2d?w=150&h=150&fit=crop&crop=center",
   },
   {
     slug: "focus",
@@ -232,8 +232,14 @@ export default function Home() {
         <div className="w-full px-3 py-2 sm:px-6 sm:py-3 bg-black/30 backdrop-blur-xl">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-emerald-400 to-cyan-500 flex items-center justify-center shadow-lg shadow-emerald-500/20">
-                <Music className="w-5 h-5 text-white" />
+              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-2xl overflow-hidden shadow-lg shadow-emerald-500/20">
+                <Image
+                  src="/musica-logo.png"
+                  alt="Musica Logo"
+                  width={40}
+                  height={40}
+                  className="w-full h-full object-cover"
+                />
               </div>
               <div className="relative">
                 <h1

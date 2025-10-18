@@ -21,8 +21,8 @@ export interface Profile {
   full_name?: string
   avatar_url?: string
   selected_artists?: string[]
-  created_at: string
-  updated_at: string
+  created_at?: string
+  updated_at?: string
 }
 
 export interface UserPreferences {
@@ -231,24 +231,30 @@ export const getUserProfile = async (userId: string) => {
 export const ensureProfileExists = async (user: User) => {
   const existing = await getUserProfile(user.id)
   if (existing) return { created: false, profile: existing }
+
   const username = user.user_metadata?.username || user.email?.split("@")[0] || "User"
-  const { data, error } = await supabase
-    .from("profiles")
-    .insert({
-      id: user.id,
-      email: user.email,
-      username,
-      full_name: user.user_metadata?.name || username,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    })
-    .select("*")
-    .single()
-  if (error) {
-    console.error("Create profile error:", error)
-    return { created: false, error: error.message }
+
+  try {
+    const { data, error } = await supabase
+      .from("profiles")
+      .insert({
+        id: user.id,
+        email: user.email,
+        username,
+        full_name: user.user_metadata?.name || username,
+      })
+      .select("*")
+      .single()
+
+    if (error) {
+      console.error("Create profile error:", error)
+      return { created: false, error: error.message }
+    }
+    return { created: true, profile: data }
+  } catch (err: any) {
+    console.error("Create profile exception:", err)
+    return { created: false, error: err?.message || "Failed to create profile" }
   }
-  return { created: true, profile: data }
 }
 
 export const updateProfile = async (

@@ -33,7 +33,7 @@ export default function About() {
             <CardContent className="flex flex-col items-center">
               <div className="w-48 h-48 rounded-full overflow-hidden mb-4 mx-auto">
                 <Image
-                  src="https://i.ibb.co/M6GsjVV/IMG-20250105-234526.png"
+                  src="/images/design-mode/IMG-20250105-234526.png"
                   alt="Ali Sheikh"
                   width={192}
                   height={192}
