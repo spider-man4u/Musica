@@ -92,7 +92,6 @@ const SafeImage = ({
       </div>
     )
   }
-  console.log(`🖼️ [SafeImage] Loading image: ${validSrc}`)
   return (
     <Image
       src={validSrc || "/placeholder.svg"}
@@ -430,58 +429,79 @@ export default function MusicPlayer() {
     } catch {}
   }, [currentSong, isPlaying, currentTime, duration, setIsPlaying, setCurrentTime])
 
+  // Audio event listeners
+  useEffect(() => {
+    const audio = audioRef.current
+    if (!audio) return
+
+    const handleTimeUpdate = () => {
+      const newTime = audio.currentTime
+      if (!isNaN(newTime) && isFinite(newTime)) setCurrentTime(newTime)
+    }
+
+    const patchDurationEverywhere = (d: number) => {
+      if (currentSong?.id && d && Number.isFinite(d) && d > 0) {
+        setDuration(d)
+        updateSongDuration(currentSong.id, Math.round(d))
+      }
+    }
+
+    const handleLoadedMetadata = () => patchDurationEverywhere(audio.duration)
+    const handleDurationChange = () => patchDurationEverywhere(audio.duration)
+    const handleCanPlay = () => patchDurationEverywhere(audio.duration)
+    const handleError = () => {
+      toast({
+        title: "Playback Error",
+        description: "Unable to play this song. Trying next song...",
+        variant: "destructive",
+      })
+      setTimeout(() => {
+        handleNext()
+      }, 800)
+    }
+    const handleEnded = () => {
+      if (repeatMode === "one") {
+        audio.currentTime = 0
+        audio.play().catch(() => {})
+      } else {
+        handleNext()
+      }
+    }
+
+    audio.addEventListener("timeupdate", handleTimeUpdate as any, { passive: true } as any)
+    audio.addEventListener("durationchange", handleDurationChange as any, { passive: true } as any)
+    audio.addEventListener("loadedmetadata", handleLoadedMetadata as any, { passive: true } as any)
+    audio.addEventListener("canplay", handleCanPlay as any, { passive: true } as any)
+    audio.addEventListener("error", handleError)
+    audio.addEventListener("ended", handleEnded)
+
+    return () => {
+      audio.removeEventListener("timeupdate", handleTimeUpdate as any)
+      audio.removeEventListener("durationchange", handleDurationChange as any)
+      audio.removeEventListener("loadedmetadata", handleLoadedMetadata as any)
+      audio.removeEventListener("canplay", handleCanPlay as any)
+      audio.removeEventListener("error", handleError)
+      audio.removeEventListener("ended", handleEnded)
+    }
+  }, [repeatMode, setCurrentTime, setDuration, updateSongDuration, currentSong?.id])
+
   // Handle audio source and playback
   useEffect(() => {
     const audio = audioRef.current
     if (!audio || !currentSong) return
-
     const audioUrl = currentSong.download_url || currentSong.audio
-
-    console.log("🎵 [Player] Current song:", currentSong.title)
-    console.log("🎵 [Player] Audio URL:", audioUrl)
-
-    if (!audioUrl || audioUrl.trim() === "") {
-      console.warn("⚠️ [Player] No audio URL available")
-      return
-    }
+    if (!audioUrl || audioUrl.trim() === "") return
 
     if (audio.src !== audioUrl) {
-      console.log("🎵 [Player] Setting audio source:", audioUrl)
       audio.src = audioUrl
-      audio.crossOrigin = "anonymous"
-
-      // Reset on source change
+      audio.load()
       setDuration(0)
       setCurrentTime(0)
-
-      // Try to load
-      audio.load()
-
-      // Log load events
-      const onCanPlay = () => {
-        console.log("✅ [Player] Can play - duration:", audio.duration)
-      }
-      const onError = () => {
-        console.error("❌ [Player] Audio error:", audio.error)
-      }
-
-      audio.addEventListener("canplay", onCanPlay as any, { passive: true } as any)
-      audio.addEventListener("error", onError)
-
-      return () => {
-        audio.removeEventListener("canplay", onCanPlay as any)
-        audio.removeEventListener("error", onError)
-      }
     }
 
     if (isPlaying) {
-      console.log("▶️ [Player] Playing:", currentSong.title)
-      audio.play().catch((err) => {
-        console.error("❌ [Player] Play error:", err)
-        setIsPlaying(false)
-      })
+      audio.play().catch(() => setIsPlaying(false))
     } else {
-      console.log("⏸️ [Player] Pausing")
       audio.pause()
     }
   }, [isPlaying, currentSong, setIsPlaying, setDuration, setCurrentTime])
@@ -866,7 +886,7 @@ export default function MusicPlayer() {
         )}
       </AnimatePresence>
 
-      <audio ref={audioRef} preload="metadata" playsInline />
+      <audio ref={audioRef} preload="metadata" crossOrigin="anonymous" playsInline />
     </div>
   )
 }

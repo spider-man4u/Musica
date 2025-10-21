@@ -205,7 +205,7 @@ const getValidAudioUrl = (audioUrl: string | undefined | null): string => {
 }
 
 const convertModernSongToSong = (modernSong: ModernSong): Song => {
-  const audioUrl = getValidAudioUrl(modernSong.download_url || modernSong.preview_url)
+  const audioUrl = getValidAudioUrl(modernSong.download_url || modernSong.preview_url || modernSong.audio)
   return {
     id: modernSong.id || `song-${Date.now()}-${Math.random()}`,
     title: sanitizeString(modernSong.title) || "Unknown Song",
@@ -219,10 +219,10 @@ const convertModernSongToSong = (modernSong: ModernSong): Song => {
     year: modernSong.release_date?.split("-")[0] || "",
     playCount: "0",
     explicit: modernSong.explicit || false,
-    url: modernSong.external_urls?.saavn || modernSong.external_urls?.spotify || "",
+    url: modernSong.external_urls?.saavn || "",
     hasLyrics: true,
     label: modernSong.label || "",
-    quality: modernSong.quality || "160kbps",
+    quality: modernSong.quality || "320kbps",
     genre: modernSong.genres?.[0] || "unknown",
     mood: "neutral",
     energy: Math.random() * 100,
@@ -334,8 +334,8 @@ const defaultUserData: UserData = {
 const curatedPlaylistsDefault: Playlist[] = [
   {
     id: "curated-1",
-    name: "Bollywood Hits 2024",
-    description: "The biggest Bollywood songs of the year",
+    name: "Trending Now",
+    description: "The latest trending songs",
     image: "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=300&h=300&fit=crop&auto=format",
     songs: [],
     createdAt: new Date().toISOString(),
@@ -365,7 +365,7 @@ const moodCatalog: Record<string, { name: string; keywords: string[]; image: str
   romantic: {
     name: "Romantic",
     keywords: ["romantic", "love", "ballad", "heart", "valentine"],
-    image: "https://images.unsplash.com/photo-1518199266791-5375a83190b7?w=300&h=300&fit=crop&auto=format",
+    image: "https://images.unsplash.com/photo-1518199266791-0a1dd7228f2d?w=300&h=300&fit=crop&auto=format",
     description: "Love songs and heartfelt ballads",
   },
   focus: {
@@ -449,18 +449,16 @@ export const useStore = create<AppState>()(
         }
 
         if (!isShuffled) {
-          // Enable shuffle: keep current track first, shuffle the rest
           const rest = queue.filter((_, i) => i !== queueIndex)
           const shuffled = [...rest].sort(() => Math.random() - 0.5)
           const newQueue = [current, ...shuffled]
           set({
             isShuffled: true,
             queue: newQueue,
-            originalQueue: originalQueue.length ? originalQueue : [...queue], // remember original once
+            originalQueue: originalQueue.length ? originalQueue : [...queue],
             queueIndex: 0,
           })
         } else {
-          // Disable shuffle: restore original order and keep current track index
           const orig = originalQueue.length ? originalQueue : queue
           const idx = orig.findIndex((s) => s.id === current.id)
           set({
@@ -674,12 +672,11 @@ export const useStore = create<AppState>()(
               apiStatus: "healthy",
             })
             get().addToSearchHistory(query)
-            // Enrich durations in background and patch
             enrichSongDurations(songs, (id, d) => get().updateSongDuration(id, d)).catch(() => {})
           } else {
             set({
               searchResults: { songs: { data: [], total: 0 } },
-              error: "No songs found. Try different keywords.",
+              error: response.message || "No songs found",
               apiStatus: "limited",
             })
           }
@@ -687,7 +684,7 @@ export const useStore = create<AppState>()(
           console.error("Search error:", error)
           set({
             searchResults: { songs: { data: [], total: 0 } },
-            error: "Search failed. Please check your connection.",
+            error: "Search failed. Please try again.",
             apiStatus: "unhealthy",
           })
         } finally {
@@ -698,28 +695,32 @@ export const useStore = create<AppState>()(
       fetchTrendingSongs: async () => {
         set({ isLoading: true, error: null })
         try {
+          console.log(`\n🎵 [STORE] Fetching trending songs...`)
           const response = await getTrendingMusic()
+
           if (response.success && response.data.trending.length > 0) {
-            const songs = response.data.trending.map(convertModernSongToSong)
-            set({ trendingSongs: songs, error: null, apiStatus: "healthy" })
+            console.log(`✅ [STORE] Got ${response.data.trending.length} trending songs`)
+            set({
+              trendingSongs: response.data.trending,
+              error: null,
+              apiStatus: "healthy",
+            })
 
-            // Enrich durations in background
-            enrichSongDurations(songs, (id, d) => get().updateSongDuration(id, d)).catch(() => {})
-
-            // Update mood playlists to auto-sync with new trending
+            // Update mood playlists with trending data
             get().updateMoodPlaylists()
           } else {
+            console.warn(`⚠️ [STORE] No trending songs available`)
             set({
               trendingSongs: [],
-              error: "No trending songs available.",
+              error: response.message || "No trending songs available. Try searching instead.",
               apiStatus: "limited",
             })
           }
         } catch (error) {
-          console.error("Trending error:", error)
+          console.error("[STORE] Trending error:", error)
           set({
             trendingSongs: [],
-            error: "Failed to load trending songs.",
+            error: "Failed to load trending songs. Try searching for specific songs.",
             apiStatus: "unhealthy",
           })
         } finally {
@@ -754,7 +755,6 @@ export const useStore = create<AppState>()(
           }
         })
         get().syncToCloud()
-        // Update mood playlists since favorites changed
         get().updateMoodPlaylists()
       },
 
@@ -859,7 +859,6 @@ export const useStore = create<AppState>()(
         set((state) => ({
           userData: { ...state.userData, playlists: [playlist, ...state.userData.playlists] },
         }))
-        // persist to cloud if signed in
         get().syncToCloud()
         return playlist
       },
@@ -893,7 +892,6 @@ export const useStore = create<AppState>()(
             playlists: state.userData.playlists.filter((pl) => pl.id !== playlistId),
           },
         }))
-        // Sync immediately to ensure deletion persists
         setTimeout(() => get().syncToCloud(), 100)
       },
 
@@ -902,7 +900,6 @@ export const useStore = create<AppState>()(
           const playlists = state.userData.playlists.map((pl) => (pl.id === playlistId ? { ...pl, ...data } : pl))
           return { userData: { ...state.userData, playlists } }
         })
-        // Sync immediately with forced refresh
         setTimeout(() => {
           get().syncToCloud()
         }, 50)
@@ -1074,7 +1071,7 @@ export const useStore = create<AppState>()(
         })
       },
 
-      /* Mood playlists: build or update on demand */
+      /* Mood playlists */
       getOrCreateMoodPlaylist: (slug, keywords) => {
         const state = get()
         const id = `mood-${slug}`
@@ -1100,14 +1097,12 @@ export const useStore = create<AppState>()(
         }
 
         if (existing) {
-          // Update songs in place
           set((st) => ({
             userData: {
               ...st.userData,
               playlists: st.userData.playlists.map((p) => (p.id === id ? { ...base } : p)),
             },
           }))
-          // Also push to curated list
           set((st) => ({
             curatedPlaylists: [
               ...curatedPlaylistsDefault,
@@ -1154,22 +1149,12 @@ export const useStore = create<AppState>()(
         if (now - lastApiCheck < 10000) return
         set({ lastApiCheck: now })
         try {
-          const response = await fetch("/api/health", {
-            method: "GET",
-            headers: { "Content-Type": "application/json" },
-            cache: "no-cache",
-          })
-          if (!response.ok) throw new Error(`HTTP ${response.status}`)
-          const contentType = response.headers.get("content-type")
-          if (!contentType || !contentType.includes("application/json")) {
+          const response = await getTrendingMusic()
+          if (response.success) {
+            set({ apiStatus: "healthy", workingApis: ["saavn.sumit.co"] })
+          } else {
             set({ apiStatus: "unhealthy", workingApis: [] })
-            return
           }
-          const data = await response.json()
-          set({
-            apiStatus: data.status === "healthy" ? "healthy" : data.status === "limited" ? "limited" : "unhealthy",
-            workingApis: Array.isArray(data.workingApis) ? data.workingApis : [],
-          })
         } catch (err) {
           console.error("API health check failed:", err)
           set({ apiStatus: "unhealthy", workingApis: [] })

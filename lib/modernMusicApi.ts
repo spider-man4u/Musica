@@ -1,5 +1,19 @@
 "use client"
 
+const API_BASE_URL = "https://saavn.sumit.co/api"
+
+const TIMEOUTS = {
+  search: 10000,
+  trending: 12000,
+  details: 8000,
+}
+
+const RETRY_CONFIG = {
+  maxRetries: 3,
+  baseDelay: 1000,
+  maxDelay: 5000,
+}
+
 export interface ModernSong {
   id: string
   title: string
@@ -8,6 +22,7 @@ export interface ModernSong {
   duration?: number
   image?: string
   download_url?: string
+  preview_url?: string
   audio?: string
   external_urls?: {
     spotify?: string
@@ -41,472 +56,485 @@ function sanitizeString(str: string | undefined | null): string {
     .trim()
 }
 
-// Local sample data - primary fallback with WORKING audio URLs
-const SAMPLE_SONGS: ModernSong[] = [
-  {
-    id: "1",
-    title: "Kesariya",
-    artist: "Arijit Singh",
-    album: "Brahmastra",
-    duration: 268,
-    image: "https://c.saavncdn.com/191/Brahmastra-Hindi-2022-20220825141240-500x500.jpg",
-    download_url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3",
-    language: "hindi",
-    quality: "320kbps",
-    genres: ["bollywood", "romantic"],
-    popularity: 95,
-  },
-  {
-    id: "2",
-    title: "Chaleya",
-    artist: "Arijit Singh, Shilpa Rao",
-    album: "Jawan",
-    duration: 230,
-    image: "https://c.saavncdn.com/807/Jawan-Hindi-2023-20230921140620-500x500.jpg",
-    download_url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3",
-    language: "hindi",
-    quality: "320kbps",
-    genres: ["bollywood", "romantic"],
-    popularity: 92,
-  },
-  {
-    id: "3",
-    title: "Heeriye",
-    artist: "Arijit Singh, Jasleen Royal",
-    album: "Heeriye",
-    duration: 210,
-    image: "https://c.saavncdn.com/734/Heeriye-Hindi-2023-20230731051001-500x500.jpg",
-    download_url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3",
-    language: "hindi",
-    quality: "320kbps",
-    genres: ["indie", "romantic"],
-    popularity: 88,
-  },
-  {
-    id: "4",
-    title: "Raatan Lambiyan",
-    artist: "Jubin Nautiyal, Asees Kaur",
-    album: "Shershaah",
-    duration: 282,
-    image: "https://c.saavncdn.com/807/Shershaah-Hindi-2021-20210815143820-500x500.jpg",
-    download_url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3",
-    language: "hindi",
-    quality: "320kbps",
-    genres: ["bollywood", "patriotic"],
-    popularity: 90,
-  },
-  {
-    id: "5",
-    title: "Tum Hi Ho",
-    artist: "Arijit Singh",
-    album: "Aashiqui 2",
-    duration: 242,
-    image: "https://c.saavncdn.com/288/Aashiqui-2-Hindi-2013-20130429144005-500x500.jpg",
-    download_url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-5.mp3",
-    language: "hindi",
-    quality: "320kbps",
-    genres: ["bollywood", "romantic"],
-    popularity: 96,
-  },
-  {
-    id: "6",
-    title: "Tera Ban Jaunga",
-    artist: "Akhil Sachdeva, Tulsi Kumar",
-    album: "Kabir Singh",
-    duration: 224,
-    image: "https://c.saavncdn.com/807/Kabir-Singh-Hindi-2019-20190621140620-500x500.jpg",
-    download_url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3",
-    language: "hindi",
-    quality: "320kbps",
-    genres: ["bollywood", "romantic"],
-    popularity: 94,
-  },
-  {
-    id: "7",
-    title: "Dil Mera Todh Ke",
-    artist: "Neha Kakkar, Yasser Desai",
-    album: "Hate Story 4",
-    duration: 198,
-    image: "https://c.saavncdn.com/807/Hate-Story-4-Hindi-2018-20180321143820-500x500.jpg",
-    download_url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3",
-    language: "hindi",
-    quality: "320kbps",
-    genres: ["bollywood", "sad"],
-    popularity: 82,
-  },
-  {
-    id: "8",
-    title: "Mere Liye Tum Kaafi Ho",
-    artist: "Mukesh Chandra",
-    album: "Meri Pyaari Bindu",
-    duration: 201,
-    image: "https://c.saavncdn.com/807/Meri-Pyaari-Bindu-Hindi-2017-20170609143820-500x500.jpg",
-    download_url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3",
-    language: "hindi",
-    quality: "320kbps",
-    genres: ["indie", "romantic"],
-    popularity: 85,
-  },
-  {
-    id: "9",
-    title: "Baarish Ban Jaana",
-    artist: "Jubin Nautiyal, Prakriti Kakar",
-    album: "Half Girlfriend",
-    duration: 216,
-    image: "https://c.saavncdn.com/807/Half-Girlfriend-Hindi-2017-20170619143820-500x500.jpg",
-    download_url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3",
-    language: "hindi",
-    quality: "320kbps",
-    genres: ["bollywood", "romantic"],
-    popularity: 87,
-  },
-  {
-    id: "10",
-    title: "Aisa Kabhi Hua Nahi",
-    artist: "Jubin Nautiyal",
-    album: "Gulaab Gang",
-    duration: 237,
-    image: "https://c.saavncdn.com/807/Gulaab-Gang-Hindi-2016-20160212143820-500x500.jpg",
-    download_url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-5.mp3",
-    language: "hindi",
-    quality: "320kbps",
-    genres: ["bollywood", "romantic"],
-    popularity: 84,
-  },
-  {
-    id: "11",
-    title: "Dilbaro",
-    artist: "Harshdeep Kaur",
-    album: "Raazi",
-    duration: 212,
-    image: "https://c.saavncdn.com/807/Raazi-Hindi-2018-20180629143820-500x500.jpg",
-    download_url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3",
-    language: "hindi",
-    quality: "320kbps",
-    genres: ["bollywood", "patriotic"],
-    popularity: 89,
-  },
-  {
-    id: "12",
-    title: "Gallan Goodiyaan",
-    artist: "Arijit Singh, Varun Grover",
-    album: "Dil Dhadakne Do",
-    duration: 245,
-    image: "https://c.saavncdn.com/807/Dil-Dhadakne-Do-Hindi-2015-20150605143820-500x500.jpg",
-    download_url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3",
-    language: "hindi",
-    quality: "320kbps",
-    genres: ["bollywood", "romantic"],
-    popularity: 91,
-  },
-  {
-    id: "13",
-    title: "Samjhawan",
-    artist: "Arijit Singh, Shreya Ghoshal",
-    album: "Humpty Sharma Ki Dulhania",
-    duration: 256,
-    image: "https://c.saavncdn.com/807/Humpty-Sharma-Ki-Dulhania-Hindi-2014-20140907143820-500x500.jpg",
-    download_url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3",
-    language: "hindi",
-    quality: "320kbps",
-    genres: ["bollywood", "romantic"],
-    popularity: 93,
-  },
-  {
-    id: "14",
-    title: "Chiggy Wiggy",
-    artist: "Honey Singh",
-    album: "Teri Meri Kahani",
-    duration: 232,
-    image: "https://c.saavncdn.com/807/Teri-Meri-Kahani-Hindi-2012-20120524143820-500x500.jpg",
-    download_url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3",
-    language: "hindi",
-    quality: "320kbps",
-    genres: ["bollywood", "upbeat"],
-    popularity: 80,
-  },
-  {
-    id: "15",
-    title: "Pehli Nazar Mein",
-    artist: "Atif Aslam, Shreya Ghoshal",
-    album: "Race",
-    duration: 218,
-    image: "https://c.saavncdn.com/807/Race-Hindi-2008-20080619143820-500x500.jpg",
-    download_url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-5.mp3",
-    language: "hindi",
-    quality: "320kbps",
-    genres: ["bollywood", "romantic"],
-    popularity: 86,
-  },
-]
+function exponentialBackoff(attempt: number): number {
+  const delay = Math.min(RETRY_CONFIG.baseDelay * Math.pow(2, attempt), RETRY_CONFIG.maxDelay)
+  return delay + Math.random() * 1000
+}
 
-// Music API implementations
-class LastFmAPI {
-  private apiKey = "fake_key" // Last.fm would need a real key
-  private baseUrl = "https://ws.audioscrobbler.com/2.0"
+async function fetchWithTimeout(url: string, timeoutMs = 10000): Promise<Response> {
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
 
-  async search(query: string): Promise<ModernSong[]> {
-    try {
-      console.log(`🎵 [Last.fm] Searching: ${query}`)
-      // Last.fm requires API key - skipping in demo
-      return []
-    } catch (error) {
-      console.error("[Last.fm-Search]", error)
-      return []
+  try {
+    console.log(`📡 [FETCH] ${url}`)
+    const response = await fetch(url, {
+      signal: controller.signal,
+      headers: {
+        Accept: "application/json",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+      },
+    })
+    clearTimeout(timeoutId)
+    console.log(`📡 [STATUS] ${response.status} ${response.statusText}`)
+    return response
+  } catch (error) {
+    clearTimeout(timeoutId)
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new Error(`Request timeout after ${timeoutMs}ms`)
     }
-  }
-
-  async getTrending(): Promise<ModernSong[]> {
-    try {
-      console.log(`📈 [Last.fm] Fetching trending`)
-      return []
-    } catch (error) {
-      console.error("[Last.fm-Trending]", error)
-      return []
-    }
+    throw error
   }
 }
 
-class JioSaavnAPI {
-  private baseUrl = "https://saavn.sumit.co/api"
+async function fetchWithRetry<T>(url: string, timeoutMs = 10000): Promise<T> {
+  let lastError: Error | null = null
 
-  async search(query: string, page = 0, limit = 20): Promise<any[]> {
+  for (let attempt = 0; attempt <= RETRY_CONFIG.maxRetries; attempt++) {
     try {
-      console.log(`🔍 [JioSaavn] Searching: ${query}`)
-      const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 5000)
+      console.log(`🔄 [ATTEMPT ${attempt + 1}/${RETRY_CONFIG.maxRetries + 1}] ${url}`)
 
-      const url = `${this.baseUrl}/search/songs?query=${encodeURIComponent(query)}&page=${page}&limit=${limit}`
-      const response = await fetch(url, { signal: controller.signal })
-
-      clearTimeout(timeoutId)
+      const response = await fetchWithTimeout(url, timeoutMs)
 
       if (!response.ok) {
-        console.warn(`⚠️ [JioSaavn] HTTP ${response.status}`)
-        return []
+        let errorBody = ""
+        try {
+          errorBody = await response.text()
+          console.log(`📦 [ERROR BODY] ${errorBody.substring(0, 500)}`)
+        } catch (e) {
+          errorBody = "Unable to read error body"
+        }
+        throw new Error(`HTTP ${response.status}: ${errorBody || response.statusText}`)
+      }
+
+      const contentType = response.headers.get("content-type")
+      if (!contentType?.includes("application/json")) {
+        console.error(`❌ [CONTENT-TYPE] Expected JSON, got: ${contentType}`)
+        throw new Error("Invalid response format: Expected JSON")
       }
 
       const data = await response.json()
-      console.log(`✅ [JioSaavn] Found results`)
-      return data.data?.results || []
+      console.log(`✅ [SUCCESS] Response keys:`, Object.keys(data))
+      return data as T
     } catch (error) {
-      console.error("[JioSaavn-Search]", error instanceof Error ? error.message : error)
-      return []
+      lastError = error as Error
+      console.error(`❌ [ATTEMPT ${attempt + 1}] ${lastError.message}`)
+
+      if (attempt < RETRY_CONFIG.maxRetries) {
+        const delay = exponentialBackoff(attempt)
+        console.log(`⏳ [RETRY] Waiting ${Math.round(delay)}ms...`)
+        await new Promise((resolve) => setTimeout(resolve, delay))
+      }
     }
   }
 
-  async getTrending(): Promise<any[]> {
-    try {
-      console.log(`📈 [JioSaavn] Fetching trending`)
-      const queries = ["trending hindi songs", "top songs", "popular", "bollywood hits"]
+  throw new Error(`Failed after ${RETRY_CONFIG.maxRetries + 1} attempts: ${lastError?.message}`)
+}
 
-      for (const q of queries) {
-        const results = await this.search(q, 0, 50)
-        if (results.length > 0) {
-          console.log(`✅ [JioSaavn] Got ${results.length} trending from '${q}'`)
-          return results
-        }
-      }
-
-      console.warn(`⚠️ [JioSaavn] No trending results found`)
-      return []
-    } catch (error) {
-      console.error("[JioSaavn-Trending]", error)
-      return []
+class SaavnAPI {
+  private transformSong(song: any): ModernSong | null {
+    if (!song) {
+      console.warn("⚠️ Received null/undefined song")
+      return null
     }
-  }
-
-  transformSong(song: any): ModernSong | null {
-    if (!song || !song.id) return null
 
     try {
-      // Priority: downloadUrl > preview_url > url
-      const audioUrl = song.downloadUrl || song.download_url || song.preview_url || song.url
+      const songData = song.song || song
 
-      if (!audioUrl) {
-        console.warn("⚠️ No audio URL for song:", song.name)
-      }
-
-      return {
-        id: song.id,
-        title: sanitizeString(song.name || song.title) || "Unknown Song",
-        artist: sanitizeString(song.primaryArtists || song.artist) || "Unknown Artist",
-        album: sanitizeString(song.album?.name || song.album) || "Unknown Album",
-        duration: typeof song.duration === "number" ? song.duration : Number.parseInt(song.duration) || 0,
-        image: song.image || song.albumArt || "/musica-logo.png",
-        download_url: audioUrl || "",
-        audio: audioUrl || "",
+      const result: ModernSong = {
+        id: songData.id || `song-${Date.now()}-${Math.random()}`,
+        title: sanitizeString(songData.name || songData.title || songData.song) || "Unknown Song",
+        artist:
+          sanitizeString(
+            songData.primary_artists ||
+              songData.primaryArtists ||
+              songData.artist ||
+              songData.artists?.map?.((a: any) => a.name)?.join(", "),
+          ) || "Unknown Artist",
+        album: sanitizeString(songData.album?.name || songData.album_name || songData.album) || "Unknown Album",
+        duration: Number.parseInt(songData.duration || songData.durationInSec || 0) || 0,
+        image: songData.image || songData.album_art || songData.albumArt || songData.thumbnail,
+        download_url: songData.download_url || songData.downloadUrl || songData.url,
+        preview_url: songData.preview_url || songData.previewUrl,
+        audio: songData.download_url || songData.downloadUrl || songData.preview_url || songData.url,
         external_urls: {
-          saavn: song.url || song.permaUrl,
+          saavn: songData.url || songData.permaUrl || songData.link,
         },
-        language: song.language || "hindi",
-        quality: song.quality || "320kbps",
-        genres: song.language ? [song.language] : ["bollywood"],
-        popularity: Math.floor(Math.random() * 100),
+        language: songData.language || "unknown",
+        quality: songData.quality || "320kbps",
+        genres: songData.language ? [songData.language] : ["unknown"],
+        popularity: songData.play_count ? Math.min(100, Math.floor(songData.play_count / 1000)) : 50,
+        explicit: songData.explicit === "1" || songData.explicit === 1 || songData.explicit === true,
+        release_date: songData.release_date || songData.year,
+        label: songData.label,
+        copyright: songData.copyright,
       }
-    } catch (error) {
-      console.error("Transform error:", error)
+      return result
+    } catch (e) {
+      console.error("❌ Error transforming song:", e)
       return null
     }
   }
-}
 
-class MusicService {
-  private jioSaavn = new JioSaavnAPI()
-  private lastFm = new LastFmAPI()
-
-  async search(query: string): Promise<ModernSong[]> {
-    if (!query?.trim()) return []
-
-    console.log(`🔍 Searching for: "${query}"`)
-
-    // Try JioSaavn first
-    try {
-      const results = await this.jioSaavn.search(query.trim(), 0, 50)
-      const transformed = results.map((s) => this.jioSaavn.transformSong(s)).filter((s): s is ModernSong => s !== null)
-
-      if (transformed.length > 0) {
-        console.log(`✅ Found ${transformed.length} songs from API`)
-        return transformed
-      }
-    } catch (error) {
-      console.error("API search failed:", error)
+  async search(query: string, page = 0, limit = 20): Promise<ModernSong[]> {
+    if (!query?.trim()) {
+      throw new Error("Search query cannot be empty")
     }
 
-    // Fallback to local search
-    console.log(`📦 Using local sample data`)
-    const searchTerm = query.toLowerCase()
-    const local = SAMPLE_SONGS.filter(
-      (s) =>
-        s.title.toLowerCase().includes(searchTerm) ||
-        s.artist.toLowerCase().includes(searchTerm) ||
-        s.album?.toLowerCase().includes(searchTerm) ||
-        s.genres?.some((g) => g.toLowerCase().includes(searchTerm)),
-    )
+    console.log(`\n🔍 [SEARCH] Query: "${query}" (page: ${page}, limit: ${limit})`)
 
-    return local.length > 0 ? local : SAMPLE_SONGS.slice(0, 10)
+    try {
+      const url = `${API_BASE_URL}/search/songs?query=${encodeURIComponent(query)}&page=${page}&limit=${limit}`
+      console.log(`📌 Endpoint: ${url}`)
+
+      const data = await fetchWithRetry<any>(url, TIMEOUTS.search)
+      console.log(`📦 [SEARCH-RESPONSE] Structure:`, { hasData: !!data?.data, keys: Object.keys(data) })
+
+      // CORRECT EXTRACTION: data.data.results is the array
+      let songs = data?.data?.results || data?.results || data?.songs || []
+
+      if (!Array.isArray(songs)) {
+        console.warn(`⚠️ Songs is not an array, type:`, typeof songs)
+        songs = []
+      }
+
+      console.log(`✅ Found ${songs.length} songs`)
+
+      const transformed = songs
+        .map((s: any) => this.transformSong(s))
+        .filter((s: ModernSong | null) => s && s.id && s.title)
+
+      console.log(`✅ Transformed ${transformed.length} songs`)
+      return transformed as ModernSong[]
+    } catch (error) {
+      console.error(`❌ Search error:`, error)
+      throw error
+    }
   }
 
   async getTrending(): Promise<ModernSong[]> {
-    console.log(`📈 Fetching trending`)
+    console.log(`\n📊 [TRENDING] Fetching trending songs...`)
 
-    // Try JioSaavn first
-    try {
-      const results = await this.jioSaavn.getTrending()
-      const transformed = results.map((s) => this.jioSaavn.transformSong(s)).filter((s): s is ModernSong => s !== null)
+    const trendingSearches = ["Bollywood", "hindi", "songs", "music", "top", "arijit", "neha", "love", "new", "best"]
 
-      if (transformed.length > 0) {
-        console.log(`✅ Got ${transformed.length} trending from API`)
-        return transformed
+    let bestResults: ModernSong[] = []
+    let successCount = 0
+
+    for (const query of trendingSearches) {
+      try {
+        console.log(`\n📌 [TRENDING-SEARCH] Query: "${query}"`)
+        const url = `${API_BASE_URL}/search/songs?query=${encodeURIComponent(query)}&page=0&limit=50`
+
+        const data = await fetchWithRetry<any>(url, TIMEOUTS.search)
+        console.log(
+          `📦 [TRENDING-RESPONSE] Has data.data:`,
+          !!data?.data,
+          "Has data.data.results:",
+          !!data?.data?.results,
+        )
+
+        // CORRECT EXTRACTION: data.data.results is the array
+        const songs = data?.data?.results || data?.results || data?.songs || []
+
+        if (!Array.isArray(songs)) {
+          console.warn(`⚠️ Songs not array for "${query}", type:`, typeof songs)
+          continue
+        }
+
+        console.log(`✅ Got ${songs.length} songs for "${query}"`)
+
+        const transformed = songs
+          .map((s: any) => {
+            try {
+              return this.transformSong(s)
+            } catch (e) {
+              console.error(`❌ Transform error:`, e)
+              return null
+            }
+          })
+          .filter((s: ModernSong | null) => s && s.id && s.title)
+
+        console.log(`✅ Transformed ${transformed.length} songs for "${query}"`)
+
+        if (transformed.length > bestResults.length) {
+          bestResults = transformed as ModernSong[]
+          successCount++
+          console.log(`🏆 New best: ${bestResults.length} songs`)
+        }
+
+        if (bestResults.length >= 20) {
+          console.log(`✅ Enough results, returning ${bestResults.length} songs`)
+          return bestResults
+        }
+      } catch (error) {
+        console.warn(`⚠️ Query "${query}" failed:`, error)
+        continue
       }
-    } catch (error) {
-      console.error("API trending failed:", error)
     }
 
-    // Fallback to local with shuffle
-    console.log(`📦 Using local trending data`)
-    const shuffled = [...SAMPLE_SONGS].sort(() => Math.random() - 0.5)
-    return shuffled.slice(0, 20)
+    if (bestResults.length > 0) {
+      console.log(`✅ Returning ${bestResults.length} trending songs from ${successCount} queries`)
+      return bestResults
+    }
+
+    throw new Error(`Failed to fetch trending songs from ${trendingSearches.length} queries`)
   }
 
   async getSongDetails(songId: string): Promise<ModernSong | null> {
-    const local = SAMPLE_SONGS.find((s) => s.id === songId)
-    return local || null
+    if (!songId?.trim()) {
+      throw new Error("Song ID cannot be empty")
+    }
+
+    console.log(`\n🎵 [DETAILS] Song ID: ${songId}`)
+
+    try {
+      const url = `${API_BASE_URL}/songs/${encodeURIComponent(songId)}`
+      console.log(`📌 Endpoint: ${url}`)
+
+      const data = await fetchWithRetry<any>(url, TIMEOUTS.details)
+
+      const song = data?.song || data
+
+      if (!song) {
+        throw new Error("No song data in response")
+      }
+
+      const transformed = this.transformSong(song)
+      if (transformed) {
+        console.log(`✅ Got details: ${transformed.title}`)
+        return transformed
+      }
+
+      throw new Error("Failed to transform song")
+    } catch (error) {
+      console.error(`❌ Song details error:`, error)
+      throw error
+    }
   }
 
-  async getPlaylistSuggestions(): Promise<PlaylistSuggestion[]> {
-    return [
-      {
-        id: "pl-1",
-        name: "Trending Now",
-        description: "Most popular songs",
-        image: "/musica-logo.png",
-        songCount: 50,
-      },
-      {
-        id: "pl-2",
-        name: "Romantic Vibes",
-        description: "Love songs",
-        image: "/musica-logo.png",
-        songCount: 75,
-      },
-      {
-        id: "pl-3",
-        name: "Indie Gems",
-        description: "Independent artists",
-        image: "/musica-logo.png",
-        songCount: 60,
-      },
-      {
-        id: "pl-4",
-        name: "Bollywood Classics",
-        description: "Timeless hits",
-        image: "/musica-logo.png",
-        songCount: 120,
-      },
-    ]
+  async getSongDetailsMultiple(songIds: string[]): Promise<ModernSong[]> {
+    if (!songIds || songIds.length === 0) {
+      throw new Error("Song IDs array cannot be empty")
+    }
+
+    console.log(`\n🎵 [DETAILS MULTIPLE] Song IDs: ${songIds.join(", ")}`)
+
+    try {
+      const idsParam = songIds.map((id) => encodeURIComponent(id)).join("%2C")
+      const url = `${API_BASE_URL}/songs?ids=${idsParam}`
+      console.log(`📌 Endpoint: ${url}`)
+
+      const data = await fetchWithRetry<any>(url, TIMEOUTS.details)
+
+      let songs = data?.songs || data?.data?.results || data || []
+
+      if (!Array.isArray(songs)) {
+        console.warn(`⚠️ Songs is not an array`)
+        songs = []
+      }
+
+      const transformed = songs.map((s: any) => this.transformSong(s)).filter((s: ModernSong | null) => s && s.id)
+
+      console.log(`✅ Got ${transformed.length} songs`)
+      return transformed as ModernSong[]
+    } catch (error) {
+      console.error(`❌ Multiple details error:`, error)
+      throw error
+    }
+  }
+
+  async getPlaylistSuggestions(query = "Trending"): Promise<PlaylistSuggestion[]> {
+    console.log(`\n📋 [PLAYLISTS] Query: "${query}"`)
+
+    try {
+      const url = `${API_BASE_URL}/search/playlists?query=${encodeURIComponent(query)}&page=0&limit=10`
+      console.log(`📌 Endpoint: ${url}`)
+
+      const data = await fetchWithRetry<any>(url, TIMEOUTS.search)
+
+      let playlists = data?.data?.results || data?.results || data?.data || data?.playlists || []
+
+      if (!Array.isArray(playlists)) {
+        console.warn(`⚠️ Playlists is not an array`)
+        playlists = []
+      }
+
+      console.log(`✅ Got ${playlists.length} playlists`)
+
+      return playlists.map((p: any) => ({
+        id: p.id || `playlist-${Date.now()}`,
+        name: sanitizeString(p.name || p.title) || "Playlist",
+        image: p.image || p.thumbnail,
+        description: sanitizeString(p.description),
+        songCount: p.song_count || p.songCount || 0,
+      }))
+    } catch (error) {
+      console.error(`❌ Playlist suggestions error:`, error)
+      throw error
+    }
   }
 
   async getSongSuggestions(songId: string): Promise<ModernSong[]> {
+    if (!songId?.trim()) {
+      throw new Error("Song ID cannot be empty")
+    }
+
+    console.log(`\n🔗 [SUGGESTIONS] Song ID: ${songId}`)
+
     try {
-      const suggestions = [...SAMPLE_SONGS].sort(() => Math.random() - 0.5).slice(0, 10)
-      return { success: true, data: suggestions }
+      const url = `${API_BASE_URL}/songs/${encodeURIComponent(songId)}/suggestions?limit=10`
+      console.log(`📌 Endpoint: ${url}`)
+
+      const data = await fetchWithRetry<any>(url, TIMEOUTS.details)
+
+      let suggestions = data?.suggestions || data?.results || data?.songs || data?.data?.results || []
+
+      if (!Array.isArray(suggestions)) {
+        console.warn(`⚠️ Suggestions is not an array`)
+        suggestions = []
+      }
+
+      console.log(`✅ Got ${suggestions.length} suggestions`)
+
+      const transformed = suggestions.map((s: any) => this.transformSong(s)).filter((s: ModernSong | null) => s && s.id)
+
+      return transformed as ModernSong[]
     } catch (error) {
-      console.error("Song suggestions error:", error)
-      return { success: false, data: [] }
+      console.error(`❌ Song suggestions error:`, error)
+      throw error
+    }
+  }
+
+  async searchArtists(query: string, page = 0, limit = 10): Promise<any[]> {
+    if (!query?.trim()) {
+      throw new Error("Artist query cannot be empty")
+    }
+
+    console.log(`\n👨‍🎤 [ARTISTS] Query: "${query}"`)
+
+    try {
+      const url = `${API_BASE_URL}/search/artists?query=${encodeURIComponent(query)}&page=${page}&limit=${limit}`
+      console.log(`📌 Endpoint: ${url}`)
+
+      const data = await fetchWithRetry<any>(url, TIMEOUTS.search)
+
+      let artists = data?.data?.results || data?.results || data?.data || data?.artists || []
+
+      if (!Array.isArray(artists)) {
+        console.warn(`⚠️ Artists is not an array`)
+        artists = []
+      }
+
+      console.log(`✅ Got ${artists.length} artists`)
+      return artists
+    } catch (error) {
+      console.error(`❌ Artist search error:`, error)
+      throw error
     }
   }
 }
 
-const service = new MusicService()
+const saavnApi = new SaavnAPI()
 
-export async function searchMusic(query: string) {
+export async function searchMusic(
+  query: string,
+): Promise<{ success: boolean; data: { results: ModernSong[] }; message?: string }> {
   try {
-    const results = await service.search(query)
+    console.log(`\n${"=".repeat(60)}\n🔍 SEARCH MUSIC: "${query}"\n${"=".repeat(60)}`)
+    const results = await saavnApi.search(query)
+    console.log(`✅ Search successful: ${results.length} results\n`)
     return { success: true, data: { results } }
   } catch (error) {
-    console.error("Search error:", error)
-    return { success: false, data: { results: [] } }
+    const message = error instanceof Error ? error.message : "Search failed"
+    console.error(`❌ Search failed: ${message}\n`)
+    return { success: false, data: { results: [] }, message }
   }
 }
 
-export async function getTrendingMusic() {
+export async function getTrendingMusic(): Promise<{
+  success: boolean
+  data: { trending: ModernSong[] }
+  message?: string
+}> {
   try {
-    const trending = await service.getTrending()
-    return { success: true, data: { trending } }
+    console.log(`\n${"=".repeat(60)}\n📊 GET TRENDING MUSIC\n${"=".repeat(60)}`)
+    const trending = await saavnApi.getTrending()
+
+    if (trending.length > 0) {
+      console.log(`✅ Trending successful: ${trending.length} songs\n`)
+      return { success: true, data: { trending } }
+    }
+
+    return {
+      success: false,
+      data: { trending: [] },
+      message: "No trending songs available",
+    }
   } catch (error) {
-    console.error("Trending error:", error)
-    return { success: false, data: { trending: SAMPLE_SONGS } }
+    const message = error instanceof Error ? error.message : "Trending failed"
+    console.error(`❌ Trending failed: ${message}\n`)
+    return { success: false, data: { trending: [] }, message }
   }
 }
 
-export async function getSongDetails(songId: string) {
+export async function getSongDetails(
+  songId: string,
+): Promise<{ success: boolean; data: ModernSong | null; message?: string }> {
   try {
-    const song = await service.getSongDetails(songId)
-    return { success: !!song, data: song }
+    const data = await saavnApi.getSongDetails(songId)
+    return { success: !!data, data }
   } catch (error) {
-    console.error("Song details error:", error)
-    return { success: false, data: null }
+    const message = error instanceof Error ? error.message : "Failed to get song details"
+    return { success: false, data: null, message }
   }
 }
 
-export async function getPlaylistSuggestions(query = "Indie") {
+export async function getSongDetailsMultiple(
+  songIds: string[],
+): Promise<{ success: boolean; data: ModernSong[]; message?: string }> {
   try {
-    const playlists = await service.getPlaylistSuggestions()
-    return { success: true, data: playlists }
+    const data = await saavnApi.getSongDetailsMultiple(songIds)
+    return { success: true, data }
   } catch (error) {
-    console.error("Playlist suggestions error:", error)
-    return { success: false, data: [] }
+    const message = error instanceof Error ? error.message : "Failed to get song details"
+    return { success: false, data: [], message }
   }
 }
 
-export async function getSongSuggestions(songId: string) {
+export async function getPlaylistSuggestions(
+  query = "Trending",
+): Promise<{ success: boolean; data: PlaylistSuggestion[]; message?: string }> {
   try {
-    const suggestions = await service.getSongSuggestions(songId)
-    return suggestions
+    const data = await saavnApi.getPlaylistSuggestions(query)
+    return { success: true, data }
   } catch (error) {
-    console.error("Song suggestions error:", error)
-    return { success: false, data: [] }
+    const message = error instanceof Error ? error.message : "Failed to get playlists"
+    return { success: false, data: [], message }
+  }
+}
+
+export async function getSongSuggestions(
+  songId: string,
+): Promise<{ success: boolean; data: ModernSong[]; message?: string }> {
+  try {
+    const data = await saavnApi.getSongSuggestions(songId)
+    return { success: true, data }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Failed to get suggestions"
+    return { success: false, data: [], message }
+  }
+}
+
+export async function searchArtists(
+  query: string,
+  page = 0,
+  limit = 10,
+): Promise<{ success: boolean; data: any[]; message?: string }> {
+  try {
+    const data = await saavnApi.searchArtists(query, page, limit)
+    return { success: true, data }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Failed to search artists"
+    return { success: false, data: [], message }
   }
 }
 
