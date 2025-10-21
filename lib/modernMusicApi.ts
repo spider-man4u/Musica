@@ -131,6 +131,51 @@ async function fetchWithRetry<T>(url: string, timeoutMs = 10000): Promise<T> {
 }
 
 class SaavnAPI {
+  private extractImageUrl(images: any): string {
+    if (!images) return "/abstract-album-cover.png"
+
+    // If it's an array, get the highest quality (usually the last one)
+    if (Array.isArray(images)) {
+      const highest = images[images.length - 1] || images[0]
+      if (highest?.url && typeof highest.url === "string") {
+        return highest.url
+      }
+    }
+
+    // If it's a string directly
+    if (typeof images === "string") {
+      return images
+    }
+
+    return "/abstract-album-cover.png"
+  }
+
+  private extractAudioUrl(downloadUrls: any): string {
+    if (!downloadUrls) return ""
+
+    // If it's an array, get the highest quality (320kbps is usually last)
+    if (Array.isArray(downloadUrls)) {
+      // Try to find 320kbps quality first
+      const highest320 = downloadUrls.find((item: any) => item.quality === "320kbps")
+      if (highest320?.url && typeof highest320.url === "string") {
+        return highest320.url
+      }
+
+      // Otherwise get the last one (highest quality available)
+      const highest = downloadUrls[downloadUrls.length - 1] || downloadUrls[0]
+      if (highest?.url && typeof highest.url === "string") {
+        return highest.url
+      }
+    }
+
+    // If it's a string directly
+    if (typeof downloadUrls === "string") {
+      return downloadUrls
+    }
+
+    return ""
+  }
+
   private transformSong(song: any): ModernSong | null {
     if (!song) {
       console.warn("⚠️ Received null/undefined song")
@@ -140,6 +185,14 @@ class SaavnAPI {
     try {
       const songData = song.song || song
 
+      console.log(`🎵 [TRANSFORMING] ${songData.name || "Unknown"}`)
+
+      // Extract image URL - handle array of images
+      const imageUrl = this.extractImageUrl(songData.image)
+
+      // Extract audio URL - handle array of download URLs
+      const audioUrl = this.extractAudioUrl(songData.downloadUrl)
+
       const result: ModernSong = {
         id: songData.id || `song-${Date.now()}-${Math.random()}`,
         title: sanitizeString(songData.name || songData.title || songData.song) || "Unknown Song",
@@ -148,14 +201,16 @@ class SaavnAPI {
             songData.primary_artists ||
               songData.primaryArtists ||
               songData.artist ||
-              songData.artists?.map?.((a: any) => a.name)?.join(", "),
+              (Array.isArray(songData.artists?.primary)
+                ? songData.artists.primary.map((a: any) => a.name).join(", ")
+                : ""),
           ) || "Unknown Artist",
         album: sanitizeString(songData.album?.name || songData.album_name || songData.album) || "Unknown Album",
         duration: Number.parseInt(songData.duration || songData.durationInSec || 0) || 0,
-        image: songData.image || songData.album_art || songData.albumArt || songData.thumbnail,
-        download_url: songData.download_url || songData.downloadUrl || songData.url,
-        preview_url: songData.preview_url || songData.previewUrl,
-        audio: songData.download_url || songData.downloadUrl || songData.preview_url || songData.url,
+        image: imageUrl,
+        download_url: audioUrl,
+        preview_url: audioUrl,
+        audio: audioUrl,
         external_urls: {
           saavn: songData.url || songData.permaUrl || songData.link,
         },
@@ -168,9 +223,15 @@ class SaavnAPI {
         label: songData.label,
         copyright: songData.copyright,
       }
+
+      console.log(`✅ [FINAL] ${result.title}`, {
+        hasImage: !!result.image && result.image !== "/abstract-album-cover.png",
+        hasAudio: !!result.audio,
+      })
+
       return result
     } catch (e) {
-      console.error("❌ Error transforming song:", e)
+      console.error("❌ Error transforming song:", e, song)
       return null
     }
   }
@@ -187,9 +248,7 @@ class SaavnAPI {
       console.log(`📌 Endpoint: ${url}`)
 
       const data = await fetchWithRetry<any>(url, TIMEOUTS.search)
-      console.log(`📦 [SEARCH-RESPONSE] Structure:`, { hasData: !!data?.data, keys: Object.keys(data) })
 
-      // CORRECT EXTRACTION: data.data.results is the array
       let songs = data?.data?.results || data?.results || data?.songs || []
 
       if (!Array.isArray(songs)) {
@@ -225,14 +284,7 @@ class SaavnAPI {
         const url = `${API_BASE_URL}/search/songs?query=${encodeURIComponent(query)}&page=0&limit=50`
 
         const data = await fetchWithRetry<any>(url, TIMEOUTS.search)
-        console.log(
-          `📦 [TRENDING-RESPONSE] Has data.data:`,
-          !!data?.data,
-          "Has data.data.results:",
-          !!data?.data?.results,
-        )
 
-        // CORRECT EXTRACTION: data.data.results is the array
         const songs = data?.data?.results || data?.results || data?.songs || []
 
         if (!Array.isArray(songs)) {
