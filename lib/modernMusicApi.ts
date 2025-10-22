@@ -48,7 +48,18 @@ export interface ModernArtist {
   verified?: boolean
   genres?: string[]
   topSongs?: ModernSong[]
+  albums?: ModernAlbum[]
   popularity?: number
+}
+
+export interface ModernAlbum {
+  id: string
+  name: string
+  artist: string
+  image?: string
+  releaseDate?: string
+  songCount?: number
+  songs?: ModernSong[]
 }
 
 export interface ModernPlaylist {
@@ -60,6 +71,7 @@ export interface ModernPlaylist {
   followerCount?: number
   songs?: ModernSong[]
   isPublic?: boolean
+  link?: string
 }
 
 export interface PlaylistSuggestion {
@@ -264,6 +276,12 @@ class SaavnAPI {
         followers: Number(artistData.follower_count || artistData.followers || 0),
         verified: artistData.verified === true || artistData.verified === "1",
         genres: Array.isArray(artistData.genres) ? artistData.genres : artistData.language ? [artistData.language] : [],
+        topSongs: Array.isArray(artistData.top_songs)
+          ? artistData.top_songs.map((s: any) => this.transformSong(s)).filter((s: any) => s)
+          : [],
+        albums: Array.isArray(artistData.albums)
+          ? artistData.albums.map((a: any) => this.transformAlbum(a)).filter((a: any) => a)
+          : [],
         popularity: Number(artistData.popularity || 50),
       }
 
@@ -271,6 +289,38 @@ class SaavnAPI {
       return result
     } catch (e) {
       console.error("❌ Error transforming artist:", e, artist)
+      return null
+    }
+  }
+
+  private transformAlbum(album: any): ModernAlbum | null {
+    if (!album) return null
+
+    try {
+      const albumData = album.album || album
+
+      const result: ModernAlbum = {
+        id: albumData.id || `album-${Date.now()}`,
+        name: sanitizeString(albumData.name || albumData.title) || "Unknown Album",
+        artist: sanitizeString(
+          albumData.primary_artists ||
+            albumData.primaryArtists ||
+            albumData.artist ||
+            albumData.artist_name ||
+            "Unknown Artist",
+        ),
+        image: this.extractImageUrl(albumData.image || albumData.picture),
+        releaseDate: albumData.release_date || albumData.year,
+        songCount: Number(albumData.song_count || albumData.songs?.length || 0),
+        songs: Array.isArray(albumData.songs)
+          ? albumData.songs.map((s: any) => this.transformSong(s)).filter((s: any) => s)
+          : [],
+      }
+
+      console.log(`✅ [ALBUM TRANSFORMED]`, result.name)
+      return result
+    } catch (e) {
+      console.error("❌ Error transforming album:", e)
       return null
     }
   }
@@ -290,10 +340,13 @@ class SaavnAPI {
         songCount: Number(playlistData.song_count || playlistData.songCount || playlistData.songs?.length || 0),
         followerCount: Number(playlistData.follower_count || playlistData.followers || 0),
         isPublic: playlistData.is_public !== false && playlistData.isPublic !== false,
-        songs: Array.isArray(playlistData.songs) ? playlistData.songs.map((s: any) => this.transformSong(s)) : [],
+        link: playlistData.link || playlistData.url || playlistData.permaUrl,
+        songs: Array.isArray(playlistData.songs)
+          ? playlistData.songs.map((s: any) => this.transformSong(s)).filter((s: any) => s)
+          : [],
       }
 
-      console.log(`✅ [PLAYLIST TRANSFORMED]`, result.name, result)
+      console.log(`✅ [PLAYLIST TRANSFORMED]`, result.name, `${result.songs?.length || 0} songs`)
       return result
     } catch (e) {
       console.error("❌ Error transforming playlist:", e, playlist)
@@ -353,7 +406,6 @@ class SaavnAPI {
 
       if (!Array.isArray(artists)) {
         console.warn(`⚠️ Artists is not an array, trying to extract from response`)
-        // Try to find any array in the response
         for (const key in data) {
           if (Array.isArray(data[key])) {
             artists = data[key]
@@ -493,6 +545,164 @@ class SaavnAPI {
     throw new Error(`Failed to fetch trending songs from ${trendingSearches.length} queries`)
   }
 
+  async getArtistDetails(artistId: string): Promise<ModernArtist | null> {
+    if (!artistId?.trim()) {
+      throw new Error("Artist ID cannot be empty")
+    }
+
+    console.log(`\n👨‍🎤 [ARTIST DETAILS] Artist ID: ${artistId}`)
+
+    try {
+      const url = `${API_BASE_URL}/artists?id=${encodeURIComponent(artistId)}&page=0&songCount=20&albumCount=10&sortBy=popularity&sortOrder=desc`
+      console.log(`📌 Endpoint: ${url}`)
+
+      const data = await fetchWithRetry<any>(url, TIMEOUTS.details)
+      console.log(`📦 [ARTIST DATA]`, data)
+
+      const artist = data?.artist || data?.data?.artist || data
+
+      if (!artist) {
+        throw new Error("No artist data in response")
+      }
+
+      const transformed = this.transformArtist(artist)
+      if (transformed) {
+        console.log(`✅ Got artist details: ${transformed.name}`)
+        return transformed
+      }
+
+      throw new Error("Failed to transform artist")
+    } catch (error) {
+      console.error(`❌ Artist details error:`, error)
+      throw error
+    }
+  }
+
+  async getArtistSongs(artistId: string): Promise<ModernSong[]> {
+    if (!artistId?.trim()) {
+      throw new Error("Artist ID cannot be empty")
+    }
+
+    console.log(`\n🎵 [ARTIST SONGS] Artist ID: ${artistId}`)
+
+    try {
+      const url = `${API_BASE_URL}/artists/${encodeURIComponent(artistId)}/songs?page=0&sortBy=popularity&sortOrder=desc`
+      console.log(`📌 Endpoint: ${url}`)
+
+      const data = await fetchWithRetry<any>(url, TIMEOUTS.details)
+
+      let songs = data?.songs || data?.data?.songs || data?.results || []
+
+      if (!Array.isArray(songs)) {
+        console.warn(`⚠️ Songs is not an array`)
+        songs = []
+      }
+
+      const transformed = songs.map((s: any) => this.transformSong(s)).filter((s: ModernSong | null) => s && s.id)
+
+      console.log(`✅ Got ${transformed.length} artist songs`)
+      return transformed as ModernSong[]
+    } catch (error) {
+      console.error(`❌ Artist songs error:`, error)
+      throw error
+    }
+  }
+
+  async getArtistAlbums(artistId: string): Promise<ModernAlbum[]> {
+    if (!artistId?.trim()) {
+      throw new Error("Artist ID cannot be empty")
+    }
+
+    console.log(`\n💿 [ARTIST ALBUMS] Artist ID: ${artistId}`)
+
+    try {
+      const url = `${API_BASE_URL}/artists/${encodeURIComponent(artistId)}/albums?page=0&sortBy=popularity&sortOrder=desc`
+      console.log(`📌 Endpoint: ${url}`)
+
+      const data = await fetchWithRetry<any>(url, TIMEOUTS.details)
+
+      let albums = data?.albums || data?.data?.albums || data?.results || []
+
+      if (!Array.isArray(albums)) {
+        console.warn(`⚠️ Albums is not an array`)
+        albums = []
+      }
+
+      const transformed = albums.map((a: any) => this.transformAlbum(a)).filter((a: ModernAlbum | null) => a && a.id)
+
+      console.log(`✅ Got ${transformed.length} artist albums`)
+      return transformed as ModernAlbum[]
+    } catch (error) {
+      console.error(`❌ Artist albums error:`, error)
+      throw error
+    }
+  }
+
+  async getPlaylistDetails(playlistId: string): Promise<ModernPlaylist | null> {
+    if (!playlistId?.trim()) {
+      throw new Error("Playlist ID cannot be empty")
+    }
+
+    console.log(`\n📋 [PLAYLIST DETAILS] Playlist ID: ${playlistId}`)
+
+    try {
+      const url = `${API_BASE_URL}/playlists?id=${encodeURIComponent(playlistId)}&page=0&limit=300`
+      console.log(`📌 Endpoint: ${url}`)
+
+      const data = await fetchWithRetry<any>(url, TIMEOUTS.details)
+      console.log(`📦 [PLAYLIST DATA]`, data)
+
+      const playlist = data?.playlist || data?.data?.playlist || data
+
+      if (!playlist) {
+        throw new Error("No playlist data in response")
+      }
+
+      const transformed = this.transformPlaylist(playlist)
+      if (transformed) {
+        console.log(`✅ Got playlist details: ${transformed.name} with ${transformed.songs?.length || 0} songs`)
+        return transformed
+      }
+
+      throw new Error("Failed to transform playlist")
+    } catch (error) {
+      console.error(`❌ Playlist details error:`, error)
+      throw error
+    }
+  }
+
+  async getAlbumDetails(albumId: string): Promise<ModernAlbum | null> {
+    if (!albumId?.trim()) {
+      throw new Error("Album ID cannot be empty")
+    }
+
+    console.log(`\n💿 [ALBUM DETAILS] Album ID: ${albumId}`)
+
+    try {
+      const url = `${API_BASE_URL}/albums?id=${encodeURIComponent(albumId)}&page=0&limit=300`
+      console.log(`📌 Endpoint: ${url}`)
+
+      const data = await fetchWithRetry<any>(url, TIMEOUTS.details)
+
+      const album = data?.album || data?.data?.album || data
+
+      if (!album) {
+        throw new Error("No album data in response")
+      }
+
+      const transformed = this.transformAlbum(album)
+      if (transformed) {
+        console.log(`✅ Got album details: ${transformed.name}`)
+        return transformed
+      }
+
+      throw new Error("Failed to transform album")
+    } catch (error) {
+      console.error(`❌ Album details error:`, error)
+      throw error
+    }
+  }
+
   async getSongDetails(songId: string): Promise<ModernSong | null> {
     if (!songId?.trim()) {
       throw new Error("Song ID cannot be empty")
@@ -521,70 +731,6 @@ class SaavnAPI {
       throw new Error("Failed to transform song")
     } catch (error) {
       console.error(`❌ Song details error:`, error)
-      throw error
-    }
-  }
-
-  async getArtistDetails(artistId: string): Promise<ModernArtist | null> {
-    if (!artistId?.trim()) {
-      throw new Error("Artist ID cannot be empty")
-    }
-
-    console.log(`\n👨‍🎤 [ARTIST DETAILS] Artist ID: ${artistId}`)
-
-    try {
-      const url = `${API_BASE_URL}/artists/${encodeURIComponent(artistId)}`
-      console.log(`📌 Endpoint: ${url}`)
-
-      const data = await fetchWithRetry<any>(url, TIMEOUTS.details)
-
-      const artist = data?.artist || data
-
-      if (!artist) {
-        throw new Error("No artist data in response")
-      }
-
-      const transformed = this.transformArtist(artist)
-      if (transformed) {
-        console.log(`✅ Got artist details: ${transformed.name}`)
-        return transformed
-      }
-
-      throw new Error("Failed to transform artist")
-    } catch (error) {
-      console.error(`❌ Artist details error:`, error)
-      throw error
-    }
-  }
-
-  async getPlaylistDetails(playlistId: string): Promise<ModernPlaylist | null> {
-    if (!playlistId?.trim()) {
-      throw new Error("Playlist ID cannot be empty")
-    }
-
-    console.log(`\n📋 [PLAYLIST DETAILS] Playlist ID: ${playlistId}`)
-
-    try {
-      const url = `${API_BASE_URL}/playlists/${encodeURIComponent(playlistId)}`
-      console.log(`📌 Endpoint: ${url}`)
-
-      const data = await fetchWithRetry<any>(url, TIMEOUTS.details)
-
-      const playlist = data?.playlist || data
-
-      if (!playlist) {
-        throw new Error("No playlist data in response")
-      }
-
-      const transformed = this.transformPlaylist(playlist)
-      if (transformed) {
-        console.log(`✅ Got playlist details: ${transformed.name}`)
-        return transformed
-      }
-
-      throw new Error("Failed to transform playlist")
-    } catch (error) {
-      console.error(`❌ Playlist details error:`, error)
       throw error
     }
   }
@@ -723,18 +869,6 @@ export async function getTrendingMusic(): Promise<{
   }
 }
 
-export async function getSongDetails(
-  songId: string,
-): Promise<{ success: boolean; data: ModernSong | null; message?: string }> {
-  try {
-    const data = await saavnApi.getSongDetails(songId)
-    return { success: !!data, data }
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Failed to get song details"
-    return { success: false, data: null, message }
-  }
-}
-
 export async function getArtistDetails(
   artistId: string,
 ): Promise<{ success: boolean; data: ModernArtist | null; message?: string }> {
@@ -747,6 +881,30 @@ export async function getArtistDetails(
   }
 }
 
+export async function getArtistSongs(
+  artistId: string,
+): Promise<{ success: boolean; data: ModernSong[]; message?: string }> {
+  try {
+    const data = await saavnApi.getArtistSongs(artistId)
+    return { success: true, data }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Failed to get artist songs"
+    return { success: false, data: [], message }
+  }
+}
+
+export async function getArtistAlbums(
+  artistId: string,
+): Promise<{ success: boolean; data: ModernAlbum[]; message?: string }> {
+  try {
+    const data = await saavnApi.getArtistAlbums(artistId)
+    return { success: true, data }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Failed to get artist albums"
+    return { success: false, data: [], message }
+  }
+}
+
 export async function getPlaylistDetails(
   playlistId: string,
 ): Promise<{ success: boolean; data: ModernPlaylist | null; message?: string }> {
@@ -755,6 +913,30 @@ export async function getPlaylistDetails(
     return { success: !!data, data }
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to get playlist details"
+    return { success: false, data: null, message }
+  }
+}
+
+export async function getAlbumDetails(
+  albumId: string,
+): Promise<{ success: boolean; data: ModernAlbum | null; message?: string }> {
+  try {
+    const data = await saavnApi.getAlbumDetails(albumId)
+    return { success: !!data, data }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Failed to get album details"
+    return { success: false, data: null, message }
+  }
+}
+
+export async function getSongDetails(
+  songId: string,
+): Promise<{ success: boolean; data: ModernSong | null; message?: string }> {
+  try {
+    const data = await saavnApi.getSongDetails(songId)
+    return { success: !!data, data }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Failed to get song details"
     return { success: false, data: null, message }
   }
 }
@@ -784,4 +966,4 @@ export async function getSongSuggestions(
 }
 
 export { sanitizeString }
-export type { ModernSong, PlaylistSuggestion, ModernArtist, ModernPlaylist }
+export type { ModernSong, PlaylistSuggestion, ModernArtist, ModernPlaylist, ModernAlbum }
