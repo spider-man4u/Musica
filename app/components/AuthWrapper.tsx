@@ -113,7 +113,11 @@ export default function AuthWrapper({ children }: AuthWrapperProps) {
     const onAuthReady = async (u: SupaUser) => {
       setUser(u)
       setCurrentUserId(u.id)
-      await ensureProfileExists(u)
+      try {
+        await ensureProfileExists(u)
+      } catch (err) {
+        console.warn("Profile creation failed, continuing anyway:", err)
+      }
       // Fast, non-blocking hydration
       onIdle(() => safeHydrate(u.id), 500)
       subscribeRealtime(u.id)

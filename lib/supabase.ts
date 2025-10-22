@@ -1,6 +1,6 @@
 import { createClient, type User } from "@supabase/supabase-js"
 
-// Supabase configuration (envs are pre-provisioned in this workspace)
+// Supabase configuration
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://zlxmcnazmnzkyhbuzafr.supabase.co"
 const supabaseAnonKey =
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
@@ -124,7 +124,6 @@ export interface SearchHistory {
   searched_at: string
 }
 
-// Minimal sign up; if DB triggers cause "Database error saving new user", fall back to magic link.
 export const signUp = async (email: string, password: string) => {
   try {
     const { data, error } = await supabase.auth.signUp({ email, password })
@@ -174,7 +173,6 @@ export const signIn = async (email: string, password: string) => {
   }
 }
 
-// Open OAuth in a new tab and redirect to /auth/callback where we exchange the code
 export const signInWithProvider = async (provider: "google" | "github" | "gitlab" | "bitbucket") => {
   try {
     const redirectTo = typeof window !== "undefined" ? `${window.location.origin}/auth/callback` : undefined
@@ -222,19 +220,23 @@ export const getCurrentUser = async (): Promise<User | null> => {
 export const getUserProfile = async (userId: string) => {
   const { data, error } = await supabase.from("profiles").select("*").eq("id", userId).maybeSingle()
   if (error) {
-    console.error("Get user profile error:", error)
+    console.error("❌ Get user profile error:", error)
     return null
   }
   return data
 }
 
 export const ensureProfileExists = async (user: User) => {
-  const existing = await getUserProfile(user.id)
-  if (existing) return { created: false, profile: existing }
-
-  const username = user.user_metadata?.username || user.email?.split("@")[0] || "User"
-
   try {
+    const existing = await getUserProfile(user.id)
+    if (existing) {
+      console.log("✅ Profile already exists")
+      return { created: false, profile: existing }
+    }
+
+    const username = user.user_metadata?.username || user.email?.split("@")[0] || "User"
+
+    console.log("📝 Creating new profile for user:", user.id)
     const { data, error } = await supabase
       .from("profiles")
       .insert({
@@ -247,13 +249,32 @@ export const ensureProfileExists = async (user: User) => {
       .single()
 
     if (error) {
-      console.error("Create profile error:", error)
-      return { created: false, error: error.message }
+      console.error("❌ Create profile error:", error.message)
+      return {
+        created: false,
+        error: error.message,
+        profile: {
+          id: user.id,
+          email: user.email,
+          username,
+          full_name: user.user_metadata?.name || username,
+        },
+      }
     }
+    console.log("✅ Profile created successfully")
     return { created: true, profile: data }
   } catch (err: any) {
-    console.error("Create profile exception:", err)
-    return { created: false, error: err?.message || "Failed to create profile" }
+    console.error("❌ Create profile exception:", err)
+    return {
+      created: false,
+      error: err?.message || "Failed to create profile",
+      profile: {
+        id: user.id,
+        email: user.email || "",
+        username: user.user_metadata?.username || user.email?.split("@")[0] || "User",
+        full_name: user.user_metadata?.name || "User",
+      },
+    }
   }
 }
 
@@ -275,10 +296,18 @@ export const updateProfile = async (
   }
 }
 
-// Persist likes, recent, downloads, playlists, search history, preferences
 export const syncUserData = async (userId: string, userData: any) => {
+  if (!userId) {
+    console.warn("⚠️ No userId for sync, skipping")
+    return { success: false, error: "No user ID" }
+  }
+
   try {
-    if (userData.favorites?.length) {
+    console.log("🔄 Starting sync for user:", userId)
+
+    // Sync favorites
+    if (userData.favorites?.length > 0) {
+      console.log(`📌 Syncing ${userData.favorites.length} favorites...`)
       const favorites = userData.favorites.map((song: any) => ({
         user_id: userId,
         song_id: song.id,
@@ -292,10 +321,14 @@ export const syncUserData = async (userId: string, userData: any) => {
         song_year: song.year,
         created_at: new Date().toISOString(),
       }))
-      await supabase.from("favorites").upsert(favorites, { onConflict: "user_id,song_id", ignoreDuplicates: false })
+      const { error } = await supabase.from("favorites").upsert(favorites, { onConflict: "user_id,song_id" })
+      if (error) console.error("❌ Favorites sync error:", error.message)
+      else console.log("✅ Favorites synced")
     }
 
-    if (userData.recentlyPlayed?.length) {
+    // Sync recently played
+    if (userData.recentlyPlayed?.length > 0) {
+      console.log(`🎵 Syncing ${userData.recentlyPlayed.length} recently played...`)
       await supabase.from("recently_played").delete().eq("user_id", userId)
       const recents = userData.recentlyPlayed.map((song: any, i: number) => ({
         user_id: userId,
@@ -308,10 +341,14 @@ export const syncUserData = async (userId: string, userData: any) => {
         song_duration: song.duration,
         played_at: new Date(Date.now() - i * 60000).toISOString(),
       }))
-      await supabase.from("recently_played").insert(recents)
+      const { error } = await supabase.from("recently_played").insert(recents)
+      if (error) console.error("❌ Recently played sync error:", error.message)
+      else console.log("✅ Recently played synced")
     }
 
-    if (userData.downloads?.length) {
+    // Sync downloads
+    if (userData.downloads?.length > 0) {
+      console.log(`⬇️ Syncing ${userData.downloads.length} downloads...`)
       const downloads = userData.downloads.map((song: any) => ({
         user_id: userId,
         song_id: song.id,
@@ -324,81 +361,96 @@ export const syncUserData = async (userId: string, userData: any) => {
         download_url: song.download_url,
         downloaded_at: new Date().toISOString(),
       }))
-      await supabase.from("downloads").upsert(downloads, { onConflict: "user_id,song_id", ignoreDuplicates: false })
+      const { error } = await supabase.from("downloads").upsert(downloads, { onConflict: "user_id,song_id" })
+      if (error) console.error("❌ Downloads sync error:", error.message)
+      else console.log("✅ Downloads synced")
     }
 
-    if (userData.playlists?.length) {
+    // Sync playlists
+    if (userData.playlists?.length > 0) {
+      console.log(`📚 Syncing ${userData.playlists.length} playlists...`)
       for (const playlist of userData.playlists) {
-        await supabase.from("playlists").upsert(
-          {
-            id: playlist.id,
-            user_id: userId,
-            name: playlist.name,
-            description: playlist.description,
-            cover_image: playlist.image,
-            is_public: playlist.isPublic || false,
-            created_at: playlist.createdAt || new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: "id" },
-        )
-        await supabase.from("playlist_songs").delete().eq("playlist_id", playlist.id)
-        if (playlist.songs?.length) {
-          const rows = playlist.songs.map((song: any, i: number) => ({
-            playlist_id: playlist.id,
-            song_id: song.id,
-            song_title: song.title,
-            song_artist: song.artist,
-            song_album: song.album,
-            song_image: song.image,
-            song_audio: song.audio,
-            song_duration: song.duration,
-            position: i,
-            created_at: new Date().toISOString(),
-          }))
-          await supabase.from("playlist_songs").insert(rows)
+        const { error: plError } = await supabase.from("playlists").upsert({
+          id: playlist.id,
+          user_id: userId,
+          name: playlist.name,
+          description: playlist.description,
+          cover_image: playlist.image,
+          is_public: playlist.isPublic || false,
+          created_at: playlist.createdAt || new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        if (plError) {
+          console.error(`❌ Playlist ${playlist.id} sync error:`, plError.message)
+        } else {
+          // Sync playlist songs
+          await supabase.from("playlist_songs").delete().eq("playlist_id", playlist.id)
+          if (playlist.songs?.length) {
+            const rows = playlist.songs.map((song: any, i: number) => ({
+              playlist_id: playlist.id,
+              song_id: song.id,
+              song_title: song.title,
+              song_artist: song.artist,
+              song_album: song.album,
+              song_image: song.image,
+              song_audio: song.audio,
+              song_duration: song.duration,
+              position: i,
+              created_at: new Date().toISOString(),
+            }))
+            const { error: psError } = await supabase.from("playlist_songs").insert(rows)
+            if (psError) console.error("❌ Playlist songs sync error:", psError.message)
+            else console.log(`✅ Playlist ${playlist.name} synced with ${rows.length} songs`)
+          }
         }
       }
     }
 
-    if (Array.isArray(userData.recentSearches)) {
+    // Sync search history
+    if (Array.isArray(userData.recentSearches) && userData.recentSearches.length > 0) {
+      console.log(`🔍 Syncing ${userData.recentSearches.length} searches...`)
       await supabase.from("search_history").delete().eq("user_id", userId)
       const rows = userData.recentSearches.map((q: string, i: number) => ({
         user_id: userId,
         query: q,
         searched_at: new Date(Date.now() - i * 60000).toISOString(),
       }))
-      if (rows.length) await supabase.from("search_history").insert(rows)
+      const { error } = await supabase.from("search_history").insert(rows)
+      if (error) console.error("❌ Search history sync error:", error.message)
+      else console.log("✅ Search history synced")
     }
 
+    // Sync user preferences
     if (userData.settings) {
-      await supabase.from("user_preferences").upsert(
-        {
-          user_id: userId,
-          theme: userData.settings.theme || "dark",
-          audio_quality: userData.settings.quality || "high",
-          notifications_enabled: userData.settings.notifications ?? true,
-          auto_play: userData.settings.autoplay ?? true,
-          ai_suggestions: userData.settings.aiSuggestions ?? true,
-          ai_shuffle: userData.settings.aiShuffle ?? true,
-          crossfade: userData.settings.crossfade ?? false,
-          download_enabled: userData.settings.downloadEnabled ?? true,
-          language: userData.settings.language || "hindi",
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: "user_id" },
-      )
+      console.log("⚙️ Syncing user preferences...")
+      const { error } = await supabase.from("user_preferences").upsert({
+        user_id: userId,
+        theme: userData.settings.theme || "dark",
+        audio_quality: userData.settings.quality || "high",
+        notifications_enabled: userData.settings.notifications ?? true,
+        auto_play: userData.settings.autoplay ?? true,
+        ai_suggestions: userData.settings.aiSuggestions ?? true,
+        ai_shuffle: userData.settings.aiShuffle ?? true,
+        crossfade: userData.settings.crossfade ?? false,
+        download_enabled: userData.settings.downloadEnabled ?? true,
+        language: userData.settings.language || "hindi",
+        updated_at: new Date().toISOString(),
+      })
+      if (error) console.error("❌ Preferences sync error:", error.message)
+      else console.log("✅ Preferences synced")
     }
 
+    console.log("✅ Sync completed successfully")
     return { success: true }
-  } catch (error) {
-    console.error("syncUserData error:", error)
-    return { success: false, error: "Failed to sync user data" }
+  } catch (error: any) {
+    console.error("❌ Sync error:", error)
+    return { success: false, error: error?.message || "Failed to sync user data" }
   }
 }
 
 export const loadUserData = async (userId: string) => {
   try {
+    console.log("📥 Loading user data from Supabase...")
     const profile = await getUserProfile(userId)
     const { data: preferences } = await supabase.from("user_preferences").select("*").eq("user_id", userId).single()
     const { data: favorites } = await supabase
@@ -505,15 +557,14 @@ export const loadUserData = async (userId: string) => {
       },
     }
 
+    console.log("✅ User data loaded successfully")
     return { success: true, userData }
-  } catch (error) {
-    console.error("loadUserData error:", error)
+  } catch (error: any) {
+    console.error("❌ loadUserData error:", error)
     return { success: false, error: "Failed to load user data" }
   }
 }
 
-// Subscribe to all relevant tables; rely on Postgres Changes for realtime.
-// NOTE: Ensure realtime is enabled on these tables in the Supabase dashboard.
 export const setupRealtimeSync = (userId: string, onDataChange: (payload: any) => void) => {
   const channels = [
     supabase
@@ -533,7 +584,6 @@ export const setupRealtimeSync = (userId: string, onDataChange: (payload: any) =
     supabase
       .channel(`playlist_songs_changes_${userId}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "playlist_songs" }, (payload) => {
-        // Filter by playlists that belong to this user on client side since playlist_songs doesn't have user_id
         onDataChange(payload)
       }),
     supabase

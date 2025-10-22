@@ -39,6 +39,29 @@ export interface ModernSong {
   copyright?: string
 }
 
+export interface ModernArtist {
+  id: string
+  name: string
+  image?: string
+  bio?: string
+  followers?: number
+  verified?: boolean
+  genres?: string[]
+  topSongs?: ModernSong[]
+  popularity?: number
+}
+
+export interface ModernPlaylist {
+  id: string
+  name: string
+  description?: string
+  image?: string
+  songCount?: number
+  followerCount?: number
+  songs?: ModernSong[]
+  isPublic?: boolean
+}
+
 export interface PlaylistSuggestion {
   id: string
   name: string
@@ -134,7 +157,6 @@ class SaavnAPI {
   private extractImageUrl(images: any): string {
     if (!images) return "/abstract-album-cover.png"
 
-    // If it's an array, get the highest quality (usually the last one)
     if (Array.isArray(images)) {
       const highest = images[images.length - 1] || images[0]
       if (highest?.url && typeof highest.url === "string") {
@@ -142,7 +164,6 @@ class SaavnAPI {
       }
     }
 
-    // If it's a string directly
     if (typeof images === "string") {
       return images
     }
@@ -153,22 +174,18 @@ class SaavnAPI {
   private extractAudioUrl(downloadUrls: any): string {
     if (!downloadUrls) return ""
 
-    // If it's an array, get the highest quality (320kbps is usually last)
     if (Array.isArray(downloadUrls)) {
-      // Try to find 320kbps quality first
       const highest320 = downloadUrls.find((item: any) => item.quality === "320kbps")
       if (highest320?.url && typeof highest320.url === "string") {
         return highest320.url
       }
 
-      // Otherwise get the last one (highest quality available)
       const highest = downloadUrls[downloadUrls.length - 1] || downloadUrls[0]
       if (highest?.url && typeof highest.url === "string") {
         return highest.url
       }
     }
 
-    // If it's a string directly
     if (typeof downloadUrls === "string") {
       return downloadUrls
     }
@@ -187,10 +204,7 @@ class SaavnAPI {
 
       console.log(`🎵 [TRANSFORMING] ${songData.name || "Unknown"}`)
 
-      // Extract image URL - handle array of images
       const imageUrl = this.extractImageUrl(songData.image)
-
-      // Extract audio URL - handle array of download URLs
       const audioUrl = this.extractAudioUrl(songData.downloadUrl)
 
       const result: ModernSong = {
@@ -236,6 +250,49 @@ class SaavnAPI {
     }
   }
 
+  private transformArtist(artist: any): ModernArtist | null {
+    if (!artist) return null
+
+    try {
+      const artistData = artist.artist || artist
+
+      return {
+        id: artistData.id || `artist-${Date.now()}`,
+        name: sanitizeString(artistData.name || artistData.title) || "Unknown Artist",
+        image: this.extractImageUrl(artistData.image || artistData.picture),
+        bio: sanitizeString(artistData.bio || artistData.description),
+        followers: artistData.follower_count || artistData.followers || 0,
+        verified: artistData.verified || false,
+        genres: Array.isArray(artistData.genres) ? artistData.genres : [],
+        popularity: artistData.popularity || 50,
+      }
+    } catch (e) {
+      console.error("❌ Error transforming artist:", e)
+      return null
+    }
+  }
+
+  private transformPlaylist(playlist: any): ModernPlaylist | null {
+    if (!playlist) return null
+
+    try {
+      const playlistData = playlist.playlist || playlist
+
+      return {
+        id: playlistData.id || `playlist-${Date.now()}`,
+        name: sanitizeString(playlistData.name || playlistData.title) || "Unknown Playlist",
+        description: sanitizeString(playlistData.description),
+        image: this.extractImageUrl(playlistData.image || playlistData.picture),
+        songCount: playlistData.song_count || playlistData.songCount || 0,
+        followerCount: playlistData.follower_count || playlistData.followers || 0,
+        isPublic: playlistData.is_public !== false,
+      }
+    } catch (e) {
+      console.error("❌ Error transforming playlist:", e)
+      return null
+    }
+  }
+
   async search(query: string, page = 0, limit = 20): Promise<ModernSong[]> {
     if (!query?.trim()) {
       throw new Error("Search query cannot be empty")
@@ -266,6 +323,72 @@ class SaavnAPI {
       return transformed as ModernSong[]
     } catch (error) {
       console.error(`❌ Search error:`, error)
+      throw error
+    }
+  }
+
+  async searchArtists(query: string, page = 0, limit = 10): Promise<ModernArtist[]> {
+    if (!query?.trim()) {
+      throw new Error("Artist query cannot be empty")
+    }
+
+    console.log(`\n👨‍🎤 [ARTISTS] Query: "${query}"`)
+
+    try {
+      const url = `${API_BASE_URL}/search/artists?query=${encodeURIComponent(query)}&page=${page}&limit=${limit}`
+      console.log(`📌 Endpoint: ${url}`)
+
+      const data = await fetchWithRetry<any>(url, TIMEOUTS.search)
+
+      let artists = data?.data?.results || data?.results || data?.data || data?.artists || []
+
+      if (!Array.isArray(artists)) {
+        console.warn(`⚠️ Artists is not an array`)
+        artists = []
+      }
+
+      console.log(`✅ Got ${artists.length} artists`)
+
+      const transformed = artists
+        .map((a: any) => this.transformArtist(a))
+        .filter((a: ModernArtist | null) => a && a.id && a.name)
+
+      return transformed as ModernArtist[]
+    } catch (error) {
+      console.error(`❌ Artist search error:`, error)
+      throw error
+    }
+  }
+
+  async searchPlaylists(query: string, page = 0, limit = 10): Promise<ModernPlaylist[]> {
+    if (!query?.trim()) {
+      throw new Error("Playlist query cannot be empty")
+    }
+
+    console.log(`\n📋 [PLAYLISTS] Query: "${query}"`)
+
+    try {
+      const url = `${API_BASE_URL}/search/playlists?query=${encodeURIComponent(query)}&page=${page}&limit=${limit}`
+      console.log(`📌 Endpoint: ${url}`)
+
+      const data = await fetchWithRetry<any>(url, TIMEOUTS.search)
+
+      let playlists = data?.data?.results || data?.results || data?.data || data?.playlists || []
+
+      if (!Array.isArray(playlists)) {
+        console.warn(`⚠️ Playlists is not an array`)
+        playlists = []
+      }
+
+      console.log(`✅ Got ${playlists.length} playlists`)
+
+      const transformed = playlists
+        .map((p: any) => this.transformPlaylist(p))
+        .filter((p: ModernPlaylist | null) => p && p.id && p.name)
+
+      return transformed as ModernPlaylist[]
+    } catch (error) {
+      console.error(`❌ Playlist search error:`, error)
       throw error
     }
   }
@@ -363,33 +486,66 @@ class SaavnAPI {
     }
   }
 
-  async getSongDetailsMultiple(songIds: string[]): Promise<ModernSong[]> {
-    if (!songIds || songIds.length === 0) {
-      throw new Error("Song IDs array cannot be empty")
+  async getArtistDetails(artistId: string): Promise<ModernArtist | null> {
+    if (!artistId?.trim()) {
+      throw new Error("Artist ID cannot be empty")
     }
 
-    console.log(`\n🎵 [DETAILS MULTIPLE] Song IDs: ${songIds.join(", ")}`)
+    console.log(`\n👨‍🎤 [ARTIST DETAILS] Artist ID: ${artistId}`)
 
     try {
-      const idsParam = songIds.map((id) => encodeURIComponent(id)).join("%2C")
-      const url = `${API_BASE_URL}/songs?ids=${idsParam}`
+      const url = `${API_BASE_URL}/artists/${encodeURIComponent(artistId)}`
       console.log(`📌 Endpoint: ${url}`)
 
       const data = await fetchWithRetry<any>(url, TIMEOUTS.details)
 
-      let songs = data?.songs || data?.data?.results || data || []
+      const artist = data?.artist || data
 
-      if (!Array.isArray(songs)) {
-        console.warn(`⚠️ Songs is not an array`)
-        songs = []
+      if (!artist) {
+        throw new Error("No artist data in response")
       }
 
-      const transformed = songs.map((s: any) => this.transformSong(s)).filter((s: ModernSong | null) => s && s.id)
+      const transformed = this.transformArtist(artist)
+      if (transformed) {
+        console.log(`✅ Got artist details: ${transformed.name}`)
+        return transformed
+      }
 
-      console.log(`✅ Got ${transformed.length} songs`)
-      return transformed as ModernSong[]
+      throw new Error("Failed to transform artist")
     } catch (error) {
-      console.error(`❌ Multiple details error:`, error)
+      console.error(`❌ Artist details error:`, error)
+      throw error
+    }
+  }
+
+  async getPlaylistDetails(playlistId: string): Promise<ModernPlaylist | null> {
+    if (!playlistId?.trim()) {
+      throw new Error("Playlist ID cannot be empty")
+    }
+
+    console.log(`\n📋 [PLAYLIST DETAILS] Playlist ID: ${playlistId}`)
+
+    try {
+      const url = `${API_BASE_URL}/playlists/${encodeURIComponent(playlistId)}`
+      console.log(`📌 Endpoint: ${url}`)
+
+      const data = await fetchWithRetry<any>(url, TIMEOUTS.details)
+
+      const playlist = data?.playlist || data
+
+      if (!playlist) {
+        throw new Error("No playlist data in response")
+      }
+
+      const transformed = this.transformPlaylist(playlist)
+      if (transformed) {
+        console.log(`✅ Got playlist details: ${transformed.name}`)
+        return transformed
+      }
+
+      throw new Error("Failed to transform playlist")
+    } catch (error) {
+      console.error(`❌ Playlist details error:`, error)
       throw error
     }
   }
@@ -455,34 +611,6 @@ class SaavnAPI {
       throw error
     }
   }
-
-  async searchArtists(query: string, page = 0, limit = 10): Promise<any[]> {
-    if (!query?.trim()) {
-      throw new Error("Artist query cannot be empty")
-    }
-
-    console.log(`\n👨‍🎤 [ARTISTS] Query: "${query}"`)
-
-    try {
-      const url = `${API_BASE_URL}/search/artists?query=${encodeURIComponent(query)}&page=${page}&limit=${limit}`
-      console.log(`📌 Endpoint: ${url}`)
-
-      const data = await fetchWithRetry<any>(url, TIMEOUTS.search)
-
-      let artists = data?.data?.results || data?.results || data?.data || data?.artists || []
-
-      if (!Array.isArray(artists)) {
-        console.warn(`⚠️ Artists is not an array`)
-        artists = []
-      }
-
-      console.log(`✅ Got ${artists.length} artists`)
-      return artists
-    } catch (error) {
-      console.error(`❌ Artist search error:`, error)
-      throw error
-    }
-  }
 }
 
 const saavnApi = new SaavnAPI()
@@ -499,6 +627,36 @@ export async function searchMusic(
     const message = error instanceof Error ? error.message : "Search failed"
     console.error(`❌ Search failed: ${message}\n`)
     return { success: false, data: { results: [] }, message }
+  }
+}
+
+export async function searchArtists(
+  query: string,
+): Promise<{ success: boolean; data: ModernArtist[]; message?: string }> {
+  try {
+    console.log(`\n👨‍🎤 SEARCH ARTISTS: "${query}"\n`)
+    const results = await saavnApi.searchArtists(query)
+    console.log(`✅ Artist search successful: ${results.length} results\n`)
+    return { success: true, data: results }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Artist search failed"
+    console.error(`❌ Artist search failed: ${message}\n`)
+    return { success: false, data: [], message }
+  }
+}
+
+export async function searchPlaylists(
+  query: string,
+): Promise<{ success: boolean; data: ModernPlaylist[]; message?: string }> {
+  try {
+    console.log(`\n📋 SEARCH PLAYLISTS: "${query}"\n`)
+    const results = await saavnApi.searchPlaylists(query)
+    console.log(`✅ Playlist search successful: ${results.length} results\n`)
+    return { success: true, data: results }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Playlist search failed"
+    console.error(`❌ Playlist search failed: ${message}\n`)
+    return { success: false, data: [], message }
   }
 }
 
@@ -540,15 +698,27 @@ export async function getSongDetails(
   }
 }
 
-export async function getSongDetailsMultiple(
-  songIds: string[],
-): Promise<{ success: boolean; data: ModernSong[]; message?: string }> {
+export async function getArtistDetails(
+  artistId: string,
+): Promise<{ success: boolean; data: ModernArtist | null; message?: string }> {
   try {
-    const data = await saavnApi.getSongDetailsMultiple(songIds)
-    return { success: true, data }
+    const data = await saavnApi.getArtistDetails(artistId)
+    return { success: !!data, data }
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Failed to get song details"
-    return { success: false, data: [], message }
+    const message = error instanceof Error ? error.message : "Failed to get artist details"
+    return { success: false, data: null, message }
+  }
+}
+
+export async function getPlaylistDetails(
+  playlistId: string,
+): Promise<{ success: boolean; data: ModernPlaylist | null; message?: string }> {
+  try {
+    const data = await saavnApi.getPlaylistDetails(playlistId)
+    return { success: !!data, data }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Failed to get playlist details"
+    return { success: false, data: null, message }
   }
 }
 
@@ -576,19 +746,5 @@ export async function getSongSuggestions(
   }
 }
 
-export async function searchArtists(
-  query: string,
-  page = 0,
-  limit = 10,
-): Promise<{ success: boolean; data: any[]; message?: string }> {
-  try {
-    const data = await saavnApi.searchArtists(query, page, limit)
-    return { success: true, data }
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Failed to search artists"
-    return { success: false, data: [], message }
-  }
-}
-
 export { sanitizeString }
-export type { ModernSong, PlaylistSuggestion }
+export type { ModernSong, PlaylistSuggestion, ModernArtist, ModernPlaylist }
