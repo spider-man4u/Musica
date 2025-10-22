@@ -1,12 +1,12 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { useParams, useRouter, useSearchParams } from "next/navigation"
+import { useParams, useRouter } from "next/navigation"
 import Image from "next/image"
 import { motion } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Music, ChevronLeft, Play, Share2, Heart } from "lucide-react"
+import { Music, ChevronLeft, Play, Share2, Heart, BookmarkPlus, Bookmark } from "lucide-react"
 import { useStore } from "@/lib/store"
 import { cn } from "@/lib/utils"
 import { getPlaylistDetails } from "@/lib/modernMusicApi"
@@ -32,38 +32,61 @@ const SafeImage = ({
 export default function PlaylistPage() {
   const params = useParams()
   const router = useRouter()
-  const searchParams = useSearchParams()
   const playlistId = (params?.id as string) || ""
 
   const [playlist, setPlaylist] = useState<any>(null)
   const [songs, setSongs] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-  const { playSong, userData, addToFavorites, removeFromFavorites } = useStore()
+  const { playSong, userData, addToFavorites, removeFromFavorites, savePlaylist, unsavePlaylist, isPlaylistSaved } =
+    useStore()
 
   useEffect(() => {
     const loadPlaylist = async () => {
-      if (!playlistId) return
+      if (!playlistId) {
+        setError("No playlist ID provided")
+        setLoading(false)
+        return
+      }
+
       try {
         setLoading(true)
+        setError(null)
         console.log(`📋 Loading playlist: ${playlistId}`)
+
         const result = await getPlaylistDetails(playlistId)
         console.log(`📋 Playlist result:`, result)
 
-        if (result.success && result.data) {
-          setPlaylist(result.data)
+        if (!result.success) {
+          setError(result.message || "Failed to load playlist")
+          console.error("❌ Failed to load playlist:", result.message)
+          setPlaylist(null)
+          setSongs([])
+          return
+        }
 
-          // Extract songs from playlist
-          if (Array.isArray(result.data.songs) && result.data.songs.length > 0) {
-            console.log(`🎵 Found ${result.data.songs.length} songs in playlist`)
-            setSongs(result.data.songs)
-          } else {
-            console.warn(`⚠️ No songs found in playlist`)
-            setSongs([])
-          }
+        if (!result.data) {
+          setError("Playlist not found")
+          console.error("❌ No playlist data in response")
+          setPlaylist(null)
+          setSongs([])
+          return
+        }
+
+        setPlaylist(result.data)
+
+        // Extract songs from playlist
+        if (Array.isArray(result.data.songs) && result.data.songs.length > 0) {
+          console.log(`🎵 Found ${result.data.songs.length} songs in playlist`)
+          setSongs(result.data.songs)
+        } else {
+          console.warn(`⚠️ No songs found in playlist`)
+          setSongs([])
         }
       } catch (error) {
         console.error("Error loading playlist:", error)
+        setError("Error loading playlist. Please try again.")
       } finally {
         setLoading(false)
       }
@@ -113,6 +136,27 @@ export default function PlaylistPage() {
     }
   }
 
+  const handleSavePlaylist = () => {
+    if (!playlist) return
+
+    const playlistData = {
+      id: playlist.id,
+      name: playlist.name,
+      description: playlist.description || "",
+      image: playlist.image || "/music-playlist.png",
+      songs: songs || [],
+      createdAt: new Date().toISOString(),
+      isPublic: playlist.isPublic !== false,
+    }
+
+    const isSaved = isPlaylistSaved(playlist.id)
+    if (isSaved) {
+      unsavePlaylist(playlist.id)
+    } else {
+      savePlaylist(playlistData)
+    }
+  }
+
   const formatDuration = (d: number | string) => {
     if (typeof d === "string") return d
     if (!d || isNaN(d)) return "0:00"
@@ -121,25 +165,36 @@ export default function PlaylistPage() {
     return `${m}:${s.toString().padStart(2, "0")}`
   }
 
+  const isSaved = playlist ? isPlaylistSaved(playlist.id) : false
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center">
-        <div className="flex items-center space-x-2 text-gray-400">
-          <div className="w-5 h-5 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
-          <span>Loading playlist...</span>
+        <div className="flex flex-col items-center space-y-4">
+          <div className="w-8 h-8 border-3 border-purple-500 border-t-transparent rounded-full animate-spin" />
+          <span className="text-gray-400">Loading playlist...</span>
         </div>
       </div>
     )
   }
 
-  if (!playlist) {
+  if (error || !playlist) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-6">
         <Button variant="ghost" onClick={() => router.back()} className="mb-6 text-white hover:bg-white/10">
           <ChevronLeft className="mr-2 w-5 h-5" /> Back
         </Button>
-        <div className="text-center text-white/70">
-          <p className="text-lg">Playlist not found</p>
+        <div className="max-w-2xl mx-auto text-center">
+          <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-8 mb-6">
+            <Music className="w-16 h-16 text-red-400 mx-auto mb-4" />
+            <h2 className="text-2xl font-bold text-white mb-2">Playlist Not Found</h2>
+            <p className="text-gray-300 mb-6">
+              {error || "The playlist could not be loaded. It may have been deleted or made private."}
+            </p>
+            <Button onClick={() => router.push("/search")} className="bg-purple-600 hover:bg-purple-700">
+              Search for Playlists
+            </Button>
+          </div>
         </div>
       </div>
     )
@@ -154,7 +209,7 @@ export default function PlaylistPage() {
             <ChevronLeft className="w-5 h-5 mr-2" />
             Back
           </Button>
-          <h1 className="text-white font-bold text-2xl truncate">{playlist.name}</h1>
+          <h1 className="text-white font-bold text-xl md:text-2xl truncate">{playlist.name}</h1>
           <div />
         </div>
       </div>
@@ -172,18 +227,18 @@ export default function PlaylistPage() {
               alt={playlist.name}
               width={256}
               height={256}
-              className="rounded-xl w-full h-full object-cover border-4 border-white/10"
+              className="rounded-xl w-full h-full object-cover border-4 border-white/10 shadow-2xl"
             />
           </div>
 
           <div className="flex-1">
-            <div className="flex items-center gap-2 mb-2">
+            <div className="flex items-center gap-2 mb-2 flex-wrap">
               <Badge className="bg-purple-500">Playlist</Badge>
               {playlist.isPublic && <Badge className="bg-green-500">Public</Badge>}
             </div>
             <h1 className="text-4xl md:text-5xl font-bold text-white mb-4">{playlist.name}</h1>
 
-            <div className="flex flex-wrap items-center gap-4 mb-6">
+            <div className="flex flex-wrap items-center gap-6 mb-6">
               <div>
                 <p className="text-white/60 text-sm">Songs</p>
                 <p className="text-white text-lg font-semibold">{songs.length || 0}</p>
@@ -191,12 +246,12 @@ export default function PlaylistPage() {
               {playlist.followerCount && (
                 <div>
                   <p className="text-white/60 text-sm">Followers</p>
-                  <p className="text-white text-lg font-semibold">{playlist.followerCount.toLocaleString()}</p>
+                  <p className="text-white text-lg font-semibold">{(playlist.followerCount / 1000).toFixed(0)}K</p>
                 </div>
               )}
             </div>
 
-            <div className="flex gap-3">
+            <div className="flex gap-3 flex-wrap">
               <Button
                 onClick={() => songs.length > 0 && handlePlaySong(songs[0], 0)}
                 disabled={songs.length === 0}
@@ -205,6 +260,28 @@ export default function PlaylistPage() {
                 <Play className="w-4 h-4 mr-2" />
                 {songs.length > 0 ? "Play All" : "No Songs"}
               </Button>
+
+              <Button
+                onClick={handleSavePlaylist}
+                variant="outline"
+                className={cn(
+                  "border-white/20 text-white hover:bg-white/10 bg-transparent transition-colors",
+                  isSaved && "border-purple-500 bg-purple-500/10 hover:bg-purple-500/20",
+                )}
+              >
+                {isSaved ? (
+                  <>
+                    <Bookmark className="w-4 h-4 mr-2 fill-purple-400" />
+                    Saved
+                  </>
+                ) : (
+                  <>
+                    <BookmarkPlus className="w-4 h-4 mr-2" />
+                    Save
+                  </>
+                )}
+              </Button>
+
               <Button
                 variant="outline"
                 onClick={handleShare}
@@ -226,7 +303,7 @@ export default function PlaylistPage() {
             className="bg-white/5 border border-white/10 rounded-xl p-6 mb-8"
           >
             <h2 className="text-white text-xl font-bold mb-2">About this Playlist</h2>
-            <p className="text-white/70">{playlist.description}</p>
+            <p className="text-white/70 leading-relaxed">{playlist.description}</p>
           </motion.div>
         )}
 
@@ -248,10 +325,10 @@ export default function PlaylistPage() {
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: index * 0.02 }}
-                    className="flex items-center gap-4 p-4 hover:bg-white/10 cursor-pointer group transition-colors border-b border-white/5 last:border-b-0"
+                    className="flex items-center gap-4 p-4 hover:bg-white/10 group transition-colors border-b border-white/5 last:border-b-0"
                   >
-                    <div className="text-white/60 w-8 text-center font-semibold">{index + 1}</div>
-                    <div className="relative">
+                    <div className="text-white/60 w-8 text-center font-semibold flex-shrink-0">{index + 1}</div>
+                    <div className="relative flex-shrink-0">
                       <SafeImage
                         src={song.image}
                         alt={song.title || "Unknown Song"}
@@ -261,7 +338,7 @@ export default function PlaylistPage() {
                       />
                       <div
                         onClick={() => handlePlaySong(song, index)}
-                        className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center"
+                        className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center cursor-pointer"
                       >
                         <Play className="w-4 h-4 text-white" />
                       </div>
@@ -270,7 +347,9 @@ export default function PlaylistPage() {
                       <h4 className="text-white font-medium truncate">{song.title || "Unknown Song"}</h4>
                       <p className="text-gray-400 text-sm truncate">{song.artist || "Unknown Artist"}</p>
                     </div>
-                    <span className="text-white/60 text-sm tabular-nums">{formatDuration(song.duration)}</span>
+                    <span className="text-white/60 text-sm tabular-nums flex-shrink-0">
+                      {formatDuration(song.duration)}
+                    </span>
                     <Button
                       size="icon"
                       variant="ghost"
@@ -287,7 +366,7 @@ export default function PlaylistPage() {
                         if (isFavorite) removeFromFavorites(song.id)
                         else addToFavorites(converted)
                       }}
-                      className="text-gray-400 hover:text-white w-8 h-8"
+                      className="text-gray-400 hover:text-white w-8 h-8 flex-shrink-0"
                     >
                       <Heart className={cn("w-4 h-4", isFavorite && "fill-red-500 text-red-500")} />
                     </Button>

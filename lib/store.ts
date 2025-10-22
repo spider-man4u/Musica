@@ -85,6 +85,7 @@ export interface UserData {
     aiShuffle: boolean
     aiSuggestions: boolean
   }
+  savedPlaylists: Playlist[]
 }
 
 type RepeatMode = "off" | "one" | "all"
@@ -186,6 +187,10 @@ interface AppState {
   ) => void
   reorderPlaylistItem: (playlistId: string, from: number, to: number) => void
   getPlaylistById: (playlistId: string) => Playlist | null
+
+  savePlaylist: (playlist: Playlist) => void
+  unsavePlaylist: (playlistId: string) => void
+  isPlaylistSaved: (playlistId: string) => boolean
 }
 
 /* Utilities */
@@ -329,6 +334,7 @@ const defaultUserData: UserData = {
     aiShuffle: true,
     aiSuggestions: true,
   },
+  savedPlaylists: [],
 }
 
 const curatedPlaylistsDefault: Playlist[] = [
@@ -939,6 +945,37 @@ export const useStore = create<AppState>()(
         return userData.playlists.find((p) => p.id === playlistId) || null
       },
 
+      savePlaylist: (playlist) => {
+        if (!playlist) return
+        set((state) => {
+          const isSaved = state.userData.savedPlaylists.some((p) => p.id === playlist.id)
+          if (isSaved) return state
+          return {
+            userData: {
+              ...state.userData,
+              savedPlaylists: [playlist, ...state.userData.savedPlaylists],
+            },
+          }
+        })
+        get().syncToCloud()
+      },
+
+      unsavePlaylist: (playlistId) => {
+        if (!playlistId) return
+        set((state) => ({
+          userData: {
+            ...state.userData,
+            savedPlaylists: state.userData.savedPlaylists.filter((p) => p.id !== playlistId),
+          },
+        }))
+        get().syncToCloud()
+      },
+
+      isPlaylistSaved: (playlistId) => {
+        const { userData } = get()
+        return userData.savedPlaylists?.some((p) => p.id === playlistId) || false
+      },
+
       /* Recommendations */
       generateAISuggestions: async (baseSong) => {
         if (!get().userData.settings.aiSuggestions) return []
@@ -1225,6 +1262,7 @@ export const useStore = create<AppState>()(
         currentUserId: state.currentUserId,
         artists: state.artists || [],
         recommendations: state.recommendations || [],
+        savedPlaylists: state.savedPlaylists || [],
       }),
     },
   ),
