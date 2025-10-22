@@ -113,16 +113,39 @@ export default function SearchPage() {
         setArtistsLoading(true)
         setPlaylistsLoading(true)
         try {
-          const [artistRes, playlistRes] = await Promise.all([searchArtists(q), searchPlaylists(q)])
+          console.log(`🔍 Searching for artists and playlists: "${q}"`)
 
-          if (artistRes.success) {
-            setArtists(artistRes.data || [])
+          const [artistRes, playlistRes] = await Promise.all([
+            searchArtists(q).catch((err) => {
+              console.error("Artist search error:", err)
+              return { success: false, data: [] }
+            }),
+            searchPlaylists(q).catch((err) => {
+              console.error("Playlist search error:", err)
+              return { success: false, data: [] }
+            }),
+          ])
+
+          console.log(`✅ Artists response:`, artistRes)
+          console.log(`✅ Playlists response:`, playlistRes)
+
+          if (artistRes.success && Array.isArray(artistRes.data)) {
+            console.log(`📊 Setting ${artistRes.data.length} artists`)
+            setArtists(artistRes.data)
+          } else {
+            setArtists([])
           }
-          if (playlistRes.success) {
-            setPlaylists(playlistRes.data || [])
+
+          if (playlistRes.success && Array.isArray(playlistRes.data)) {
+            console.log(`📊 Setting ${playlistRes.data.length} playlists`)
+            setPlaylists(playlistRes.data)
+          } else {
+            setPlaylists([])
           }
         } catch (error) {
           console.error("Error fetching artists/playlists:", error)
+          setArtists([])
+          setPlaylists([])
         } finally {
           setArtistsLoading(false)
           setPlaylistsLoading(false)

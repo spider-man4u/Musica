@@ -256,18 +256,21 @@ class SaavnAPI {
     try {
       const artistData = artist.artist || artist
 
-      return {
-        id: artistData.id || `artist-${Date.now()}`,
-        name: sanitizeString(artistData.name || artistData.title) || "Unknown Artist",
-        image: this.extractImageUrl(artistData.image || artistData.picture),
-        bio: sanitizeString(artistData.bio || artistData.description),
-        followers: artistData.follower_count || artistData.followers || 0,
-        verified: artistData.verified || false,
-        genres: Array.isArray(artistData.genres) ? artistData.genres : [],
-        popularity: artistData.popularity || 50,
+      const result: ModernArtist = {
+        id: artistData.id || artistData.artistId || `artist-${Date.now()}-${Math.random()}`,
+        name: sanitizeString(artistData.name || artistData.title || artistData.artist_name) || "Unknown Artist",
+        image: this.extractImageUrl(artistData.image || artistData.picture || artistData.artwork),
+        bio: sanitizeString(artistData.bio || artistData.description || artistData.explanation),
+        followers: Number(artistData.follower_count || artistData.followers || 0),
+        verified: artistData.verified === true || artistData.verified === "1",
+        genres: Array.isArray(artistData.genres) ? artistData.genres : artistData.language ? [artistData.language] : [],
+        popularity: Number(artistData.popularity || 50),
       }
+
+      console.log(`✅ [ARTIST TRANSFORMED]`, result.name, result)
+      return result
     } catch (e) {
-      console.error("❌ Error transforming artist:", e)
+      console.error("❌ Error transforming artist:", e, artist)
       return null
     }
   }
@@ -278,17 +281,22 @@ class SaavnAPI {
     try {
       const playlistData = playlist.playlist || playlist
 
-      return {
-        id: playlistData.id || `playlist-${Date.now()}`,
-        name: sanitizeString(playlistData.name || playlistData.title) || "Unknown Playlist",
-        description: sanitizeString(playlistData.description),
-        image: this.extractImageUrl(playlistData.image || playlistData.picture),
-        songCount: playlistData.song_count || playlistData.songCount || 0,
-        followerCount: playlistData.follower_count || playlistData.followers || 0,
-        isPublic: playlistData.is_public !== false,
+      const result: ModernPlaylist = {
+        id: playlistData.id || playlistData.playlistId || `playlist-${Date.now()}-${Math.random()}`,
+        name:
+          sanitizeString(playlistData.name || playlistData.title || playlistData.playlist_name) || "Unknown Playlist",
+        description: sanitizeString(playlistData.description || playlistData.desc || playlistData.explanation),
+        image: this.extractImageUrl(playlistData.image || playlistData.picture || playlistData.artwork),
+        songCount: Number(playlistData.song_count || playlistData.songCount || playlistData.songs?.length || 0),
+        followerCount: Number(playlistData.follower_count || playlistData.followers || 0),
+        isPublic: playlistData.is_public !== false && playlistData.isPublic !== false,
+        songs: Array.isArray(playlistData.songs) ? playlistData.songs.map((s: any) => this.transformSong(s)) : [],
       }
+
+      console.log(`✅ [PLAYLIST TRANSFORMED]`, result.name, result)
+      return result
     } catch (e) {
-      console.error("❌ Error transforming playlist:", e)
+      console.error("❌ Error transforming playlist:", e, playlist)
       return null
     }
   }
@@ -339,20 +347,36 @@ class SaavnAPI {
       console.log(`📌 Endpoint: ${url}`)
 
       const data = await fetchWithRetry<any>(url, TIMEOUTS.search)
+      console.log(`📦 [ARTISTS RESPONSE]`, data)
 
-      let artists = data?.data?.results || data?.results || data?.data || data?.artists || []
+      let artists = data?.data?.results || data?.results || data?.data || data?.artists || data || []
 
       if (!Array.isArray(artists)) {
-        console.warn(`⚠️ Artists is not an array`)
-        artists = []
+        console.warn(`⚠️ Artists is not an array, trying to extract from response`)
+        // Try to find any array in the response
+        for (const key in data) {
+          if (Array.isArray(data[key])) {
+            artists = data[key]
+            console.log(`✅ Found array at key: ${key}`)
+            break
+          }
+        }
       }
 
-      console.log(`✅ Got ${artists.length} artists`)
+      console.log(`✅ Got ${artists.length} artists from response`)
 
       const transformed = artists
-        .map((a: any) => this.transformArtist(a))
-        .filter((a: ModernArtist | null) => a && a.id && a.name)
+        .map((a: any) => {
+          console.log(`🎨 Transforming artist:`, a.name || a.title || "Unknown")
+          return this.transformArtist(a)
+        })
+        .filter((a: ModernArtist | null) => {
+          const isValid = a && a.id && a.name
+          if (!isValid) console.warn(`⚠️ Filtered out invalid artist`)
+          return isValid
+        })
 
+      console.log(`✅ Final transformed artists: ${transformed.length}`)
       return transformed as ModernArtist[]
     } catch (error) {
       console.error(`❌ Artist search error:`, error)
@@ -372,20 +396,35 @@ class SaavnAPI {
       console.log(`📌 Endpoint: ${url}`)
 
       const data = await fetchWithRetry<any>(url, TIMEOUTS.search)
+      console.log(`📦 [PLAYLISTS RESPONSE]`, data)
 
-      let playlists = data?.data?.results || data?.results || data?.data || data?.playlists || []
+      let playlists = data?.data?.results || data?.results || data?.data || data?.playlists || data || []
 
       if (!Array.isArray(playlists)) {
-        console.warn(`⚠️ Playlists is not an array`)
-        playlists = []
+        console.warn(`⚠️ Playlists is not an array, trying to extract from response`)
+        for (const key in data) {
+          if (Array.isArray(data[key])) {
+            playlists = data[key]
+            console.log(`✅ Found array at key: ${key}`)
+            break
+          }
+        }
       }
 
-      console.log(`✅ Got ${playlists.length} playlists`)
+      console.log(`✅ Got ${playlists.length} playlists from response`)
 
       const transformed = playlists
-        .map((p: any) => this.transformPlaylist(p))
-        .filter((p: ModernPlaylist | null) => p && p.id && p.name)
+        .map((p: any) => {
+          console.log(`📚 Transforming playlist:`, p.name || p.title || "Unknown")
+          return this.transformPlaylist(p)
+        })
+        .filter((p: ModernPlaylist | null) => {
+          const isValid = p && p.id && p.name
+          if (!isValid) console.warn(`⚠️ Filtered out invalid playlist`)
+          return isValid
+        })
 
+      console.log(`✅ Final transformed playlists: ${transformed.length}`)
       return transformed as ModernPlaylist[]
     } catch (error) {
       console.error(`❌ Playlist search error:`, error)
@@ -640,7 +679,6 @@ export async function searchArtists(
     return { success: true, data: results }
   } catch (error) {
     const message = error instanceof Error ? error.message : "Artist search failed"
-    console.error(`❌ Artist search failed: ${message}\n`)
     return { success: false, data: [], message }
   }
 }
@@ -655,7 +693,6 @@ export async function searchPlaylists(
     return { success: true, data: results }
   } catch (error) {
     const message = error instanceof Error ? error.message : "Playlist search failed"
-    console.error(`❌ Playlist search failed: ${message}\n`)
     return { success: false, data: [], message }
   }
 }
