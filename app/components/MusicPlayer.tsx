@@ -603,18 +603,13 @@ export default function MusicPlayer() {
           initial="hidden"
           animate="visible"
           exit="exit"
-          className="fixed left-0 right-0 bg-gradient-to-r from-gray-900/98 to-black/98 backdrop-blur-xl border-t border-gray-800/50 px-2 py-1 md:px-6 lg:px-8 md:py-3"
+          className="fixed left-0 right-0 bg-gradient-to-r from-gray-900/98 to-black/98 backdrop-blur-xl border-t border-gray-800/50 px-2 md:px-6 lg:px-8 md:py-3 py-3 pb-1.5 mb-2.5"
           style={{
             bottom: `calc(${NAV_HEIGHT}px + env(safe-area-inset-bottom, 0px) + 8px)`,
           }}
         >
           <motion.div variants={childVariants} className="flex justify-center mb-1 md:mb-2">
-            <motion.button
-              onClick={() => setIsExpanded(true)}
-              className="w-6 h-0.5 bg-gray-600 rounded-full hover:bg-gray-500 transition-colors"
-              whileHover={{ scaleX: 1.2 }}
-              whileTap={{ scaleY: 0.8 }}
-            />
+            
           </motion.div>
 
           <motion.div variants={childVariants} className="flex items-center justify-between max-w-7xl mx-auto">
