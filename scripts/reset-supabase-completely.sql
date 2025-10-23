@@ -1,120 +1,147 @@
--- COMPLETE SUPABASE RESET - Run this in your Supabase SQL Editor
--- This will completely reset and fix all authentication and database issues
-
--- 1. Drop all existing policies, triggers, and tables
-DROP POLICY IF EXISTS "Enable read access for users to their own profile" ON profiles;
-DROP POLICY IF EXISTS "Enable insert access for users to their own profile" ON profiles;
-DROP POLICY IF EXISTS "Enable update access for users to their own profile" ON profiles;
-DROP POLICY IF EXISTS "Enable full access for users to their own preferences" ON user_preferences;
-DROP POLICY IF EXISTS "Enable full access for users to their own favorites" ON favorites;
-DROP POLICY IF EXISTS "Enable read access for users to their own playlists" ON playlists;
-DROP POLICY IF EXISTS "Enable insert access for users to create playlists" ON playlists;
-DROP POLICY IF EXISTS "Enable update access for users to their own playlists" ON playlists;
-DROP POLICY IF EXISTS "Enable delete access for users to their own playlists" ON playlists;
-DROP POLICY IF EXISTS "Enable read access for playlist songs" ON playlist_songs;
-DROP POLICY IF EXISTS "Enable full access for users to their own playlist songs" ON playlist_songs;
-DROP POLICY IF EXISTS "Enable full access for users to their own recently played" ON recently_played;
-DROP POLICY IF EXISTS "Enable full access for users to their own downloads" ON downloads;
-DROP POLICY IF EXISTS "Enable full access for users to their own listening history" ON listening_history;
-DROP POLICY IF EXISTS "Enable full access for users to their own search history" ON search_history;
-
-DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
-DROP TRIGGER IF EXISTS update_profiles_updated_at ON profiles;
-DROP TRIGGER IF EXISTS update_user_preferences_updated_at ON user_preferences;
-DROP TRIGGER IF EXISTS update_playlists_updated_at ON playlists;
-
-DROP FUNCTION IF EXISTS handle_new_user();
-DROP FUNCTION IF EXISTS update_updated_at_column();
-
-DROP TABLE IF EXISTS search_history CASCADE;
-DROP TABLE IF EXISTS listening_history CASCADE;
-DROP TABLE IF EXISTS downloads CASCADE;
-DROP TABLE IF EXISTS recently_played CASCADE;
-DROP TABLE IF EXISTS playlist_songs CASCADE;
-DROP TABLE IF EXISTS playlists CASCADE;
-DROP TABLE IF EXISTS favorites CASCADE;
-DROP TABLE IF EXISTS user_preferences CASCADE;
+-- Drop all existing tables and policies
+DROP TABLE IF EXISTS user_listening_history CASCADE;
+DROP TABLE IF EXISTS user_favorites CASCADE;
+DROP TABLE IF EXISTS user_playlists CASCADE;
+DROP TABLE IF EXISTS user_downloads CASCADE;
+DROP TABLE IF EXISTS user_search_history CASCADE;
+DROP TABLE IF EXISTS user_profile CASCADE;
 DROP TABLE IF EXISTS profiles CASCADE;
 
--- 2. Enable required extensions
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+-- Disable RLS temporarily
+ALTER TABLE IF EXISTS auth.users DISABLE ROW LEVEL SECURITY;
 
--- 3. Create profiles table (simplified)
-CREATE TABLE profiles (
-  id UUID REFERENCES auth.users(id) ON DELETE CASCADE PRIMARY KEY,
-  email TEXT NOT NULL,
-  username TEXT NOT NULL,
-  full_name TEXT,
-  avatar_url TEXT,
-  selected_artists TEXT[] DEFAULT '{}',
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- 4. Create user preferences table (simplified)
-CREATE TABLE user_preferences (
-  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
-  user_id UUID REFERENCES profiles(id) ON DELETE CASCADE UNIQUE NOT NULL,
+-- Create profiles table
+CREATE TABLE IF NOT EXISTS profiles (
+  id UUID PRIMARY KEY REFERENCES auth.users ON DELETE CASCADE,
+  email TEXT,
+  name TEXT,
+  avatar TEXT,
   theme TEXT DEFAULT 'dark',
-  audio_quality TEXT DEFAULT 'high',
-  notifications_enabled BOOLEAN DEFAULT true,
-  auto_play BOOLEAN DEFAULT true,
-  ai_suggestions BOOLEAN DEFAULT true,
-  ai_shuffle BOOLEAN DEFAULT true,
-  crossfade BOOLEAN DEFAULT false,
-  download_enabled BOOLEAN DEFAULT true,
-  language TEXT DEFAULT 'hindi',
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
 );
 
--- 5. Enable RLS but with permissive policies
+-- Create user_profile table (for app data)
+CREATE TABLE IF NOT EXISTS user_profile (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users ON DELETE CASCADE,
+  name TEXT,
+  email TEXT,
+  avatar TEXT,
+  theme TEXT DEFAULT 'dark',
+  settings JSONB DEFAULT '{
+    "notifications": true,
+    "quality": "high",
+    "downloadEnabled": true,
+    "language": "hindi",
+    "autoplay": true,
+    "crossfade": false,
+    "aiShuffle": true,
+    "aiSuggestions": true
+  }'::jsonb,
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW(),
+  UNIQUE(user_id)
+);
+
+-- Create search history table
+CREATE TABLE IF NOT EXISTS user_search_history (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users ON DELETE CASCADE,
+  query TEXT NOT NULL,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Create favorites table
+CREATE TABLE IF NOT EXISTS user_favorites (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users ON DELETE CASCADE,
+  song_id TEXT NOT NULL,
+  song_data JSONB NOT NULL,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Create downloads table
+CREATE TABLE IF NOT EXISTS user_downloads (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users ON DELETE CASCADE,
+  song_id TEXT NOT NULL,
+  song_data JSONB NOT NULL,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Create playlists table
+CREATE TABLE IF NOT EXISTS user_playlists (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users ON DELETE CASCADE,
+  playlist_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  description TEXT,
+  image TEXT,
+  is_public BOOLEAN DEFAULT false,
+  playlist_data JSONB NOT NULL,
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Create listening history table
+CREATE TABLE IF NOT EXISTS user_listening_history (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users ON DELETE CASCADE,
+  song_id TEXT NOT NULL,
+  duration INTEGER,
+  timestamp BIGINT NOT NULL,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Create indexes for better performance
+CREATE INDEX IF NOT EXISTS idx_user_search_history_user_id ON user_search_history(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_favorites_user_id ON user_favorites(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_downloads_user_id ON user_downloads(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_playlists_user_id ON user_playlists(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_listening_history_user_id ON user_listening_history(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_profile_user_id ON user_profile(user_id);
+
+-- Enable RLS
+ALTER TABLE IF EXISTS auth.users ENABLE ROW LEVEL SECURITY;
+
+-- RLS Policies for profiles
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
-ALTER TABLE user_preferences ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can view own profile" ON profiles FOR SELECT USING (auth.uid() = id);
+CREATE POLICY "Users can update own profile" ON profiles FOR UPDATE USING (auth.uid() = id);
 
--- 6. Create very permissive policies for testing
-CREATE POLICY "Allow all operations on profiles" ON profiles
-  FOR ALL USING (true) WITH CHECK (true);
+-- RLS Policies for user_profile
+ALTER TABLE user_profile ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can view own profile" ON user_profile FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Users can update own profile" ON user_profile FOR UPDATE USING (auth.uid() = user_id);
+CREATE POLICY "Users can insert own profile" ON user_profile FOR INSERT WITH CHECK (auth.uid() = user_id);
 
-CREATE POLICY "Allow all operations on user_preferences" ON user_preferences
-  FOR ALL USING (true) WITH CHECK (true);
+-- RLS Policies for user_search_history
+ALTER TABLE user_search_history ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can view own search history" ON user_search_history FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Users can insert own search history" ON user_search_history FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users can delete own search history" ON user_search_history FOR DELETE USING (auth.uid() = user_id);
 
--- 7. Create simple trigger function
-CREATE OR REPLACE FUNCTION handle_new_user()
-RETURNS TRIGGER
-LANGUAGE plpgsql
-SECURITY DEFINER
-AS $$
-BEGIN
-  INSERT INTO public.profiles (id, email, username, full_name)
-  VALUES (
-    NEW.id,
-    NEW.email,
-    COALESCE(NEW.raw_user_meta_data->>'username', split_part(NEW.email, '@', 1)),
-    COALESCE(NEW.raw_user_meta_data->>'full_name', NEW.raw_user_meta_data->>'name')
-  );
-  
-  INSERT INTO public.user_preferences (user_id)
-  VALUES (NEW.id);
-  
-  RETURN NEW;
-EXCEPTION
-  WHEN OTHERS THEN
-    -- Log error but don't fail the auth process
-    RAISE WARNING 'Error in handle_new_user: %', SQLERRM;
-    RETURN NEW;
-END;
-$$;
+-- RLS Policies for user_favorites
+ALTER TABLE user_favorites ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can view own favorites" ON user_favorites FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Users can insert own favorites" ON user_favorites FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users can delete own favorites" ON user_favorites FOR DELETE USING (auth.uid() = user_id);
 
--- 8. Create trigger
-CREATE TRIGGER on_auth_user_created
-  AFTER INSERT ON auth.users
-  FOR EACH ROW EXECUTE FUNCTION handle_new_user();
+-- RLS Policies for user_downloads
+ALTER TABLE user_downloads ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can view own downloads" ON user_downloads FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Users can insert own downloads" ON user_downloads FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users can delete own downloads" ON user_downloads FOR DELETE USING (auth.uid() = user_id);
 
--- 9. Grant all permissions
-GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated;
-GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated;
-GRANT ALL ON ALL FUNCTIONS IN SCHEMA public TO anon, authenticated;
+-- RLS Policies for user_playlists
+ALTER TABLE user_playlists ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can view own playlists" ON user_playlists FOR SELECT USING (auth.uid() = user_id OR is_public = true);
+CREATE POLICY "Users can insert own playlists" ON user_playlists FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users can update own playlists" ON user_playlists FOR UPDATE USING (auth.uid() = user_id);
+CREATE POLICY "Users can delete own playlists" ON user_playlists FOR DELETE USING (auth.uid() = user_id);
 
--- 10. Test the setup
-SELECT 'Supabase reset completed successfully!' as status;
+-- RLS Policies for user_listening_history
+ALTER TABLE user_listening_history ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can view own listening history" ON user_listening_history FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Users can insert own listening history" ON user_listening_history FOR INSERT WITH CHECK (auth.uid() = user_id);

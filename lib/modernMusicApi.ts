@@ -331,6 +331,37 @@ class SaavnAPI {
     try {
       const playlistData = playlist.playlist || playlist
 
+      console.log(`📋 [TRANSFORM PLAYLIST]`, {
+        id: playlistData.id,
+        name: playlistData.name || playlistData.title,
+        hasSongs: !!playlistData.songs,
+        songsType: Array.isArray(playlistData.songs) ? "array" : typeof playlistData.songs,
+        songsLength: Array.isArray(playlistData.songs) ? playlistData.songs.length : 0,
+        playlistKeys: Object.keys(playlistData).slice(0, 20),
+      })
+
+      // Handle various song response structures
+      let songsArray = []
+      if (Array.isArray(playlistData.songs)) {
+        songsArray = playlistData.songs
+      } else if (playlistData.data?.songs && Array.isArray(playlistData.data.songs)) {
+        songsArray = playlistData.data.songs
+      } else if (playlistData.list && Array.isArray(playlistData.list)) {
+        songsArray = playlistData.list
+      } else if (playlistData.results && Array.isArray(playlistData.results)) {
+        songsArray = playlistData.results
+      }
+
+      const transformedSongs = songsArray
+        .map((s: any) => {
+          const transformed = this.transformSong(s)
+          if (transformed) {
+            console.log(`  ✅ Transformed song: ${transformed.title}`)
+          }
+          return transformed
+        })
+        .filter((s: ModernSong | null) => s && s.id && s.title)
+
       const result: ModernPlaylist = {
         id: playlistData.id || playlistData.playlistId || `playlist-${Date.now()}-${Math.random()}`,
         name:
@@ -341,9 +372,7 @@ class SaavnAPI {
         followerCount: Number(playlistData.follower_count || playlistData.followers || 0),
         isPublic: playlistData.is_public !== false && playlistData.isPublic !== false,
         link: playlistData.link || playlistData.url || playlistData.permaUrl,
-        songs: Array.isArray(playlistData.songs)
-          ? playlistData.songs.map((s: any) => this.transformSong(s)).filter((s: any) => s)
-          : [],
+        songs: transformedSongs,
       }
 
       console.log(`✅ [PLAYLIST TRANSFORMED]`, result.name, `${result.songs?.length || 0} songs`)
@@ -646,11 +675,18 @@ class SaavnAPI {
     console.log(`\n📋 [PLAYLIST DETAILS] Playlist ID: ${playlistId}`)
 
     try {
-      const url = `${API_BASE_URL}/playlists?id=${encodeURIComponent(playlistId)}&page=0&limit=300`
+      // Try with higher limit first
+      const url = `${API_BASE_URL}/playlists?id=${encodeURIComponent(playlistId)}&page=0&limit=500`
       console.log(`📌 Endpoint: ${url}`)
 
       const data = await fetchWithRetry<any>(url, TIMEOUTS.details)
-      console.log(`📦 [PLAYLIST DATA]`, data)
+      console.log(`📦 [PLAYLIST RESPONSE STRUCTURE]`, {
+        hasPlaylist: !!data?.playlist,
+        hasData: !!data?.data,
+        responseKeys: Object.keys(data || {}).slice(0, 20),
+        playlistKeys: data?.playlist ? Object.keys(data.playlist).slice(0, 20) : [],
+        songsLength: data?.playlist?.songs?.length || data?.songs?.length || 0,
+      })
 
       const playlist = data?.playlist || data?.data?.playlist || data
 

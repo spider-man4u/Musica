@@ -6,7 +6,7 @@ import Image from "next/image"
 import { motion } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Music, ChevronLeft, Play, Share2, Heart, BookmarkPlus, Bookmark } from "lucide-react"
+import { Music, ChevronLeft, Play, Share2, Heart, BookmarkPlus, Bookmark, RefreshCw } from "lucide-react"
 import { useStore } from "@/lib/store"
 import { cn } from "@/lib/utils"
 import { getPlaylistDetails } from "@/lib/modernMusicApi"
@@ -38,60 +38,78 @@ export default function PlaylistPage() {
   const [songs, setSongs] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [debugInfo, setDebugInfo] = useState<any>(null)
 
   const { playSong, userData, addToFavorites, removeFromFavorites, savePlaylist, unsavePlaylist, isPlaylistSaved } =
     useStore()
 
-  useEffect(() => {
-    const loadPlaylist = async () => {
-      if (!playlistId) {
-        setError("No playlist ID provided")
-        setLoading(false)
+  const loadPlaylist = async () => {
+    if (!playlistId) {
+      setError("No playlist ID provided")
+      setLoading(false)
+      return
+    }
+
+    try {
+      setLoading(true)
+      setError(null)
+      console.log(`\n${"=".repeat(60)}`)
+      console.log(`📋 [PAGE] Loading playlist: ${playlistId}`)
+      console.log(`${"=".repeat(60)}\n`)
+
+      const result = await getPlaylistDetails(playlistId)
+      console.log(`\n📦 [PAGE] Playlist result:`, result)
+
+      setDebugInfo({
+        success: result.success,
+        hasData: !!result.data,
+        songsCount: result.data?.songs?.length || 0,
+        message: result.message,
+        playlistName: result.data?.name,
+      })
+
+      if (!result.success) {
+        setError(result.message || "Failed to load playlist")
+        console.error("❌ Failed to load playlist:", result.message)
+        setPlaylist(null)
+        setSongs([])
         return
       }
 
-      try {
-        setLoading(true)
-        setError(null)
-        console.log(`📋 Loading playlist: ${playlistId}`)
-
-        const result = await getPlaylistDetails(playlistId)
-        console.log(`📋 Playlist result:`, result)
-
-        if (!result.success) {
-          setError(result.message || "Failed to load playlist")
-          console.error("❌ Failed to load playlist:", result.message)
-          setPlaylist(null)
-          setSongs([])
-          return
-        }
-
-        if (!result.data) {
-          setError("Playlist not found")
-          console.error("❌ No playlist data in response")
-          setPlaylist(null)
-          setSongs([])
-          return
-        }
-
-        setPlaylist(result.data)
-
-        // Extract songs from playlist
-        if (Array.isArray(result.data.songs) && result.data.songs.length > 0) {
-          console.log(`🎵 Found ${result.data.songs.length} songs in playlist`)
-          setSongs(result.data.songs)
-        } else {
-          console.warn(`⚠️ No songs found in playlist`)
-          setSongs([])
-        }
-      } catch (error) {
-        console.error("Error loading playlist:", error)
-        setError("Error loading playlist. Please try again.")
-      } finally {
-        setLoading(false)
+      if (!result.data) {
+        setError("Playlist not found")
+        console.error("❌ No playlist data in response")
+        setPlaylist(null)
+        setSongs([])
+        return
       }
-    }
 
+      setPlaylist(result.data)
+
+      // Extract songs from playlist
+      if (Array.isArray(result.data.songs) && result.data.songs.length > 0) {
+        console.log(`\n✅ [PAGE] Found ${result.data.songs.length} songs in playlist`)
+        result.data.songs.forEach((song, idx) => {
+          console.log(`  ${idx + 1}. ${song.title} by ${song.artist}`)
+        })
+        setSongs(result.data.songs)
+      } else {
+        console.warn(`\n⚠️ [PAGE] No songs or empty songs array in playlist`)
+        console.log(`  Songs value:`, result.data.songs)
+        console.log(`  Is array:`, Array.isArray(result.data.songs))
+        console.log(`  Length:`, result.data.songs?.length)
+        setSongs([])
+        setError("This playlist appears to be empty. Try another playlist.")
+      }
+    } catch (error) {
+      console.error("❌ Error loading playlist:", error)
+      setError("Error loading playlist. Please try again.")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
     loadPlaylist()
   }, [playlistId])
 
@@ -173,6 +191,12 @@ export default function PlaylistPage() {
         <div className="flex flex-col items-center space-y-4">
           <div className="w-8 h-8 border-3 border-purple-500 border-t-transparent rounded-full animate-spin" />
           <span className="text-gray-400">Loading playlist...</span>
+          {debugInfo && (
+            <div className="text-xs text-gray-500 mt-4 max-w-sm">
+              <p>ID: {playlistId}</p>
+              <p>Status: {debugInfo.success ? "✅ Success" : "❌ Failed"}</p>
+            </div>
+          )}
         </div>
       </div>
     )
@@ -188,12 +212,33 @@ export default function PlaylistPage() {
           <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-8 mb-6">
             <Music className="w-16 h-16 text-red-400 mx-auto mb-4" />
             <h2 className="text-2xl font-bold text-white mb-2">Playlist Not Found</h2>
-            <p className="text-gray-300 mb-6">
+            <p className="text-gray-300 mb-4">
               {error || "The playlist could not be loaded. It may have been deleted or made private."}
             </p>
-            <Button onClick={() => router.push("/search")} className="bg-purple-600 hover:bg-purple-700">
-              Search for Playlists
-            </Button>
+            <div className="bg-black/20 rounded-lg p-4 mb-6 text-left text-xs text-gray-400 max-h-40 overflow-y-auto">
+              <p className="font-mono break-words">Playlist ID: {playlistId}</p>
+              {debugInfo && (
+                <>
+                  <p className="font-mono mt-2">Success: {debugInfo.success ? "✅ Yes" : "❌ No"}</p>
+                  <p className="font-mono">Has Data: {debugInfo.hasData ? "✅ Yes" : "❌ No"}</p>
+                  <p className="font-mono">Songs: {debugInfo.songsCount}</p>
+                  {debugInfo.message && <p className="font-mono text-red-400 mt-2">{debugInfo.message}</p>}
+                </>
+              )}
+            </div>
+            <div className="flex gap-2 justify-center flex-wrap">
+              <Button
+                onClick={loadPlaylist}
+                variant="outline"
+                className="border-white/20 text-white hover:bg-white/10 bg-transparent"
+              >
+                <RefreshCw className="w-4 h-4 mr-2" />
+                Retry
+              </Button>
+              <Button onClick={() => router.push("/search")} className="bg-purple-600 hover:bg-purple-700">
+                Search for Playlists
+              </Button>
+            </div>
           </div>
         </div>
       </div>
@@ -384,7 +429,13 @@ export default function PlaylistPage() {
           >
             <Music className="w-16 h-16 text-gray-400 mx-auto mb-4 opacity-50" />
             <p className="text-white/70 text-lg">No songs in this playlist</p>
-            <p className="text-white/50 text-sm mt-2">Songs will appear here when added to the playlist</p>
+            <p className="text-white/50 text-sm mt-2">
+              The playlist appears to be empty or the API didn't return songs.
+            </p>
+            <Button onClick={loadPlaylist} variant="outline" className="mt-4 border-white/20 text-white bg-transparent">
+              <RefreshCw className="w-4 h-4 mr-2" />
+              Retry Loading
+            </Button>
           </motion.div>
         )}
       </main>
