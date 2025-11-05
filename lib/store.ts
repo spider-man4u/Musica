@@ -123,6 +123,13 @@ interface AppState {
   syncStatus: SyncStatus
   currentUserId: string | null
 
+  userPreferences: {
+    preferredGenres: string[]
+    preferredArtists: string[]
+    dislikedSongs: Set<string>
+    lastInteractionTime: number
+  }
+
   setCurrentSong: (song: Song | null) => void
   setIsPlaying: (playing: boolean) => void
   setCurrentTime: (time: number) => void
@@ -191,6 +198,15 @@ interface AppState {
   savePlaylist: (playlist: Playlist) => void
   unsavePlaylist: (playlistId: string) => void
   isPlaylistSaved: (playlistId: string) => boolean
+
+  trackInteraction: (
+    songId: string,
+    type: "like" | "skip" | "play" | "complete",
+    skipTime?: number,
+    durationPlayed?: number,
+    totalDuration?: number,
+  ) => Promise<void>
+  loadUserPreferences: () => Promise<void>
 }
 
 /* Utilities */
@@ -422,6 +438,13 @@ export const useStore = create<AppState>()(
       lastApiCheck: 0,
       syncStatus: "idle",
       currentUserId: null,
+
+      userPreferences: {
+        preferredGenres: [],
+        preferredArtists: [],
+        dislikedSongs: new Set(),
+        lastInteractionTime: 0,
+      },
 
       setCurrentSong: (song) => {
         set({ currentSong: song })
@@ -1246,6 +1269,58 @@ export const useStore = create<AppState>()(
         const { artists } = get()
         return artists.find((artist) => artist.id === artistId) || null
       },
+
+      trackInteraction: async (songId, type, skipTime, durationPlayed, totalDuration) => {
+        const { currentSong, currentUserId } = get()
+
+        if (!currentSong || !currentUserId) return
+
+        try {
+          const { trackSongInteraction } = await import("./supabase-helpers")
+          await trackSongInteraction(
+            currentUserId,
+            songId,
+            { title: currentSong.title, artist: currentSong.artist },
+            type,
+            skipTime,
+            durationPlayed,
+            totalDuration,
+          )
+
+          set((state) => ({
+            userPreferences: {
+              ...state.userPreferences,
+              lastInteractionTime: Date.now(),
+            },
+          }))
+        } catch (error) {
+          console.error("Failed to track interaction:", error)
+        }
+      },
+
+      loadUserPreferences: async () => {
+        const { currentUserId } = get()
+        if (!currentUserId) return
+
+        try {
+          const { getAIRecommendations, getDislikedSongs } = await import("./supabase-helpers")
+          const [prefs, disliked] = await Promise.all([
+            getAIRecommendations(currentUserId),
+            getDislikedSongs(currentUserId),
+          ])
+
+          set((state) => ({
+            userPreferences: {
+              preferredGenres: prefs.preferredGenres || [],
+              preferredArtists: prefs.preferredArtists || [],
+              dislikedSongs: new Set(disliked.map((s) => s.song_id)),
+              lastInteractionTime: state.userPreferences.lastInteractionTime,
+            },
+          }))
+        } catch (error) {
+          console.error("Failed to load preferences:", error)
+        }
+      },
     }),
     {
       name: "enhanced-music-store",
@@ -1263,6 +1338,10 @@ export const useStore = create<AppState>()(
         artists: state.artists || [],
         recommendations: state.recommendations || [],
         savedPlaylists: state.savedPlaylists || [],
+        userPreferences: {
+          ...state.userPreferences,
+          dislikedSongs: Array.from(state.userPreferences?.dislikedSongs || []),
+        },
       }),
     },
   ),

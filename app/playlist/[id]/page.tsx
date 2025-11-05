@@ -99,7 +99,11 @@ export default function PlaylistPage() {
         console.log(`  Is array:`, Array.isArray(result.data.songs))
         console.log(`  Length:`, result.data.songs?.length)
         setSongs([])
-        setError("This playlist appears to be empty. Try another playlist.")
+        if (result.data.songs && Array.isArray(result.data.songs)) {
+          setError("This playlist appears to be empty.")
+        } else {
+          setError("The playlist data is incomplete. Try another playlist.")
+        }
       }
     } catch (error) {
       console.error("❌ Error loading playlist:", error)

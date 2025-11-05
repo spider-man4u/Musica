@@ -216,21 +216,28 @@ class SaavnAPI {
 
       console.log(`🎵 [TRANSFORMING] ${songData.name || "Unknown"}`)
 
-      const imageUrl = this.extractImageUrl(songData.image)
-      const audioUrl = this.extractAudioUrl(songData.downloadUrl)
+      const imageUrl = this.extractImageUrl(songData.image || songData.artwork || songData.thumbnail || songData.images)
+      const audioUrl = this.extractAudioUrl(
+        songData.downloadUrl || songData.download || songData.audioUrl || songData.preview_url,
+      )
+
+      let artistName = "Unknown Artist"
+      if (songData.primary_artists) {
+        artistName = String(songData.primary_artists).split(",")[0] || "Unknown Artist"
+      } else if (songData.primaryArtists) {
+        artistName = String(songData.primaryArtists).split(",")[0] || "Unknown Artist"
+      } else if (songData.artist) {
+        artistName = songData.artist
+      } else if (songData.artists) {
+        artistName = Array.isArray(songData.artists)
+          ? songData.artists.map((a: any) => a.name || a).join(", ")
+          : String(songData.artists)
+      }
 
       const result: ModernSong = {
-        id: songData.id || `song-${Date.now()}-${Math.random()}`,
+        id: songData.id || songData.videoId || `song-${Date.now()}-${Math.random()}`,
         title: sanitizeString(songData.name || songData.title || songData.song) || "Unknown Song",
-        artist:
-          sanitizeString(
-            songData.primary_artists ||
-              songData.primaryArtists ||
-              songData.artist ||
-              (Array.isArray(songData.artists?.primary)
-                ? songData.artists.primary.map((a: any) => a.name).join(", ")
-                : ""),
-          ) || "Unknown Artist",
+        artist: sanitizeString(artistName) || "Unknown Artist",
         album: sanitizeString(songData.album?.name || songData.album_name || songData.album) || "Unknown Album",
         duration: Number.parseInt(songData.duration || songData.durationInSec || 0) || 0,
         image: imageUrl,
@@ -340,27 +347,68 @@ class SaavnAPI {
         playlistKeys: Object.keys(playlistData).slice(0, 20),
       })
 
-      // Handle various song response structures
       let songsArray = []
       if (Array.isArray(playlistData.songs)) {
         songsArray = playlistData.songs
+        console.log(`✅ Found songs at playlistData.songs: ${songsArray.length}`)
       } else if (playlistData.data?.songs && Array.isArray(playlistData.data.songs)) {
         songsArray = playlistData.data.songs
+        console.log(`✅ Found songs at playlistData.data.songs: ${songsArray.length}`)
       } else if (playlistData.list && Array.isArray(playlistData.list)) {
         songsArray = playlistData.list
+        console.log(`✅ Found songs at playlistData.list: ${songsArray.length}`)
       } else if (playlistData.results && Array.isArray(playlistData.results)) {
         songsArray = playlistData.results
+        console.log(`✅ Found songs at playlistData.results: ${songsArray.length}`)
+      } else if (playlistData.tracks && Array.isArray(playlistData.tracks)) {
+        songsArray = playlistData.tracks
+        console.log(`✅ Found songs at playlistData.tracks: ${songsArray.length}`)
+      } else if (Array.isArray(playlistData)) {
+        songsArray = playlistData
+        console.log(`✅ Playlist data itself is array: ${songsArray.length}`)
+      } else {
+        for (const key in playlistData) {
+          if (Array.isArray(playlistData[key]) && playlistData[key].length > 0) {
+            const firstItem = playlistData[key][0]
+            if (firstItem && (firstItem.id || firstItem.name || firstItem.title)) {
+              songsArray = playlistData[key]
+              console.log(`✅ Found songs at playlistData.${key}: ${songsArray.length}`)
+              break
+            }
+          }
+        }
       }
 
+      console.log(`🔍 [SONGS EXTRACTION] Found ${songsArray.length} songs total`)
+
       const transformedSongs = songsArray
-        .map((s: any) => {
+        .map((s: any, idx: number) => {
+          if (!s) {
+            console.warn(`⚠️ Song at index ${idx} is null/undefined`)
+            return null
+          }
           const transformed = this.transformSong(s)
           if (transformed) {
-            console.log(`  ✅ Transformed song: ${transformed.title}`)
+            console.log(`  ✅ [${idx}] Transformed: ${transformed.title}`)
+          } else {
+            console.warn(`  ❌ [${idx}] Failed to transform song:`, s.name || s.title || "Unknown")
           }
           return transformed
         })
-        .filter((s: ModernSong | null) => s && s.id && s.title)
+        .filter((s: ModernSong | null) => {
+          if (!s) return false
+          if (!s.id) {
+            console.warn(`⚠️ Song has no id: ${s.title}`)
+            return false
+          }
+          if (!s.title) {
+            console.warn(`⚠️ Song has no title, using artist: ${s.artist}`)
+            return true
+          }
+          return true
+        })
+
+      console.log(`📊 [FINAL COUNT] ${transformedSongs.length} valid songs from ${songsArray.length} total`)
 
       const result: ModernPlaylist = {
         id: playlistData.id || playlistData.playlistId || `playlist-${Date.now()}-${Math.random()}`,
@@ -368,7 +416,7 @@ class SaavnAPI {
           sanitizeString(playlistData.name || playlistData.title || playlistData.playlist_name) || "Unknown Playlist",
         description: sanitizeString(playlistData.description || playlistData.desc || playlistData.explanation),
         image: this.extractImageUrl(playlistData.image || playlistData.picture || playlistData.artwork),
-        songCount: Number(playlistData.song_count || playlistData.songCount || playlistData.songs?.length || 0),
+        songCount: Number(playlistData.song_count || playlistData.songCount || transformedSongs.length || 0),
         followerCount: Number(playlistData.follower_count || playlistData.followers || 0),
         isPublic: playlistData.is_public !== false && playlistData.isPublic !== false,
         link: playlistData.link || playlistData.url || playlistData.permaUrl,
@@ -675,32 +723,50 @@ class SaavnAPI {
     console.log(`\n📋 [PLAYLIST DETAILS] Playlist ID: ${playlistId}`)
 
     try {
-      // Try with higher limit first
-      const url = `${API_BASE_URL}/playlists?id=${encodeURIComponent(playlistId)}&page=0&limit=500`
-      console.log(`📌 Endpoint: ${url}`)
+      const endpoints = [
+        `${API_BASE_URL}/playlists?id=${encodeURIComponent(playlistId)}&page=0&limit=1000`,
+        `${API_BASE_URL}/playlists?id=${encodeURIComponent(playlistId)}&page=0&limit=500`,
+        `${API_BASE_URL}/playlists?id=${encodeURIComponent(playlistId)}&page=0&limit=200`,
+        `${API_BASE_URL}/playlists?id=${encodeURIComponent(playlistId)}`,
+      ]
 
-      const data = await fetchWithRetry<any>(url, TIMEOUTS.details)
-      console.log(`📦 [PLAYLIST RESPONSE STRUCTURE]`, {
-        hasPlaylist: !!data?.playlist,
-        hasData: !!data?.data,
-        responseKeys: Object.keys(data || {}).slice(0, 20),
-        playlistKeys: data?.playlist ? Object.keys(data.playlist).slice(0, 20) : [],
-        songsLength: data?.playlist?.songs?.length || data?.songs?.length || 0,
-      })
+      let lastError: Error | null = null
 
-      const playlist = data?.playlist || data?.data?.playlist || data
+      for (const url of endpoints) {
+        try {
+          console.log(`📌 Trying endpoint: ${url}`)
+          const data = await fetchWithRetry<any>(url, TIMEOUTS.details)
+          console.log(`📦 [PLAYLIST RESPONSE STRUCTURE]`, {
+            hasPlaylist: !!data?.playlist,
+            hasData: !!data?.data,
+            responseKeys: Object.keys(data || {}).slice(0, 20),
+            playlistKeys: data?.playlist ? Object.keys(data.playlist).slice(0, 20) : [],
+            songsLength: data?.playlist?.songs?.length || data?.songs?.length || 0,
+          })
 
-      if (!playlist) {
-        throw new Error("No playlist data in response")
+          const playlist = data?.playlist || data?.data?.playlist || data
+
+          if (!playlist) {
+            console.warn(`⚠️ No playlist data found in this endpoint`)
+            lastError = new Error("No playlist data in response")
+            continue
+          }
+
+          const transformed = this.transformPlaylist(playlist)
+          if (transformed) {
+            console.log(`✅ Got playlist details: ${transformed.name} with ${transformed.songs?.length || 0} songs`)
+            return transformed
+          }
+
+          lastError = new Error("Failed to transform playlist")
+        } catch (error) {
+          lastError = error as Error
+          console.warn(`⚠️ Endpoint failed: ${(error as Error).message}`)
+          continue
+        }
       }
 
-      const transformed = this.transformPlaylist(playlist)
-      if (transformed) {
-        console.log(`✅ Got playlist details: ${transformed.name} with ${transformed.songs?.length || 0} songs`)
-        return transformed
-      }
-
-      throw new Error("Failed to transform playlist")
+      throw lastError || new Error("All playlist endpoints failed")
     } catch (error) {
       console.error(`❌ Playlist details error:`, error)
       throw error

@@ -38,6 +38,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { toast } from "@/components/ui/use-toast"
+import EnhancedQueueManager from "./EnhancedQueueManager"
 
 const NAV_HEIGHT = 64 // approx bottom nav height
 const MINI_HEIGHT = 68 // approx mini player height
@@ -371,6 +372,7 @@ export default function MusicPlayer() {
   const [showQueue, setShowQueue] = useState(false)
   const [showLyrics, setShowLyrics] = useState(true)
   const audioRef = useRef<HTMLAudioElement>(null)
+  const skipThresholdRef = useRef<number>(3) // 3 seconds to determine a skip
 
   const {
     currentSong,
@@ -395,6 +397,7 @@ export default function MusicPlayer() {
     addToDownloads,
     userData,
     updateSongDuration,
+    trackInteraction, // Get track interaction function
   } = useStore()
 
   const isFavorite = currentSong ? userData.favorites.some((song) => song.id === currentSong.id) : false
@@ -532,16 +535,44 @@ export default function MusicPlayer() {
     [setVolume],
   )
 
+  const handleSkipTrack = useCallback(() => {
+    if (currentSong && currentTime < skipThresholdRef.current) {
+      trackInteraction(currentSong.id, "skip", Math.round(currentTime), Math.round(currentTime), Math.round(duration))
+    }
+    playNext()
+  }, [currentSong, currentTime, duration, playNext, trackInteraction])
+
+  useEffect(() => {
+    if (!currentSong || !isPlaying) return
+
+    const checkCompletion = setInterval(() => {
+      if (audioRef.current) {
+        const current = audioRef.current.currentTime
+        const total = audioRef.current.duration
+        const completionRate = (current / total) * 100
+
+        // If song is more than 80% played, track as complete play
+        if (completionRate > 80 && total > 0) {
+          trackInteraction(currentSong.id, "complete", undefined, Math.round(current), Math.round(total))
+          clearInterval(checkCompletion)
+        }
+      }
+    }, 1000)
+
+    return () => clearInterval(checkCompletion)
+  }, [currentSong, isPlaying, trackInteraction])
+
   const toggleFavorite = useCallback(() => {
     if (!currentSong) return
+    const isFavorite = userData.favorites.some((song) => song.id === currentSong.id)
     if (isFavorite) {
       removeFromFavorites(currentSong.id)
-      toast({ title: "Removed from Favorites", description: `${currentSong.title} removed from your favorites` })
+      trackInteraction(currentSong.id, "skip")
     } else {
       addToFavorites(currentSong)
-      toast({ title: "Added to Favorites", description: `${currentSong.title} added to your favorites` })
+      trackInteraction(currentSong.id, "like")
     }
-  }, [currentSong, isFavorite, addToFavorites, removeFromFavorites])
+  }, [currentSong, userData.favorites, addToFavorites, removeFromFavorites, trackInteraction])
 
   const cycleRepeat = useCallback(() => {
     // Enhanced repeat: off -> all -> one -> off
@@ -594,7 +625,9 @@ export default function MusicPlayer() {
 
   return (
     <div className="fixed left-0 right-0 z-[60]" style={{ bottom: 0 }}>
-      <AnimatePresence mode="wait">{showQueue && <QueueView onClose={() => setShowQueue(false)} />}</AnimatePresence>
+      <AnimatePresence mode="wait">
+        {showQueue && <EnhancedQueueManager isOpen={showQueue} onClose={() => setShowQueue(false)} />}
+      </AnimatePresence>
 
       {/* Mini player: placed above bottom nav using offset, avoiding overlap */}
       {!isExpanded && (
@@ -608,9 +641,7 @@ export default function MusicPlayer() {
             bottom: `calc(${NAV_HEIGHT}px + env(safe-area-inset-bottom, 0px) + 8px)`,
           }}
         >
-          <motion.div variants={childVariants} className="flex justify-center mb-1 md:mb-2">
-            
-          </motion.div>
+          <motion.div variants={childVariants} className="flex justify-center mb-1 md:mb-2"></motion.div>
 
           <motion.div variants={childVariants} className="flex items-center justify-between max-w-7xl mx-auto">
             <motion.div
@@ -669,7 +700,7 @@ export default function MusicPlayer() {
               <Button
                 size="icon"
                 variant="ghost"
-                onClick={handleNext}
+                onClick={handleSkipTrack} // Changed from handleNext
                 className="text-gray-400 hover:text-white w-6 h-6 sm:w-8 sm:h-8 md:w-10 md:h-10"
               >
                 <SkipForward className="w-3 h-3 sm:w-4 sm:h-4 md:w-5 md:h-5" />
@@ -816,7 +847,12 @@ export default function MusicPlayer() {
                       <Play className="w-5 h-5 sm:w-6 sm:h-6 md:w-8 md:h-8 ml-1" />
                     )}
                   </Button>
-                  <Button size="icon" variant="ghost" onClick={handleNext} className="text-white hover:text-gray-300">
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    onClick={handleSkipTrack}
+                    className="text-white hover:text-gray-300"
+                  >
                     <SkipForward className="w-5 h-5 sm:w-6 sm:h-6 md:w-8 md:h-8" />
                   </Button>
                   <Button
