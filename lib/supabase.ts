@@ -17,10 +17,9 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
 export interface Profile {
   id: string
   email: string
-  username: string
-  full_name?: string
-  avatar_url?: string
-  selected_artists?: string[]
+  name: string
+  avatar?: string
+  theme?: string
   created_at?: string
   updated_at?: string
 }
@@ -242,8 +241,8 @@ export const ensureProfileExists = async (user: User) => {
       .insert({
         id: user.id,
         email: user.email,
-        username,
-        full_name: user.user_metadata?.name || username,
+        name: user.user_metadata?.name || username,
+        avatar: user.user_metadata?.avatar_url || null,
       })
       .select("*")
       .single()
@@ -256,8 +255,8 @@ export const ensureProfileExists = async (user: User) => {
         profile: {
           id: user.id,
           email: user.email,
-          username,
-          full_name: user.user_metadata?.name || username,
+          name: user.user_metadata?.name || username,
+          avatar: user.user_metadata?.avatar_url || null,
         },
       }
     }
@@ -271,8 +270,8 @@ export const ensureProfileExists = async (user: User) => {
       profile: {
         id: user.id,
         email: user.email || "",
-        username: user.user_metadata?.username || user.email?.split("@")[0] || "User",
-        full_name: user.user_metadata?.name || "User",
+        name: user.user_metadata?.name || "User",
+        avatar: user.user_metadata?.avatar_url || null,
       },
     }
   }
@@ -280,7 +279,7 @@ export const ensureProfileExists = async (user: User) => {
 
 export const updateProfile = async (
   userId: string,
-  updates: Partial<Pick<Profile, "username" | "full_name" | "avatar_url" | "email">>,
+  updates: Partial<Pick<Profile, "name" | "avatar" | "email" | "theme">>,
 ) => {
   try {
     const { data, error } = await supabase
@@ -483,9 +482,9 @@ export const loadUserData = async (userId: string) => {
 
     const userData = {
       id: userId,
-      name: profile?.username || "User",
+      name: profile?.name || "User",
       email: profile?.email || "",
-      avatar: profile?.avatar_url || "/diverse-avatars.png",
+      avatar: profile?.avatar || "/diverse-avatars.png",
       theme: (preferences as any)?.theme || "dark",
       selectedArtists: profile?.selected_artists || [],
       recentSearches: searchHistory?.map((h) => h.query) || [],
