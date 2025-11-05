@@ -310,17 +310,19 @@ export const syncUserData = async (userId: string, userData: any) => {
       const favorites = userData.favorites.map((song: any) => ({
         user_id: userId,
         song_id: song.id,
-        song_title: song.title,
-        song_artist: song.artist,
-        song_album: song.album,
-        song_image: song.image,
-        song_audio: song.audio,
-        song_duration: song.duration,
-        song_language: song.language,
-        song_year: song.year,
-        created_at: new Date().toISOString(),
+        song_data: {
+          id: song.id,
+          title: song.title,
+          artist: song.artist,
+          album: song.album,
+          image: song.image,
+          audio: song.audio,
+          duration: song.duration,
+          language: song.language,
+          year: song.year,
+        },
       }))
-      const { error } = await supabase.from("favorites").upsert(favorites, { onConflict: "user_id,song_id" })
+      const { error } = await supabase.from("user_favorites").upsert(favorites, { onConflict: "user_id,song_id" })
       if (error) console.error("❌ Favorites sync error:", error.message)
       else console.log("✅ Favorites synced")
     }
@@ -408,13 +410,13 @@ export const syncUserData = async (userId: string, userData: any) => {
     // Sync search history
     if (Array.isArray(userData.recentSearches) && userData.recentSearches.length > 0) {
       console.log(`🔍 Syncing ${userData.recentSearches.length} searches...`)
-      await supabase.from("search_history").delete().eq("user_id", userId)
-      const rows = userData.recentSearches.map((q: string, i: number) => ({
+      await supabase.from("user_search_history").delete().eq("user_id", userId)
+      const rows = userData.recentSearches.map((q: string) => ({
         user_id: userId,
         query: q,
-        searched_at: new Date(Date.now() - i * 60000).toISOString(),
+        created_at: new Date().toISOString(),
       }))
-      const { error } = await supabase.from("search_history").insert(rows)
+      const { error } = await supabase.from("user_search_history").insert(rows)
       if (error) console.error("❌ Search history sync error:", error.message)
       else console.log("✅ Search history synced")
     }
@@ -453,7 +455,7 @@ export const loadUserData = async (userId: string) => {
     const profile = await getUserProfile(userId)
     const { data: preferences } = await supabase.from("user_preferences").select("*").eq("user_id", userId).single()
     const { data: favorites } = await supabase
-      .from("favorites")
+      .from("user_favorites")
       .select("*")
       .eq("user_id", userId)
       .order("created_at", { ascending: false })
@@ -474,10 +476,10 @@ export const loadUserData = async (userId: string) => {
       .eq("user_id", userId)
       .order("created_at", { ascending: false })
     const { data: searchHistory } = await supabase
-      .from("search_history")
+      .from("user_search_history")
       .select("*")
       .eq("user_id", userId)
-      .order("searched_at", { ascending: false })
+      .order("created_at", { ascending: false })
       .limit(10)
 
     const userData = {
@@ -503,14 +505,14 @@ export const loadUserData = async (userId: string) => {
       favorites:
         favorites?.map((song) => ({
           id: song.song_id,
-          title: song.song_title,
-          artist: song.song_artist,
-          album: song.song_album || "",
-          image: song.song_image || "/album-art.jpg",
-          audio: song.song_audio || "",
-          duration: song.song_duration || 0,
-          language: song.song_language,
-          year: song.song_year,
+          title: song.song_data.title,
+          artist: song.song_data.artist,
+          album: song.song_data.album || "",
+          image: song.song_data.image || "/album-art.jpg",
+          audio: song.song_data.audio || "",
+          duration: song.song_data.duration || 0,
+          language: song.song_data.language,
+          year: song.song_data.year,
         })) || [],
       downloads:
         downloads?.map((song) => ({
@@ -570,7 +572,7 @@ export const setupRealtimeSync = (userId: string, onDataChange: (payload: any) =
       .channel(`favorites_changes_${userId}`)
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "favorites", filter: `user_id=eq.${userId}` },
+        { event: "*", schema: "public", table: "user_favorites", filter: `user_id=eq.${userId}` },
         onDataChange,
       ),
     supabase
@@ -610,7 +612,7 @@ export const setupRealtimeSync = (userId: string, onDataChange: (payload: any) =
       .channel(`search_history_changes_${userId}`)
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "search_history", filter: `user_id=eq.${userId}` },
+        { event: "*", schema: "public", table: "user_search_history", filter: `user_id=eq.${userId}` },
         onDataChange,
       ),
   ]

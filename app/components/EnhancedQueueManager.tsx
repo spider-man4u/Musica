@@ -68,32 +68,37 @@ export default function EnhancedQueueManager({ isOpen, onClose }: EnhancedQueueM
     generateRelatedSongs,
   } = useStore()
 
+  const safeQueue = Array.isArray(queue) ? queue : []
+  const safeFavorites = Array.isArray(userData?.favorites) ? userData.favorites : []
+
   // Compute skip probabilities for all queue items
   const queueWithScores = useMemo(
     () =>
-      queue.map((song, index) => {
-        const skipProb = predictSkipProbability(song, userData.favorites, userPreferences)
+      safeQueue.map((song, index) => {
+        if (!song || !song.id) return { song: null, index, skipProb: 100 }
+        const skipProb = predictSkipProbability(song, safeFavorites, userPreferences)
         return { song, index, skipProb }
       }),
-    [queue, userData.favorites, userPreferences],
+    [safeQueue, safeFavorites, userPreferences],
   )
 
   // Sort queue based on selected sort method
   const sortedQueue = useMemo(() => {
-    const items = [...queueWithScores]
+    const items = [...queueWithScores].filter((item) => item.song !== null)
     switch (sortBy) {
       case "recommended":
         return items.sort((a, b) => {
-          const aScore = userData.favorites.some((fav) => fav.id === a.song.id) ? 100 : 0
-          const bScore = userData.favorites.some((fav) => fav.id === b.song.id) ? 100 : 0
+          if (!a.song || !b.song) return 0
+          const aScore = safeFavorites.some((fav) => fav?.id === a.song?.id) ? 100 : 0
+          const bScore = safeFavorites.some((fav) => fav?.id === b.song?.id) ? 100 : 0
           return bScore - aScore
         })
       case "skip-risk":
-        return items.sort((a, b) => a.skipProb - b.skipProb) // Show low-risk first
+        return items.sort((a, b) => a.skipProb - b.skipProb)
       default:
-        return items // Keep current order
+        return items
     }
-  }, [queueWithScores, sortBy, userData.favorites])
+  }, [queueWithScores, sortBy, safeFavorites])
 
   const handleDragStart = useCallback((index: number) => {
     setDraggedItem(index)
@@ -158,7 +163,7 @@ export default function EnhancedQueueManager({ isOpen, onClose }: EnhancedQueueM
               </div>
               <div>
                 <h3 className="text-white font-bold text-lg md:text-xl">Smart Queue</h3>
-                <p className="text-gray-400 text-xs md:text-sm">{queue.length} songs queued</p>
+                <p className="text-gray-400 text-xs md:text-sm">{safeQueue.length} songs queued</p>
               </div>
             </div>
 
@@ -236,7 +241,7 @@ export default function EnhancedQueueManager({ isOpen, onClose }: EnhancedQueueM
 
         {/* Queue Items */}
         <div className="flex-1 overflow-y-auto">
-          {queue.length === 0 ? (
+          {safeQueue.length === 0 ? (
             <div className="flex items-center justify-center h-64 text-center">
               <div>
                 <Music className="w-16 h-16 text-gray-600 mx-auto mb-4 opacity-50" />
@@ -248,8 +253,9 @@ export default function EnhancedQueueManager({ isOpen, onClose }: EnhancedQueueM
             <div className="divide-y divide-gray-800">
               <AnimatePresence>
                 {sortedQueue.map(({ song, index, skipProb }, displayIndex) => {
+                  if (!song) return null
                   const isCurrentlyPlaying = index === queueIndex
-                  const isFavorite = userData.favorites.some((fav) => fav.id === song.id)
+                  const isFavorite = safeFavorites.some((fav) => fav?.id === song.id)
 
                   return (
                     <motion.div
@@ -284,7 +290,7 @@ export default function EnhancedQueueManager({ isOpen, onClose }: EnhancedQueueM
                       {/* Song Image */}
                       <Image
                         src={song.image || "/placeholder.svg"}
-                        alt={song.title}
+                        alt={song.title || "Song"}
                         width={44}
                         height={44}
                         className="rounded w-11 h-11 object-cover flex-shrink-0"
@@ -292,8 +298,8 @@ export default function EnhancedQueueManager({ isOpen, onClose }: EnhancedQueueM
 
                       {/* Song Info */}
                       <div className="flex-1 min-w-0">
-                        <h4 className="text-white text-sm font-medium truncate">{song.title}</h4>
-                        <p className="text-gray-400 text-xs truncate">{song.artist}</p>
+                        <h4 className="text-white text-sm font-medium truncate">{song.title || "Unknown"}</h4>
+                        <p className="text-gray-400 text-xs truncate">{song.artist || "Unknown Artist"}</p>
                       </div>
 
                       {/* Skip Risk Badge (AI Analysis) */}
@@ -314,7 +320,7 @@ export default function EnhancedQueueManager({ isOpen, onClose }: EnhancedQueueM
 
                       {/* Duration */}
                       <span className="text-gray-400 text-xs w-10 text-right flex-shrink-0">
-                        {formatTimeSec(song.duration)}
+                        {formatTimeSec(song.duration || 0)}
                       </span>
 
                       {/* Actions */}
@@ -322,7 +328,13 @@ export default function EnhancedQueueManager({ isOpen, onClose }: EnhancedQueueM
                         <Button
                           size="icon"
                           variant="ghost"
-                          onClick={() => moveQueueItem(index, Math.max(0, index - 1))}
+                          onClick={() => {
+                            try {
+                              moveQueueItem(index, Math.max(0, index - 1))
+                            } catch (err) {
+                              console.error("Move up error:", err)
+                            }
+                          }}
                           className="w-7 h-7 text-gray-400 hover:text-white"
                         >
                           <ArrowUp className="w-3.5 h-3.5" />
@@ -330,7 +342,13 @@ export default function EnhancedQueueManager({ isOpen, onClose }: EnhancedQueueM
                         <Button
                           size="icon"
                           variant="ghost"
-                          onClick={() => moveQueueItem(index, Math.min(queue.length - 1, index + 1))}
+                          onClick={() => {
+                            try {
+                              moveQueueItem(index, Math.min(safeQueue.length - 1, index + 1))
+                            } catch (err) {
+                              console.error("Move down error:", err)
+                            }
+                          }}
                           className="w-7 h-7 text-gray-400 hover:text-white"
                         >
                           <ArrowDown className="w-3.5 h-3.5" />
@@ -338,7 +356,13 @@ export default function EnhancedQueueManager({ isOpen, onClose }: EnhancedQueueM
                         <Button
                           size="icon"
                           variant="ghost"
-                          onClick={() => removeFromQueue(index)}
+                          onClick={() => {
+                            try {
+                              removeFromQueue(index)
+                            } catch (err) {
+                              console.error("Remove from queue error:", err)
+                            }
+                          }}
                           className="w-7 h-7 text-gray-400 hover:text-red-400"
                         >
                           <Trash2 className="w-3.5 h-3.5" />

@@ -783,6 +783,9 @@ export const useStore = create<AppState>()(
             },
           }
         })
+        if (song?.id) {
+          get().trackInteraction(song.id, "like")
+        }
         get().syncToCloud()
         get().updateMoodPlaylists()
       },
@@ -797,6 +800,7 @@ export const useStore = create<AppState>()(
               : [],
           },
         }))
+        get().trackInteraction(songId, "skip")
         get().syncToCloud()
         get().updateMoodPlaylists()
       },
@@ -1200,6 +1204,9 @@ export const useStore = create<AppState>()(
           const filtered = current.filter((q) => q !== query)
           return { searchHistory: [query, ...filtered.slice(0, 9)] }
         })
+        setTimeout(() => {
+          get().syncToCloud()
+        }, 500)
       },
       clearSearchHistory: () => set({ searchHistory: [] }),
 
