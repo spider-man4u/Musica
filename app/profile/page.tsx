@@ -15,7 +15,6 @@ import {
   Camera,
   Music,
   Heart,
-  Users,
   Bell,
   Download,
   Globe,
@@ -33,7 +32,7 @@ import Link from "next/link"
 import { useStore } from "@/lib/store"
 import { useRouter } from "next/navigation"
 import { useDateTime } from "@/hooks/useDateTime"
-import { updateProfile as updateSupabaseProfile } from "@/lib/supabase"
+import { updateProfile as updateSupabaseProfile, signOut } from "@/lib/supabase"
 
 export default function ProfilePage() {
   const [isEditing, setIsEditing] = useState(false)
@@ -67,16 +66,6 @@ export default function ProfilePage() {
     setProfileImage(storedImage || userData.avatar || "")
     setLoginMethod(storedLoginMethod || "")
   }, [userData])
-
-  const menuItems = [
-    { icon: Music, label: "Your Music", link: "/library", count: userData.playlists.length },
-    { icon: Heart, label: "Liked Songs", link: "/library?tab=favorites", count: userData.favorites.length },
-    { icon: Clock, label: "Recently Played", link: "/library?tab=recent", count: userData.recentlyPlayed.length },
-    { icon: Users, label: "Following", link: "/following", count: 0 },
-    { icon: Download, label: "Downloads", link: "/downloads", count: 0 },
-    { icon: Lock, label: "Privacy", link: "/privacy" },
-    { icon: HelpCircle, label: "Help & Support", link: "/help" },
-  ]
 
   const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
@@ -114,55 +103,72 @@ export default function ProfilePage() {
     const uid = localStorage.getItem("supabase_user_id") || userData.id
     if (uid) {
       updateSupabaseProfile(uid, {
-        username: editedName,
-        full_name: editedName,
+        name: editedName,
         email: editedEmail,
-        avatar_url: profileImage || undefined,
-      }).catch(() => {})
+        avatar: profileImage || undefined,
+      }).catch((err) => console.error("Profile update error:", err))
     }
 
     setIsEditing(false)
   }
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     if (window.confirm("Are you sure you want to logout?")) {
-      // Clear all user data
-      localStorage.removeItem("isLoggedIn")
-      localStorage.removeItem("username")
-      localStorage.removeItem("email")
-      localStorage.removeItem("userBio")
-      localStorage.removeItem("userLocation")
-      localStorage.removeItem("userImage")
-      localStorage.removeItem("loginMethod")
+      try {
+        // Call Supabase sign out
+        await signOut()
 
-      // Reset store
-      updateUserProfile({
-        id: "",
-        name: "",
-        email: "",
-        avatar: "",
-        theme: "dark",
-        recentSearches: [],
-        recentlyPlayed: [],
-        favorites: [],
-        playlists: [],
-        settings: {
-          notifications: true,
-          quality: "high",
-          downloadEnabled: true,
-          language: "en",
-          autoplay: true,
-          crossfade: false,
-        },
-      })
+        // Clear all user data
+        localStorage.removeItem("isLoggedIn")
+        localStorage.removeItem("username")
+        localStorage.removeItem("email")
+        localStorage.removeItem("userBio")
+        localStorage.removeItem("userLocation")
+        localStorage.removeItem("userImage")
+        localStorage.removeItem("loginMethod")
+        localStorage.removeItem("supabase_user_id")
 
-      window.location.reload()
+        // Reset store
+        updateUserProfile({
+          id: "",
+          name: "",
+          email: "",
+          avatar: "",
+          theme: "dark",
+          recentSearches: [],
+          recentlyPlayed: [],
+          favorites: [],
+          playlists: [],
+          settings: {
+            notifications: true,
+            quality: "high",
+            downloadEnabled: true,
+            language: "en",
+            autoplay: true,
+            crossfade: false,
+          },
+        })
+
+        router.push("/auth/login")
+      } catch (error) {
+        console.error("Logout error:", error)
+        window.location.href = "/auth/login"
+      }
     }
   }
 
   const handleSettingsToggle = (setting: string, value: boolean) => {
     updateUserSettings({ [setting]: value })
   }
+
+  const menuItems = [
+    { icon: Music, label: "Your Music", link: "/library", count: userData.playlists.length },
+    { icon: Heart, label: "Liked Songs", link: "/library?tab=favorites", count: userData.favorites.length },
+    { icon: Clock, label: "Recently Played", link: "/library?tab=recent", count: userData.recentlyPlayed.length },
+    { icon: Download, label: "Downloads", link: "/downloads", count: 0 },
+    { icon: Lock, label: "Privacy", link: "/privacy" },
+    { icon: HelpCircle, label: "Help & Support", link: "/help" },
+  ]
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">

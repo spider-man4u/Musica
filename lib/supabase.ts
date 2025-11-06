@@ -310,17 +310,15 @@ export const syncUserData = async (userId: string, userData: any) => {
       const favorites = userData.favorites.map((song: any) => ({
         user_id: userId,
         song_id: song.id,
-        song_data: {
-          id: song.id,
-          title: song.title,
-          artist: song.artist,
-          album: song.album,
-          image: song.image,
-          audio: song.audio,
-          duration: song.duration,
-          language: song.language,
-          year: song.year,
-        },
+        song_title: song.title,
+        song_artist: song.artist,
+        song_album: song.album,
+        song_image: song.image,
+        song_audio: song.audio,
+        song_duration: song.duration,
+        song_language: song.language,
+        song_year: song.year,
+        created_at: new Date().toISOString(),
       }))
       const { error } = await supabase.from("user_favorites").upsert(favorites, { onConflict: "user_id,song_id" })
       if (error) console.error("❌ Favorites sync error:", error.message)
@@ -414,7 +412,7 @@ export const syncUserData = async (userId: string, userData: any) => {
       const rows = userData.recentSearches.map((q: string) => ({
         user_id: userId,
         query: q,
-        created_at: new Date().toISOString(),
+        searched_at: new Date().toISOString(),
       }))
       const { error } = await supabase.from("user_search_history").insert(rows)
       if (error) console.error("❌ Search history sync error:", error.message)
@@ -479,7 +477,7 @@ export const loadUserData = async (userId: string) => {
       .from("user_search_history")
       .select("*")
       .eq("user_id", userId)
-      .order("created_at", { ascending: false })
+      .order("searched_at", { ascending: false })
       .limit(10)
 
     const userData = {
@@ -505,14 +503,14 @@ export const loadUserData = async (userId: string) => {
       favorites:
         favorites?.map((song) => ({
           id: song.song_id,
-          title: song.song_data.title,
-          artist: song.song_data.artist,
-          album: song.song_data.album || "",
-          image: song.song_data.image || "/album-art.jpg",
-          audio: song.song_data.audio || "",
-          duration: song.song_data.duration || 0,
-          language: song.song_data.language,
-          year: song.song_data.year,
+          title: song.song_title,
+          artist: song.song_artist,
+          album: song.song_album || "",
+          image: song.song_image || "/album-art.jpg",
+          audio: song.song_audio || "",
+          duration: song.song_duration || 0,
+          language: song.song_language,
+          year: song.song_year,
         })) || [],
       downloads:
         downloads?.map((song) => ({
