@@ -20,8 +20,6 @@ export interface Profile {
   name: string
   avatar?: string
   theme?: string
-  bio?: string
-  location?: string
   created_at?: string
   updated_at?: string
 }
@@ -281,7 +279,7 @@ export const ensureProfileExists = async (user: User) => {
 
 export const updateProfile = async (
   userId: string,
-  updates: Partial<Pick<Profile, "name" | "avatar" | "email" | "theme" | "bio" | "location">>,
+  updates: Partial<Pick<Profile, "name" | "avatar" | "email" | "theme">>,
 ) => {
   try {
     const { data, error } = await supabase
@@ -487,8 +485,6 @@ export const loadUserData = async (userId: string) => {
       name: profile?.name || "User",
       email: profile?.email || "",
       avatar: profile?.avatar || "/diverse-avatars.png",
-      bio: profile?.bio || "",
-      location: profile?.location || "",
       theme: (preferences as any)?.theme || "dark",
       selectedArtists: profile?.selected_artists || [],
       recentSearches: searchHistory?.map((h) => h.query) || [],

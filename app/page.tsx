@@ -37,26 +37,11 @@ import {
 
 const containerVariants = {
   hidden: { opacity: 0 },
-  visible: {
-    opacity: 1,
-    transition: {
-      duration: 0.4,
-      ease: "easeOut",
-      staggerChildren: 0.08,
-    },
-  },
+  visible: { opacity: 1, transition: { duration: 0.3, ease: [0.0, 0.0, 0.2, 1], staggerChildren: 0.05 } },
 }
-
 const itemVariants = {
-  hidden: { opacity: 0, y: 25 },
-  visible: {
-    opacity: 1,
-    y: 0,
-    transition: {
-      duration: 0.5,
-      ease: [0.25, 0.46, 0.45, 0.94],
-    },
-  },
+  hidden: { opacity: 0, y: 20 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.4, ease: [0.0, 0.0, 0.2, 1] } },
 }
 
 const quickAccessItems = [
@@ -243,10 +228,7 @@ export default function Home() {
       className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900"
     >
       {/* Top Bar */}
-      <motion.header
-        variants={itemVariants}
-        className="sticky top-0 z-40 border-b border-white/10 transition-all duration-300"
-      >
+      <motion.header variants={itemVariants} className="sticky top-0 z-40 border-b border-white/10">
         <div className="w-full px-3 py-2 sm:px-6 sm:py-3 bg-black/30 backdrop-blur-xl">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -348,30 +330,24 @@ export default function Home() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
-              transition={{ duration: 0.6, ease: "easeOut" }}
+              transition={{ duration: 0.5 }}
               className="flex items-center space-x-3"
             >
-              <motion.div
-                animate={{ scale: [1, 1.2, 1] }}
-                transition={{ duration: 2, repeat: Number.POSITIVE_INFINITY }}
-                className="text-4xl sm:text-5xl"
-              >
-                🎵
-              </motion.div>
+              <div className="text-4xl sm:text-5xl">🎵</div>
               <div>
                 <motion.h2
                   className="text-3xl sm:text-4xl font-bold bg-gradient-to-r from-white via-purple-200 to-white bg-clip-text text-transparent"
                   animate={{ backgroundPosition: ["0%", "100%", "0%"] }}
-                  transition={{ duration: 4, repeat: Number.POSITIVE_INFINITY, ease: "linear" }}
+                  transition={{ duration: 3, repeat: Number.POSITIVE_INFINITY, ease: "linear" }}
                   style={{ backgroundSize: "200% auto" }}
                 >
                   {getGreeting()}, {userName}
                 </motion.h2>
                 <motion.p
                   className="text-gray-400 text-base sm:text-lg"
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.4, duration: 0.5 }}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.3 }}
                 >
                   Ready to discover some great music?
                 </motion.p>
@@ -392,34 +368,31 @@ export default function Home() {
               return (
                 <motion.div
                   key={item.name}
-                  initial={{ opacity: 0, y: 25 }}
+                  initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.1, duration: 0.5, ease: "easeOut" }}
+                  transition={{ delay: index * 0.08 }}
                   onClick={() => handleQuickAccess(item)}
-                  className="group bg-white/5 hover:bg-white/10 rounded-xl p-4 sm:p-6 cursor-pointer transition-all duration-400 border border-white/10 hover:border-white/20"
-                  whileHover={{ scale: 1.03, y: -4 }}
-                  whileTap={{ scale: 0.97 }}
+                  className="group bg-white/5 hover:bg-white/10 rounded-xl p-4 sm:p-6 cursor-pointer transition-all duration-300 border border-white/10 hover:border-white/20"
+                  whileHover={{ scale: 1.02, y: -2 }}
+                  whileTap={{ scale: 0.98 }}
                 >
                   <div className="flex items-center space-x-4 sm:space-x-6">
-                    <motion.div
+                    <div
                       className={`w-12 h-12 sm:w-16 sm:h-16 bg-gradient-to-r ${item.color} rounded-xl flex items-center justify-center`}
-                      whileHover={{ rotate: 10 }}
                     >
                       <item.icon className="w-6 h-6 sm:w-8 sm:h-8 text-white" />
-                    </motion.div>
+                    </div>
                     <div className="flex-1 min-w-0">
                       <h4 className="text-white font-semibold text-base sm:text-lg truncate">{item.name}</h4>
                       <p className="text-gray-400 text-sm sm:text-base">{count} songs</p>
                     </div>
-                    <motion.div className="opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        className="text-white hover:bg-white/10 w-10 h-10 sm:w-12 sm:h-12"
-                      >
-                        <Play className="w-5 h-5 sm:w-6 sm:h-6" />
-                      </Button>
-                    </motion.div>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="opacity-0 group-hover:opacity-100 transition-opacity text-white hover:bg-white/10 w-10 h-10 sm:w-12 sm:h-12"
+                    >
+                      <Play className="w-5 h-5 sm:w-6 sm:h-6" />
+                    </Button>
                   </div>
                 </motion.div>
               )
@@ -434,21 +407,21 @@ export default function Home() {
             {moodCategories.map((mood, index) => (
               <motion.div
                 key={mood.slug}
-                initial={{ opacity: 0, scale: 0.8 }}
+                initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: index * 0.12, duration: 0.5, ease: "easeOut" }}
+                transition={{ delay: index * 0.08 }}
                 onClick={() => handleMoodClick(mood)}
-                className={`aspect-square bg-gradient-to-br ${mood.color} rounded-xl p-3 sm:p-4 cursor-pointer relative overflow-hidden`}
-                whileHover={{ scale: 1.08, rotateZ: 2 }}
-                whileTap={{ scale: 0.94 }}
+                className={`aspect-square bg-gradient-to-br ${mood.color} rounded-xl p-3 sm:p-4 cursor-pointer hover:scale-105 transition-transform duration-300 relative overflow-hidden`}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
               >
-                <div className="absolute inset-0 bg-black/20 group-hover:bg-black/10 transition-colors duration-300" />
+                <div className="absolute inset-0 bg-black/20" />
                 <Image
                   src={mood.thumbnail || "/placeholder.svg"}
                   alt={mood.name}
                   width={150}
                   height={150}
-                  className="absolute inset-0 w-full h-full object-cover opacity-30 group-hover:opacity-40 transition-opacity duration-300"
+                  className="absolute inset-0 w-full h-full object-cover opacity-30"
                 />
                 <div className="relative z-10 h-full flex flex-col justify-between">
                   <div className="text-2xl sm:text-3xl">{mood.emoji}</div>
