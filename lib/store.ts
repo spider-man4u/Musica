@@ -62,6 +62,8 @@ export interface UserData {
   id: string
   name: string
   email: string
+  bio: string
+  location: string
   avatar: string
   theme: "light" | "dark"
   recentSearches: string[]
@@ -331,6 +333,8 @@ const defaultUserData: UserData = {
   id: "1",
   name: "User",
   email: "user@example.com",
+  bio: "",
+  location: "",
   avatar: "/abstract-geometric-shapes.png",
   theme: "dark",
   recentSearches: [],

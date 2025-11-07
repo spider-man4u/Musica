@@ -7,16 +7,57 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 -- Drop existing tables and policies to start fresh
 DROP POLICY IF EXISTS "Users can view own profile" ON profiles;
 DROP POLICY IF EXISTS "Users can update own profile" ON profiles;
+DROP POLICY IF EXISTS "Users can insert own profile" ON profiles;
+DROP POLICY IF EXISTS "profiles_select_own" ON profiles;
+DROP POLICY IF EXISTS "profiles_insert_own" ON profiles;
+DROP POLICY IF EXISTS "profiles_update_own" ON profiles;
+DROP POLICY IF EXISTS "users can view own profile" ON profiles;
+DROP POLICY IF EXISTS "users can update own profile" ON profiles;
+
 DROP POLICY IF EXISTS "Users can view own preferences" ON user_preferences;
+DROP POLICY IF EXISTS "Users can manage own preferences" ON user_preferences;
+DROP POLICY IF EXISTS "Users can view their own preferences" ON user_preferences;
+DROP POLICY IF EXISTS "Users can update their own preferences" ON user_preferences;
+DROP POLICY IF EXISTS "Users can insert their own preferences" ON user_preferences;
+DROP POLICY IF EXISTS "Users can delete their own preferences" ON user_preferences;
+
 DROP POLICY IF EXISTS "Users can manage own favorites" ON favorites;
+DROP POLICY IF EXISTS "favorites_select_own" ON favorites;
+DROP POLICY IF EXISTS "favorites_insert_own" ON favorites;
+DROP POLICY IF EXISTS "favorites_delete_own" ON favorites;
+
 DROP POLICY IF EXISTS "Users can view own playlists" ON playlists;
 DROP POLICY IF EXISTS "Users can manage own playlists" ON playlists;
+DROP POLICY IF EXISTS "Users can update own playlists" ON playlists;
+DROP POLICY IF EXISTS "Users can delete own playlists" ON playlists;
+DROP POLICY IF EXISTS "Users can view public playlists" ON playlists;
+DROP POLICY IF EXISTS "playlists_select_own" ON playlists;
+DROP POLICY IF EXISTS "playlists_insert_own" ON playlists;
+DROP POLICY IF EXISTS "playlists_update_own" ON playlists;
+DROP POLICY IF EXISTS "playlists_delete_own" ON playlists;
+
 DROP POLICY IF EXISTS "Users can view playlist songs" ON playlist_songs;
 DROP POLICY IF EXISTS "Users can manage own playlist songs" ON playlist_songs;
+DROP POLICY IF EXISTS "playlist_songs_select_own" ON playlist_songs;
+DROP POLICY IF EXISTS "playlist_songs_insert_own" ON playlist_songs;
+
 DROP POLICY IF EXISTS "Users can manage own recently played" ON recently_played;
+DROP POLICY IF EXISTS "recently_played_select_own" ON recently_played;
+DROP POLICY IF EXISTS "recently_played_insert_own" ON recently_played;
+
 DROP POLICY IF EXISTS "Users can manage own downloads" ON downloads;
+DROP POLICY IF EXISTS "downloads_select_own" ON downloads;
+DROP POLICY IF EXISTS "downloads_insert_own" ON downloads;
+DROP POLICY IF EXISTS "downloads_delete_own" ON downloads;
+
 DROP POLICY IF EXISTS "Users can manage own listening history" ON listening_history;
+DROP POLICY IF EXISTS "listening_history_select_own" ON listening_history;
+DROP POLICY IF EXISTS "listening_history_insert_own" ON listening_history;
+
 DROP POLICY IF EXISTS "Users can manage own search history" ON search_history;
+DROP POLICY IF EXISTS "search_history_select_own" ON search_history;
+DROP POLICY IF EXISTS "search_history_insert_own" ON search_history;
+DROP POLICY IF EXISTS "search_history_delete_own" ON search_history;
 
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 DROP FUNCTION IF EXISTS handle_new_user();
@@ -180,38 +221,38 @@ ALTER TABLE search_history ENABLE ROW LEVEL SECURITY;
 -- Create RLS policies
 
 -- Profiles policies
-CREATE POLICY "Enable read access for users to their own profile" ON profiles
+CREATE POLICY "Users can view own profile" ON profiles
   FOR SELECT USING (auth.uid() = id);
 
-CREATE POLICY "Enable insert access for users to their own profile" ON profiles
-  FOR INSERT WITH CHECK (auth.uid() = id);
-
-CREATE POLICY "Enable update access for users to their own profile" ON profiles
+CREATE POLICY "Users can update own profile" ON profiles
   FOR UPDATE USING (auth.uid() = id);
 
+CREATE POLICY "Users can insert own profile" ON profiles
+  FOR INSERT WITH CHECK (auth.uid() = id);
+
 -- User preferences policies
-CREATE POLICY "Enable full access for users to their own preferences" ON user_preferences
+CREATE POLICY "Users can manage own preferences" ON user_preferences
   FOR ALL USING (auth.uid() = user_id);
 
 -- Favorites policies
-CREATE POLICY "Enable full access for users to their own favorites" ON favorites
+CREATE POLICY "Users can manage own favorites" ON favorites
   FOR ALL USING (auth.uid() = user_id);
 
 -- Playlists policies
-CREATE POLICY "Enable read access for users to their own playlists" ON playlists
+CREATE POLICY "Users can view own playlists" ON playlists
   FOR SELECT USING (auth.uid() = user_id OR is_public = true);
 
-CREATE POLICY "Enable insert access for users to create playlists" ON playlists
+CREATE POLICY "Users can manage own playlists" ON playlists
   FOR INSERT WITH CHECK (auth.uid() = user_id);
 
-CREATE POLICY "Enable update access for users to their own playlists" ON playlists
+CREATE POLICY "Users can update own playlists" ON playlists
   FOR UPDATE USING (auth.uid() = user_id);
 
-CREATE POLICY "Enable delete access for users to their own playlists" ON playlists
+CREATE POLICY "Users can delete own playlists" ON playlists
   FOR DELETE USING (auth.uid() = user_id);
 
 -- Playlist songs policies
-CREATE POLICY "Enable read access for playlist songs" ON playlist_songs
+CREATE POLICY "Users can view playlist songs" ON playlist_songs
   FOR SELECT USING (
     EXISTS (
       SELECT 1 FROM playlists 
@@ -220,7 +261,7 @@ CREATE POLICY "Enable read access for playlist songs" ON playlist_songs
     )
   );
 
-CREATE POLICY "Enable full access for users to their own playlist songs" ON playlist_songs
+CREATE POLICY "Users can manage own playlist songs" ON playlist_songs
   FOR ALL USING (
     EXISTS (
       SELECT 1 FROM playlists 
@@ -230,19 +271,19 @@ CREATE POLICY "Enable full access for users to their own playlist songs" ON play
   );
 
 -- Recently played policies
-CREATE POLICY "Enable full access for users to their own recently played" ON recently_played
+CREATE POLICY "Users can manage own recently played" ON recently_played
   FOR ALL USING (auth.uid() = user_id);
 
 -- Downloads policies
-CREATE POLICY "Enable full access for users to their own downloads" ON downloads
+CREATE POLICY "Users can manage own downloads" ON downloads
   FOR ALL USING (auth.uid() = user_id);
 
 -- Listening history policies
-CREATE POLICY "Enable full access for users to their own listening history" ON listening_history
+CREATE POLICY "Users can manage own listening history" ON listening_history
   FOR ALL USING (auth.uid() = user_id);
 
 -- Search history policies
-CREATE POLICY "Enable full access for users to their own search history" ON search_history
+CREATE POLICY "Users can manage own search history" ON search_history
   FOR ALL USING (auth.uid() = user_id);
 
 -- Function to handle new user creation

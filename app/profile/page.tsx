@@ -80,7 +80,7 @@ export default function ProfilePage() {
         updateUserProfile({ avatar: result })
         const uid = localStorage.getItem("supabase_user_id") || userData.id
         if (uid) {
-          updateSupabaseProfile(uid, { avatar_url: result }).catch(() => {})
+          updateSupabaseProfile(uid, { avatar: result }).catch(() => {})
         }
         setUploadingImage(false)
       }
@@ -98,6 +98,8 @@ export default function ProfilePage() {
       name: editedName,
       email: editedEmail,
       avatar: profileImage,
+      bio: editedBio,
+      location: editedLocation,
     })
 
     const uid = localStorage.getItem("supabase_user_id") || userData.id
@@ -106,6 +108,8 @@ export default function ProfilePage() {
         name: editedName,
         email: editedEmail,
         avatar: profileImage || undefined,
+        bio: editedBio,
+        location: editedLocation,
       }).catch((err) => console.error("Profile update error:", err))
     }
 

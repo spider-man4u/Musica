@@ -18,6 +18,8 @@ export interface Profile {
   id: string
   email: string
   name: string
+  bio?: string
+  location?: string
   avatar?: string
   theme?: string
   created_at?: string
@@ -254,7 +256,7 @@ export const ensureProfileExists = async (user: User) => {
         error: error.message,
         profile: {
           id: user.id,
-          email: user.email,
+          email: user.email || "",
           name: user.user_metadata?.name || username,
           avatar: user.user_metadata?.avatar_url || null,
         },
@@ -279,7 +281,7 @@ export const ensureProfileExists = async (user: User) => {
 
 export const updateProfile = async (
   userId: string,
-  updates: Partial<Pick<Profile, "name" | "avatar" | "email" | "theme">>,
+  updates: Partial<Pick<Profile, "name" | "avatar" | "email" | "theme" | "bio" | "location">>,
 ) => {
   try {
     const { data, error } = await supabase
@@ -304,6 +306,22 @@ export const syncUserData = async (userId: string, userData: any) => {
   try {
     console.log("🔄 Starting sync for user:", userId)
 
+    if (userData.bio || userData.location || userData.name || userData.avatar) {
+      console.log("👤 Syncing profile data...")
+      const { error } = await supabase
+        .from("profiles")
+        .update({
+          bio: userData.bio || null,
+          location: userData.location || null,
+          name: userData.name || null,
+          avatar: userData.avatar || null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", userId)
+      if (error) console.error("❌ Profile sync error:", error.message)
+      else console.log("✅ Profile synced")
+    }
+
     // Sync favorites
     if (userData.favorites?.length > 0) {
       console.log(`📌 Syncing ${userData.favorites.length} favorites...`)
@@ -320,7 +338,8 @@ export const syncUserData = async (userId: string, userData: any) => {
         song_year: song.year,
         created_at: new Date().toISOString(),
       }))
-      const { error } = await supabase.from("user_favorites").upsert(favorites, { onConflict: "user_id,song_id" })
+      await supabase.from("user_favorites").delete().eq("user_id", userId)
+      const { error } = await supabase.from("user_favorites").insert(favorites)
       if (error) console.error("❌ Favorites sync error:", error.message)
       else console.log("✅ Favorites synced")
     }
@@ -360,7 +379,8 @@ export const syncUserData = async (userId: string, userData: any) => {
         download_url: song.download_url,
         downloaded_at: new Date().toISOString(),
       }))
-      const { error } = await supabase.from("downloads").upsert(downloads, { onConflict: "user_id,song_id" })
+      await supabase.from("downloads").delete().eq("user_id", userId)
+      const { error } = await supabase.from("downloads").insert(downloads)
       if (error) console.error("❌ Downloads sync error:", error.message)
       else console.log("✅ Downloads synced")
     }
@@ -485,6 +505,8 @@ export const loadUserData = async (userId: string) => {
       name: profile?.name || "User",
       email: profile?.email || "",
       avatar: profile?.avatar || "/diverse-avatars.png",
+      bio: profile?.bio || "",
+      location: profile?.location || "",
       theme: (preferences as any)?.theme || "dark",
       selectedArtists: profile?.selected_artists || [],
       recentSearches: searchHistory?.map((h) => h.query) || [],

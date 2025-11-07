@@ -1,3 +1,6 @@
+-- Enable necessary extensions
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
 -- Enable RLS (Row Level Security)
 ALTER TABLE IF EXISTS profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE IF EXISTS user_preferences ENABLE ROW LEVEL SECURITY;
@@ -16,6 +19,11 @@ CREATE TABLE IF NOT EXISTS profiles (
   username TEXT UNIQUE NOT NULL,
   full_name TEXT,
   avatar_url TEXT,
+  name TEXT,
+  avatar TEXT,
+  bio TEXT,
+  location TEXT,
+  theme TEXT DEFAULT 'dark',
   selected_artists TEXT[],
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
@@ -45,19 +53,15 @@ CREATE TABLE IF NOT EXISTS favorites (
   song_id TEXT NOT NULL,
   song_title TEXT NOT NULL,
   song_artist TEXT NOT NULL,
-  song_album TEXT,
   song_image TEXT,
   song_audio TEXT,
-  song_duration INTEGER,
-  song_language TEXT,
-  song_year TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   UNIQUE(user_id, song_id)
 );
 
 -- Create playlists table
 CREATE TABLE IF NOT EXISTS playlists (
-  id TEXT PRIMARY KEY,
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
   name TEXT NOT NULL,
   description TEXT,
@@ -70,14 +74,12 @@ CREATE TABLE IF NOT EXISTS playlists (
 -- Create playlist songs table
 CREATE TABLE IF NOT EXISTS playlist_songs (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  playlist_id TEXT REFERENCES playlists(id) ON DELETE CASCADE NOT NULL,
+  playlist_id UUID REFERENCES playlists(id) ON DELETE CASCADE NOT NULL,
   song_id TEXT NOT NULL,
   song_title TEXT NOT NULL,
   song_artist TEXT NOT NULL,
-  song_album TEXT,
   song_image TEXT,
   song_audio TEXT,
-  song_duration INTEGER,
   position INTEGER NOT NULL,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   UNIQUE(playlist_id, song_id)
@@ -90,12 +92,9 @@ CREATE TABLE IF NOT EXISTS recently_played (
   song_id TEXT NOT NULL,
   song_title TEXT NOT NULL,
   song_artist TEXT NOT NULL,
-  song_album TEXT,
   song_image TEXT,
   song_audio TEXT,
-  song_duration INTEGER,
-  played_at TIMESTAMPTZ DEFAULT NOW(),
-  UNIQUE(user_id, song_id)
+  played_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- Create downloads table
@@ -105,12 +104,8 @@ CREATE TABLE IF NOT EXISTS downloads (
   song_id TEXT NOT NULL,
   song_title TEXT NOT NULL,
   song_artist TEXT NOT NULL,
-  song_album TEXT,
   song_image TEXT,
   song_audio TEXT,
-  song_duration INTEGER,
-  download_url TEXT,
-  file_size BIGINT,
   downloaded_at TIMESTAMPTZ DEFAULT NOW(),
   UNIQUE(user_id, song_id)
 );
@@ -142,9 +137,7 @@ CREATE INDEX IF NOT EXISTS idx_recently_played_user_id ON recently_played(user_i
 CREATE INDEX IF NOT EXISTS idx_recently_played_played_at ON recently_played(played_at DESC);
 CREATE INDEX IF NOT EXISTS idx_downloads_user_id ON downloads(user_id);
 CREATE INDEX IF NOT EXISTS idx_listening_history_user_id ON listening_history(user_id);
-CREATE INDEX IF NOT EXISTS idx_listening_history_listened_at ON listening_history(listened_at DESC);
 CREATE INDEX IF NOT EXISTS idx_search_history_user_id ON search_history(user_id);
-CREATE INDEX IF NOT EXISTS idx_search_history_searched_at ON search_history(searched_at DESC);
 
 -- RLS Policies
 
@@ -220,7 +213,11 @@ BEGIN
 END;
 $$ language 'plpgsql';
 
--- Triggers for automatic timestamp updates
+-- Triggers for automatic timestamp updates (drop first to avoid duplicates)
+DROP TRIGGER IF EXISTS update_profiles_updated_at ON profiles;
+DROP TRIGGER IF EXISTS update_user_preferences_updated_at ON user_preferences;
+DROP TRIGGER IF EXISTS update_playlists_updated_at ON playlists;
+
 CREATE TRIGGER update_profiles_updated_at BEFORE UPDATE ON profiles
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
@@ -229,3 +226,5 @@ CREATE TRIGGER update_user_preferences_updated_at BEFORE UPDATE ON user_preferen
 
 CREATE TRIGGER update_playlists_updated_at BEFORE UPDATE ON playlists
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+SELECT 'Tables setup completed!' as status;
