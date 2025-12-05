@@ -227,11 +227,21 @@ class SaavnAPI {
       } else if (songData.primaryArtists) {
         artistName = String(songData.primaryArtists).split(",")[0] || "Unknown Artist"
       } else if (songData.artist) {
-        artistName = songData.artist
+        if (typeof songData.artist === "string") {
+          artistName = songData.artist
+        } else if (typeof songData.artist === "object" && songData.artist?.name) {
+          artistName = songData.artist.name
+        } else if (Array.isArray(songData.artist)) {
+          artistName = songData.artist.map((a: any) => a.name || a).join(", ")
+        }
       } else if (songData.artists) {
-        artistName = Array.isArray(songData.artists)
-          ? songData.artists.map((a: any) => a.name || a).join(", ")
-          : String(songData.artists)
+        if (Array.isArray(songData.artists)) {
+          artistName = songData.artists.map((a: any) => (typeof a === "string" ? a : a?.name || a)).join(", ")
+        } else if (typeof songData.artists === "object" && songData.artists?.name) {
+          artistName = songData.artists.name
+        } else if (typeof songData.artists === "string") {
+          artistName = songData.artists
+        }
       }
 
       const result: ModernSong = {
@@ -258,6 +268,7 @@ class SaavnAPI {
       }
 
       console.log(`✅ [FINAL] ${result.title}`, {
+        artist: result.artist,
         hasImage: !!result.image && result.image !== "/abstract-album-cover.png",
         hasAudio: !!result.audio,
       })

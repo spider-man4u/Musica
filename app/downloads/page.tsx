@@ -9,6 +9,7 @@ import Image from "next/image"
 import { useStore } from "@/lib/store"
 import { cn } from "@/lib/utils"
 import { toast } from "@/components/ui/use-toast"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 
 // Safe Image Component
 const SafeImage = ({
@@ -41,7 +42,7 @@ export default function DownloadsPage() {
   const [selectedSongs, setSelectedSongs] = useState<string[]>([])
   const [sortBy, setSortBy] = useState<"recent" | "name" | "artist">("recent")
 
-  const { userData, playSong, addToFavorites, removeFromFavorites, removeFromDownloads } = useStore()
+  const { userData, playSong, addToFavorites, removeFromFavorites, removeFromDownloads, addToQueue } = useStore()
 
   const downloads = userData.downloads || []
 
@@ -86,6 +87,14 @@ export default function DownloadsPage() {
     toast({
       title: "Downloads Removed",
       description: `${selectedSongs.length} songs removed from downloads`,
+    })
+  }
+
+  const handleAddToQueue = (song: any) => {
+    addToQueue(song)
+    toast({
+      title: "Added to Queue",
+      description: `${song.title} added to your queue`,
     })
   }
 
@@ -239,13 +248,36 @@ export default function DownloadsPage() {
                       >
                         <Trash2 className="w-4 h-4" />
                       </Button>
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        className="opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-white"
-                      >
-                        <MoreHorizontal className="w-4 h-4" />
-                      </Button>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-white"
+                          >
+                            <MoreHorizontal className="w-4 h-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent className="bg-gray-900 border-gray-700" align="end">
+                          <DropdownMenuItem onClick={() => addToQueue(song)} className="text-white hover:bg-gray-800">
+                            Add to Queue
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => toggleFavorite(song)}
+                            className="text-white hover:bg-gray-800"
+                          >
+                            {userData.favorites.some((fav) => fav.id === song.id)
+                              ? "Remove from Favorites"
+                              : "Add to Favorites"}
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => handleRemoveDownload(song.id)}
+                            className="text-white hover:bg-gray-800 text-red-400"
+                          >
+                            Remove Download
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
                   </motion.div>
                 )

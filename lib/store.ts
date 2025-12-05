@@ -1354,6 +1354,16 @@ export const useStore = create<AppState>()(
           dislikedSongs: Array.from(state.userPreferences?.dislikedSongs || []),
         },
       }),
+      onRehydrateStorage: () => (state) => {
+        if (state && state.userPreferences) {
+          const dislikedSongsData = state.userPreferences.dislikedSongs
+          if (Array.isArray(dislikedSongsData)) {
+            state.userPreferences.dislikedSongs = new Set(dislikedSongsData)
+          } else if (!(dislikedSongsData instanceof Set)) {
+            state.userPreferences.dislikedSongs = new Set()
+          }
+        }
+      },
     },
   ),
 )

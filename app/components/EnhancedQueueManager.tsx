@@ -71,6 +71,14 @@ export default function EnhancedQueueManager({ isOpen, onClose }: EnhancedQueueM
   const safeQueue = Array.isArray(queue) ? queue : []
   const safeFavorites = Array.isArray(userData?.favorites) ? userData.favorites : []
 
+  const safeUserPreferences = {
+    ...userPreferences,
+    dislikedSongs:
+      userPreferences?.dislikedSongs instanceof Set
+        ? userPreferences.dislikedSongs
+        : new Set(Array.isArray(userPreferences?.dislikedSongs) ? userPreferences.dislikedSongs : []),
+  }
+
   // Compute skip probabilities for all queue items
   const queueWithScores = useMemo(
     () =>

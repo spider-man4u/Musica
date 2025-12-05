@@ -121,6 +121,7 @@ export default function Home() {
     playSong,
     addToFavorites,
     removeFromFavorites,
+    addToQueue,
     searchContent,
     updateMoodPlaylists,
   } = useStore()
@@ -587,13 +588,37 @@ export default function Home() {
                               )}
                             />
                           </Button>
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="text-gray-400 hover:text-white w-8 h-8 sm:w-10 sm:h-10"
-                          >
-                            <MoreHorizontal className="w-4 h-4 sm:w-5 sm:h-5" />
-                          </Button>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="text-gray-400 hover:text-white w-8 h-8 sm:w-10 sm:h-10"
+                              >
+                                <MoreHorizontal className="w-4 h-4 sm:w-5 sm:h-5" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent className="w-40 bg-gray-900 border-gray-700">
+                              <DropdownMenuItem
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  addToQueue(song)
+                                }}
+                                className="text-white hover:bg-gray-800 cursor-pointer"
+                              >
+                                Add to Queue
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  toggleFavorite(song)
+                                }}
+                                className="text-white hover:bg-gray-800 cursor-pointer"
+                              >
+                                {isFavorite ? "Remove from Favorites" : "Add to Favorites"}
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </div>
                       </motion.div>
                     )
