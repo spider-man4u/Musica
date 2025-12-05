@@ -575,7 +575,18 @@ class SaavnAPI {
   async getTrending(): Promise<ModernSong[]> {
     console.log(`\n📊 [TRENDING] Fetching trending songs...`)
 
-    const trendingSearches = ["Bollywood", "hindi", "songs", "music", "top", "arijit", "neha", "love", "new", "best"]
+    const trendingSearches = [
+      "trending",
+      "top 50",
+      "viral songs",
+      "new releases",
+      "best 2024",
+      "popular today",
+      "most streamed",
+      "hot music",
+      "latest hits",
+      "in demand",
+    ]
 
     let bestResults: ModernSong[] = []
     let successCount = 0
@@ -615,7 +626,7 @@ class SaavnAPI {
           console.log(`🏆 New best: ${bestResults.length} songs`)
         }
 
-        if (bestResults.length >= 20) {
+        if (bestResults.length >= 25) {
           console.log(`✅ Enough results, returning ${bestResults.length} songs`)
           return bestResults
         }
@@ -641,7 +652,7 @@ class SaavnAPI {
     console.log(`\n👨‍🎤 [ARTIST DETAILS] Artist ID: ${artistId}`)
 
     try {
-      const url = `${API_BASE_URL}/artists?id=${encodeURIComponent(artistId)}&page=0&songCount=20&albumCount=10&sortBy=popularity&sortOrder=desc`
+      const url = `${API_BASE_URL}/artists?id=${encodeURIComponent(artistId)}&page=1&songCount=10&albumCount=10&sortBy=popularity&sortOrder=desc`
       console.log(`📌 Endpoint: ${url}`)
 
       const data = await fetchWithRetry<any>(url, TIMEOUTS.details)

@@ -263,14 +263,26 @@ const calculateSimilarity = (song1: Song, song2: Song): number => {
     if (a1 === a2) similarity += 40
     else if (a1.includes(a2) || a2.includes(a1)) similarity += 20
   }
-  if (song1.genre && song2.genre && song1.genre === song2.genre) similarity += 20
+  if (song1.genre && song2.genre && song1.genre === song2.genre) similarity += 30 // Increased from 20
   if (song1.mood && song2.mood && song1.mood === song2.mood) similarity += 15
   if (song1.language && song2.language && song1.language === song2.language) similarity += 10
+
   const year1 = Number.parseInt(song1.year || "0")
   const year2 = Number.parseInt(song2.year || "0")
-  if (year1 && year2 && Math.abs(year1 - year2) <= 5) similarity += 10
+  if (year1 && year2) {
+    const yearDiff = Math.abs(year1 - year2)
+    if (yearDiff <= 5)
+      similarity += 15 // Same era (±5 years)
+    else if (yearDiff <= 10)
+      similarity += 10 // Close era (±10 years)
+    else if (yearDiff <= 20) similarity += 5 // Same decade
+  }
+
   if (song1.energy && song2.energy) {
     similarity += Math.max(0, 5 - Math.abs(song1.energy - song2.energy) / 20)
+  }
+  if (song1.danceability && song2.danceability) {
+    similarity += Math.max(0, 5 - Math.abs(song1.danceability - song2.danceability) / 20)
   }
   return similarity
 }
@@ -1012,12 +1024,22 @@ export const useStore = create<AppState>()(
         if (!get().userData.settings.aiSuggestions) return []
         try {
           const { trendingSongs, userData } = get()
-          const pool = [...trendingSongs, ...userData.favorites, ...userData.recentlyPlayed]
+
+          const allSongs = [...trendingSongs, ...userData.favorites, ...userData.recentlyPlayed]
+
+          const genreSongs = allSongs.filter(
+            (song) =>
+              song.genre === baseSong.genre || (baseSong.genre && song.genre?.includes(baseSong.genre?.split(" ")[0])),
+          )
+
+          // Use genre-filtered songs if available, otherwise use all songs
+          const pool = genreSongs.length > 5 ? genreSongs : allSongs
+
           const suggestions = pool
             .filter((song) => song.id !== baseSong.id)
             .map((song) => ({ song, similarity: calculateSimilarity(baseSong, song) }))
             .sort((a, b) => b.similarity - a.similarity)
-            .slice(0, 10)
+            .slice(0, 15) // Increased from 10 to 15 for more variety
             .map((i) => i.song)
 
           set({ recommendations: suggestions })
@@ -1044,6 +1066,7 @@ export const useStore = create<AppState>()(
 
         const genrePreferences: Record<string, number> = {}
         const artistPreferences: Record<string, number> = {}
+        const yearPreferences: Record<string, number> = {}
 
         userData.listeningHistory.forEach((entry) => {
           const song = [...userData.favorites, ...userData.recentlyPlayed, ...trendingSongs].find(
@@ -1053,6 +1076,9 @@ export const useStore = create<AppState>()(
             const g = song.genre || "unknown"
             genrePreferences[g] = (genrePreferences[g] || 0) + 1
             artistPreferences[song.artist] = (artistPreferences[song.artist] || 0) + 1
+            if (song.year) {
+              yearPreferences[song.year] = (yearPreferences[song.year] || 0) + 1
+            }
           }
         })
 
@@ -1060,12 +1086,15 @@ export const useStore = create<AppState>()(
           .filter((song) => !userData.favorites.some((fav) => fav.id === song.id))
           .map((song) => {
             let score = 0
-            score += (genrePreferences[song.genre || "unknown"] || 0) * 3
+            score += (genrePreferences[song.genre || "unknown"] || 0) * 4 // Increased weight from 3 to 4
             score += (artistPreferences[song.artist] || 0) * 5
+            if (song.year && yearPreferences[song.year]) {
+              score += yearPreferences[song.year] * 3
+            }
             return { song, score }
           })
           .sort((a, b) => b.score - a.score)
-          .slice(0, 15)
+          .slice(0, 20) // Increased from 15 to 20
           .map((i) => i.song)
 
         return recs
@@ -1074,9 +1103,22 @@ export const useStore = create<AppState>()(
       generateRelatedSongs: async (baseSong, count = 10) => {
         const { trendingSongs, userData, queue } = get()
         const inQueue = new Set(queue.map((s) => s.id))
-        const pool = [...trendingSongs, ...userData.favorites, ...userData.recentlyPlayed].filter(
-          (s) => s.id !== baseSong.id && !inQueue.has(s.id),
+
+        const allSongs = [...trendingSongs, ...userData.favorites, ...userData.recentlyPlayed]
+
+        const genreYearMatches = allSongs.filter(
+          (s) =>
+            s.id !== baseSong.id &&
+            !inQueue.has(s.id) &&
+            (s.genre === baseSong.genre || (baseSong.genre && s.genre?.includes(baseSong.genre?.split(" ")[0]))) &&
+            s.year === baseSong.year,
         )
+
+        const pool =
+          genreYearMatches.length >= 5
+            ? genreYearMatches
+            : allSongs.filter((s) => s.id !== baseSong.id && !inQueue.has(s.id))
+
         const ranked = pool
           .map((s) => ({ s, sim: calculateSimilarity(baseSong, s) }))
           .sort((a, b) => b.sim - a.sim)
