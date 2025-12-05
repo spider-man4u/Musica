@@ -17,6 +17,7 @@ import {
   ArrowUp,
   ArrowDown,
   X,
+  Loader2,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useStore } from "@/lib/store"
@@ -53,6 +54,7 @@ const formatTimeSec = (time: number) => {
 export default function EnhancedQueueManager({ isOpen, onClose }: EnhancedQueueManagerProps) {
   const [sortBy, setSortBy] = useState<"current" | "recommended" | "skip-risk">("current")
   const [draggedItem, setDraggedItem] = useState<number | null>(null)
+  const [refreshing, setRefreshing] = useState(false)
 
   const {
     queue,
@@ -124,6 +126,34 @@ export default function EnhancedQueueManager({ isOpen, onClose }: EnhancedQueueM
     },
     [draggedItem, moveQueueItem],
   )
+
+  const handleRefreshQueue = useCallback(async () => {
+    if (!currentSong || refreshing) return
+    try {
+      setRefreshing(true)
+      const added = await generateRelatedSongs(currentSong, 20)
+      if (added.length > 0) {
+        toast({
+          title: "Queue Refreshed",
+          description: `Added ${added.length} smart recommendations based on "${currentSong.title}"`,
+        })
+      } else {
+        toast({
+          title: "No new songs",
+          description: "Couldn't find more songs matching your taste",
+          variant: "destructive",
+        })
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to refresh queue",
+        variant: "destructive",
+      })
+    } finally {
+      setRefreshing(false)
+    }
+  }, [currentSong, generateRelatedSongs, refreshing])
 
   const handleAddRelated = useCallback(async () => {
     if (!currentSong) return
@@ -217,7 +247,24 @@ export default function EnhancedQueueManager({ isOpen, onClose }: EnhancedQueueM
               </button>
             </div>
 
-            <div className="flex items-center gap-2 ml-auto">
+            <div className="flex items-center gap-2 ml-auto flex-wrap">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleRefreshQueue}
+                disabled={!currentSong || refreshing}
+                className="text-xs border-purple-600 bg-transparent hover:bg-purple-600/20 text-purple-300 disabled:opacity-50"
+              >
+                {refreshing ? (
+                  <>
+                    <Loader2 className="w-3 h-3 mr-1 animate-spin" /> Refreshing...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-3 h-3 mr-1" /> Refresh
+                  </>
+                )}
+              </Button>
               <Button
                 size="sm"
                 variant="outline"

@@ -107,6 +107,7 @@ interface AppState {
   queue: Song[]
   queueIndex: number
   originalQueue: Song[]
+  queueSource: "search" | "trending" | "favorites" | "playlist" | null
 
   userData: UserData
   searchHistory: string[]
@@ -437,6 +438,7 @@ export const useStore = create<AppState>()(
       queue: [],
       queueIndex: 0,
       originalQueue: [],
+      queueSource: null,
 
       userData: defaultUserData,
       searchHistory: [],
@@ -687,7 +689,23 @@ export const useStore = create<AppState>()(
       },
 
       playSong: (song, playlist) => {
+        let source: "search" | "trending" | "favorites" | "playlist" | null = null
+
         if (playlist && playlist.length > 0) {
+          // Determine source based on playlist origin
+          const { searchResults, userData, trendingSongs } = get()
+          const searchSongs = searchResults?.songs?.data || []
+
+          if (searchSongs.some((s) => s.id === song.id)) {
+            source = "search"
+          } else if (userData.favorites.some((s) => s.id === song.id)) {
+            source = "favorites"
+          } else if (trendingSongs.some((s) => s.id === song.id)) {
+            source = "trending"
+          } else {
+            source = "playlist"
+          }
+
           const songIndex = playlist.findIndex((s) => s.id === song.id)
           get().setQueue(playlist, songIndex >= 0 ? songIndex : 0)
         } else {
@@ -696,6 +714,8 @@ export const useStore = create<AppState>()(
             get().generateAISuggestions(song)
           }
         }
+
+        set({ queueSource: source })
         get().setIsPlaying(true)
       },
 
@@ -1101,10 +1121,17 @@ export const useStore = create<AppState>()(
       },
 
       generateRelatedSongs: async (baseSong, count = 10) => {
-        const { trendingSongs, userData, queue } = get()
+        const { trendingSongs, userData, queue, searchResults, queueSource } = get()
         const inQueue = new Set(queue.map((s) => s.id))
 
-        const allSongs = [...trendingSongs, ...userData.favorites, ...userData.recentlyPlayed]
+        const searchSongs = searchResults?.songs?.data || []
+
+        let allSongs = [...trendingSongs, ...userData.favorites, ...userData.recentlyPlayed]
+
+        // If queue source is search, prioritize search results
+        if (queueSource === "search" && searchSongs.length > 0) {
+          allSongs = [...searchSongs, ...allSongs]
+        }
 
         const genreYearMatches = allSongs.filter(
           (s) =>
@@ -1391,6 +1418,7 @@ export const useStore = create<AppState>()(
         artists: state.artists || [],
         recommendations: state.recommendations || [],
         savedPlaylists: state.savedPlaylists || [],
+        queueSource: state.queueSource, // Persist queueSource
         userPreferences: {
           ...state.userPreferences,
           dislikedSongs: Array.from(state.userPreferences?.dislikedSongs || []),
