@@ -524,50 +524,36 @@ class SaavnAPI {
     }
   }
 
-  async searchPlaylists(query: string, page = 0, limit = 10): Promise<ModernPlaylist[]> {
+  async searchPlaylists(query: string, page = 0, limit = 20): Promise<ModernPlaylist[]> {
     if (!query?.trim()) {
       throw new Error("Playlist query cannot be empty")
     }
 
-    console.log(`\n📋 [PLAYLISTS] Query: "${query}"`)
+    console.log(`\n📋 [PLAYLISTS] Query: "${query}" (page: ${page}, limit: ${limit})`)
 
     try {
       const url = `${API_BASE_URL}/search/playlists?query=${encodeURIComponent(query)}&page=${page}&limit=${limit}`
       console.log(`📌 Endpoint: ${url}`)
 
       const data = await fetchWithRetry<any>(url, TIMEOUTS.search)
-      console.log(`📦 [PLAYLISTS RESPONSE]`, data)
 
-      let playlists = data?.data?.results || data?.results || data?.data || data?.playlists || data || []
+      let playlists = data?.data?.results || data?.results || data?.playlists || []
 
       if (!Array.isArray(playlists)) {
-        console.warn(`⚠️ Playlists is not an array, trying to extract from response`)
-        for (const key in data) {
-          if (Array.isArray(data[key])) {
-            playlists = data[key]
-            console.log(`✅ Found array at key: ${key}`)
-            break
-          }
-        }
+        console.warn(`⚠️ Playlists is not an array, type:`, typeof playlists)
+        playlists = []
       }
 
-      console.log(`✅ Got ${playlists.length} playlists from response`)
+      console.log(`✅ Found ${playlists.length} playlists`)
 
       const transformed = playlists
-        .map((p: any) => {
-          console.log(`📚 Transforming playlist:`, p.name || p.title || "Unknown")
-          return this.transformPlaylist(p)
-        })
-        .filter((p: ModernPlaylist | null) => {
-          const isValid = p && p.id && p.name
-          if (!isValid) console.warn(`⚠️ Filtered out invalid playlist`)
-          return isValid
-        })
+        .map((p: any) => this.transformPlaylist(p))
+        .filter((p: ModernPlaylist | null) => p && p.id && p.name)
 
-      console.log(`✅ Final transformed playlists: ${transformed.length}`)
+      console.log(`✅ Transformed ${transformed.length} playlists`)
       return transformed as ModernPlaylist[]
     } catch (error) {
-      console.error(`❌ Playlist search error:`, error)
+      console.error(`❌ Playlists search error:`, error)
       throw error
     }
   }
@@ -920,6 +906,78 @@ class SaavnAPI {
       throw error
     }
   }
+
+  async getPopularPlaylists(): Promise<ModernPlaylist[]> {
+    console.log(`\n📊 [POPULAR PLAYLISTS] Fetching popular playlists...`)
+
+    const popularSearches = [
+      "popular playlists",
+      "best playlists",
+      "trending playlists",
+      "new playlists",
+      "curated playlists",
+      "featured playlists",
+      "top playlists",
+      "must listen",
+      "hit collections",
+      "chart toppers",
+    ]
+
+    let bestResults: ModernPlaylist[] = []
+    let successCount = 0
+
+    for (const query of popularSearches) {
+      try {
+        console.log(`\n📌 [PLAYLISTS-SEARCH] Query: "${query}"`)
+        const url = `${API_BASE_URL}/search/playlists?query=${encodeURIComponent(query)}&page=0&limit=50`
+
+        const data = await fetchWithRetry<any>(url, TIMEOUTS.search)
+
+        const playlists = data?.data?.results || data?.results || data?.playlists || []
+
+        if (!Array.isArray(playlists)) {
+          console.warn(`⚠️ Playlists not array for "${query}", type:`, typeof playlists)
+          continue
+        }
+
+        console.log(`✅ Got ${playlists.length} playlists for "${query}"`)
+
+        const transformed = playlists
+          .map((p: any) => {
+            try {
+              return this.transformPlaylist(p)
+            } catch (e) {
+              console.error(`❌ Transform error:`, e)
+              return null
+            }
+          })
+          .filter((p: ModernPlaylist | null) => p && p.id && p.name)
+
+        console.log(`✅ Transformed ${transformed.length} playlists for "${query}"`)
+
+        if (transformed.length > bestResults.length) {
+          bestResults = transformed as ModernPlaylist[]
+          successCount++
+          console.log(`🏆 New best: ${bestResults.length} playlists`)
+        }
+
+        if (bestResults.length >= 12) {
+          console.log(`✅ Enough results, returning ${bestResults.length} playlists`)
+          return bestResults
+        }
+      } catch (error) {
+        console.warn(`⚠️ Query "${query}" failed:`, error)
+        continue
+      }
+    }
+
+    if (bestResults.length > 0) {
+      console.log(`✅ Returning ${bestResults.length} popular playlists from ${successCount} queries`)
+      return bestResults
+    }
+
+    throw new Error(`Failed to fetch popular playlists`)
+  }
 }
 
 const saavnApi = new SaavnAPI()
@@ -1086,6 +1144,32 @@ export async function getSongSuggestions(
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to get suggestions"
     return { success: false, data: [], message }
+  }
+}
+
+export async function getPopularPlaylists(): Promise<{
+  success: boolean
+  data: { playlists: ModernPlaylist[] }
+  message?: string
+}> {
+  try {
+    console.log(`\n${"=".repeat(60)}\n📊 GET POPULAR PLAYLISTS\n${"=".repeat(60)}`)
+    const playlists = await saavnApi.getPopularPlaylists()
+
+    if (playlists.length > 0) {
+      console.log(`✅ Popular playlists successful: ${playlists.length} playlists\n`)
+      return { success: true, data: { playlists } }
+    }
+
+    return {
+      success: false,
+      data: { playlists: [] },
+      message: "No popular playlists available",
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Popular playlists failed"
+    console.error(`❌ Popular playlists failed: ${message}\n`)
+    return { success: false, data: { playlists: [] }, message }
   }
 }
 

@@ -117,7 +117,9 @@ export default function Home() {
     currentSong,
     isPlaying,
     curatedPlaylists,
+    popularPlaylists = [],
     fetchTrendingSongs,
+    fetchPopularPlaylists,
     playSong,
     addToFavorites,
     removeFromFavorites,
@@ -128,15 +130,17 @@ export default function Home() {
 
   useEffect(() => {
     fetchTrendingSongs()
+    fetchPopularPlaylists()
     const refreshInterval = setInterval(
       () => {
         fetchTrendingSongs()
+        fetchPopularPlaylists()
         updateMoodPlaylists()
       },
       5 * 60 * 1000,
     )
     return () => clearInterval(refreshInterval)
-  }, [fetchTrendingSongs, updateMoodPlaylists])
+  }, [fetchTrendingSongs, fetchPopularPlaylists, updateMoodPlaylists])
 
   useEffect(() => {
     const updateTime = () => {
@@ -433,6 +437,60 @@ export default function Home() {
               </motion.div>
             ))}
           </div>
+        </motion.div>
+
+        {/* Popular Playlists */}
+        <motion.div variants={itemVariants} className="mb-6 sm:mb-8">
+          <div className="flex items-center justify-between mb-4 sm:mb-6">
+            <h3 className="text-xl sm:text-2xl font-semibold text-white">Popular Playlists</h3>
+            <Button variant="ghost" className="text-gray-400 hover:text-white" onClick={() => router.push("/library")}>
+              Show all
+            </Button>
+          </div>
+          <ScrollArea className="w-full">
+            <div className="flex space-x-4 sm:space-x-6 pb-4">
+              {popularPlaylists.slice(0, 8).map((playlist, index) => (
+                <motion.div
+                  key={playlist.id}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.08 }}
+                  onClick={() => router.push(`/library?playlist=${playlist.id}`)}
+                  className="min-w-[180px] sm:min-w-[220px] bg-white/5 hover:bg-white/10 rounded-xl p-4 sm:p-6 cursor-pointer transition-all duration-300 group border border-white/10 hover:border-white/20"
+                  whileHover={{ scale: 1.02, y: -4 }}
+                  whileTap={{ scale: 0.98 }}
+                >
+                  <div className="relative mb-4 sm:mb-6">
+                    <Image
+                      src={playlist.image || "/placeholder.svg?height=180&width=180"}
+                      alt={playlist.name}
+                      width={180}
+                      height={180}
+                      className="w-full aspect-square object-cover rounded-xl"
+                    />
+                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-xl flex items-center justify-center">
+                      <Button
+                        size="icon"
+                        className="bg-green-500 hover:bg-green-600 rounded-full w-12 h-12 sm:w-14 sm:h-14"
+                      >
+                        <Play className="w-6 h-6 sm:w-7 sm:h-7 ml-0.5" />
+                      </Button>
+                    </div>
+                  </div>
+                  <div>
+                    <h4 className="text-white font-semibold truncate mb-2 text-base sm:text-lg">{playlist.name}</h4>
+                    <p className="text-gray-400 text-sm sm:text-base truncate">
+                      {playlist.description || "Popular collection"}
+                    </p>
+                    <p className="text-gray-500 text-xs sm:text-sm mt-1">
+                      {playlist.songCount || playlist.songs?.length || 0} songs
+                    </p>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+            <ScrollBar orientation="horizontal" />
+          </ScrollArea>
         </motion.div>
 
         {/* Curated Playlists */}

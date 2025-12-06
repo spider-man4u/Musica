@@ -1,6 +1,14 @@
 import { create } from "zustand"
 import { persist } from "zustand/middleware"
-import { searchMusic, getTrendingMusic, getSongDetails, sanitizeString, type ModernSong } from "./modernMusicApi"
+import {
+  searchMusic,
+  getTrendingMusic,
+  getSongDetails,
+  sanitizeString,
+  getPopularPlaylists,
+  type ModernSong,
+  type ModernPlaylist,
+} from "./modernMusicApi"
 import { syncUserData, loadUserData } from "./supabase"
 
 export interface Song {
@@ -57,6 +65,16 @@ export interface Artist {
   albums: any[]
   monthlyListeners: number
 }
+
+// Removed the duplicate declaration of ModernPlaylist interface
+// export interface ModernPlaylist {
+//   id: string
+//   title: string
+//   description: string
+//   image: string
+//   creator: string
+//   followerCount: number
+// }
 
 export interface UserData {
   id: string
@@ -117,6 +135,7 @@ interface AppState {
   curatedPlaylists: Playlist[]
   recommendations: Song[]
   artists: Artist[]
+  popularPlaylists: ModernPlaylist[]
 
   isLoading: boolean
   error: string | null
@@ -155,6 +174,7 @@ interface AppState {
   searchContent: (query: string) => Promise<void>
   fetchTrendingSongs: () => Promise<void>
   fetchSongDetails: (songId: string) => Promise<Song | null>
+  fetchPopularPlaylists: () => Promise<void>
 
   addToFavorites: (song: Song) => void
   removeFromFavorites: (songId: string) => void
@@ -448,6 +468,7 @@ export const useStore = create<AppState>()(
       curatedPlaylists: curatedPlaylistsDefault,
       recommendations: [],
       artists: [],
+      popularPlaylists: [],
 
       isLoading: false,
       error: null,
@@ -803,6 +824,39 @@ export const useStore = create<AppState>()(
           console.error("Fetch song details error:", error)
         }
         return null
+      },
+
+      fetchPopularPlaylists: async () => {
+        set({ isLoading: true, error: null })
+        try {
+          console.log(`\n🎵 [STORE] Fetching popular playlists...`)
+          const response = await getPopularPlaylists()
+
+          if (response.success && response.data.playlists.length > 0) {
+            console.log(`✅ [STORE] Got ${response.data.playlists.length} popular playlists`)
+            set({
+              popularPlaylists: response.data.playlists,
+              error: null,
+              apiStatus: "healthy",
+            })
+          } else {
+            console.warn(`⚠️ [STORE] No popular playlists available`)
+            set({
+              popularPlaylists: [],
+              error: response.message || "No popular playlists available.",
+              apiStatus: "limited",
+            })
+          }
+        } catch (error) {
+          console.error("[STORE] Popular playlists error:", error)
+          set({
+            popularPlaylists: [],
+            error: "Failed to load popular playlists.",
+            apiStatus: "unhealthy",
+          })
+        } finally {
+          set({ isLoading: false })
+        }
       },
 
       /* User data */
@@ -1423,6 +1477,7 @@ export const useStore = create<AppState>()(
           ...state.userPreferences,
           dislikedSongs: Array.from(state.userPreferences?.dislikedSongs || []),
         },
+        popularPlaylists: state.popularPlaylists || [], // Persist popularPlaylists
       }),
       onRehydrateStorage: () => (state) => {
         if (state && state.userPreferences) {
