@@ -455,14 +455,14 @@ export default function Home() {
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: index * 0.08 }}
-                  onClick={() => router.push(`/library?playlist=${playlist.id}`)}
+                  onClick={() => router.push(`/playlist/${playlist.id}`)}
                   className="min-w-[180px] sm:min-w-[220px] bg-white/5 hover:bg-white/10 rounded-xl p-4 sm:p-6 cursor-pointer transition-all duration-300 group border border-white/10 hover:border-white/20"
                   whileHover={{ scale: 1.02, y: -4 }}
                   whileTap={{ scale: 0.98 }}
                 >
                   <div className="relative mb-4 sm:mb-6">
                     <Image
-                      src={playlist.image || "/placeholder.svg?height=180&width=180"}
+                      src={playlist.image || "/placeholder.svg?height=180&width=180&query=popular+playlist+cover"}
                       alt={playlist.name}
                       width={180}
                       height={180}

@@ -2,13 +2,6 @@
 
 import type React from "react"
 import { useEffect, useRef, useState } from "react"
-import { motion } from "framer-motion"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Music, Mail, Lock, Eye, EyeOff, CheckCircle, Loader2, AlertCircle, Shield, User, LogOut } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { useStore } from "@/lib/store"
 import {
@@ -23,6 +16,7 @@ import {
   loadUserData,
 } from "@/lib/supabase"
 import type { User as SupaUser } from "@supabase/supabase-js"
+import OpeningAnimation from "@/components/OpeningAnimation"
 
 interface AuthWrapperProps {
   children: React.ReactNode
@@ -46,6 +40,7 @@ export default function AuthWrapper({ children }: AuthWrapperProps) {
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState("login")
+  const [showEmailForm, setShowEmailForm] = useState(false)
 
   const { setCurrentUserId, setSyncStatus } = useStore()
 
@@ -300,269 +295,28 @@ export default function AuthWrapper({ children }: AuthWrapperProps) {
   // Fast-first-paint: show minimal splash briefly, but never block > 400ms
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center">
-        <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="text-center">
-          <div className="w-16 h-16 bg-gradient-to-r from-purple-500 to-blue-500 rounded-full flex items-center justify-center mx-auto mb-4">
-            <Music className="w-8 h-8 text-white animate-pulse" />
-          </div>
-          <h1 className="text-2xl font-bold text-white mb-2">Musica</h1>
-          <div className="flex items-center justify-center gap-2 text-gray-400">
-            <Loader2 className="w-4 h-4 animate-spin" />
-            <span>Loading...</span>
-          </div>
-        </motion.div>
-      </div>
+      <OpeningAnimation
+        showAuthOptions={!user}
+        onComplete={() => {
+          setIsLoading(false)
+        }}
+        onGoogleClick={handleOAuth}
+        onEmailClick={() => setShowEmailForm(true)}
+        isLoading={authLoading}
+      />
     )
   }
 
   if (user) {
-    return (
-      <>
-        <div className="fixed top-3 right-3 z-40">
-          
-        </div>
-        {children}
-      </>
-    )
+    return <>{children}</>
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex p-6">
-      <div className="w-full flex items-center justify-center p-4">
-        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-md">
-          <Card className="bg-black/20 backdrop-blur-xl border-white/10 shadow-2xl">
-            <CardHeader className="text-center">
-              <div className="w-20 h-20 bg-gradient-to-r from-purple-500 to-blue-500 rounded-full flex items-center justify-center mx-auto mb-6">
-                <Music className="w-10 h-10 text-white" />
-              </div>
-              <CardTitle className="text-3xl text-white mb-2">Sign in to Musica</CardTitle>
-              <CardDescription className="text-gray-400 text-lg">Continue with email or Google</CardDescription>
-              <div className="flex items-center justify-center gap-2 mt-4">
-                <Shield className="w-4 h-4 text-green-400" />
-                <span className="text-green-400 text-sm">Supabase Authentication</span>
-              </div>
-            </CardHeader>
-
-            <CardContent>
-              {error && (
-                <div className="mb-4 p-4 bg-red-500/20 border border-red-500/30 rounded-lg flex items-center gap-3">
-                  <AlertCircle className="w-5 h-5 text-red-400" />
-                  <span className="text-red-400">{error}</span>
-                </div>
-              )}
-              {success && (
-                <div className="mb-4 p-4 bg-green-500/20 border border-green-500/30 rounded-lg flex items-center gap-3">
-                  <CheckCircle className="w-5 h-5 text-green-400" />
-                  <span className="text-green-400">{success}</span>
-                </div>
-              )}
-
-              <div className="mb-4">
-                <Button
-                  onClick={handleOAuth}
-                  disabled={authLoading}
-                  className="w-full bg-white text-black hover:bg-white/90"
-                >
-                  {authLoading ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Continue with Google...
-                    </>
-                  ) : (
-                    "Continue with Google"
-                  )}
-                </Button>
-                <div className="flex items-center gap-2 my-4">
-                  <div className="h-px bg-white/10 flex-1" />
-                  <span className="text-xs text-white/60">or</span>
-                  <div className="h-px bg-white/10 flex-1" />
-                </div>
-              </div>
-
-              <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                <TabsList className="grid w-full grid-cols-2 bg-white/10 mb-6">
-                  <TabsTrigger
-                    value="login"
-                    className="data-[state=active]:bg-white data-[state=active]:text-black transition-all duration-200"
-                  >
-                    Sign In
-                  </TabsTrigger>
-                  <TabsTrigger
-                    value="signup"
-                    className="data-[state=active]:bg-white data-[state=active]:text-black transition-all duration-200"
-                  >
-                    Sign Up
-                  </TabsTrigger>
-                </TabsList>
-
-                <TabsContent value="login">
-                  <form onSubmit={handleLogin} className="space-y-6">
-                    <div className="space-y-2">
-                      <Label htmlFor="email" className="text-white flex items-center gap-2">
-                        <Mail className="w-4 h-4" />
-                        Email
-                      </Label>
-                      <Input
-                        id="email"
-                        type="email"
-                        placeholder="Enter your email"
-                        value={loginForm.email}
-                        onChange={(e) => setLoginForm({ ...loginForm, email: e.target.value })}
-                        className="bg-white/10 border-white/20 text-white placeholder:text-gray-400 focus:border-purple-400 transition-colors"
-                        required
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="password" className="text-white flex items-center gap-2">
-                        <Lock className="w-4 h-4" />
-                        Password
-                      </Label>
-                      <div className="relative">
-                        <Input
-                          id="password"
-                          type={showPassword ? "text" : "password"}
-                          placeholder="Enter your password"
-                          value={loginForm.password}
-                          onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })}
-                          className="pr-12 bg-white/10 border-white/20 text-white placeholder:text-gray-400 focus:border-purple-400 transition-colors"
-                          required
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowPassword(!showPassword)}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white transition-colors"
-                          aria-label={showPassword ? "Hide password" : "Show password"}
-                        >
-                          {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                        </button>
-                      </div>
-                    </div>
-
-                    <Button
-                      type="submit"
-                      disabled={authLoading}
-                      className="w-full bg-purple-600 hover:bg-purple-700 text-white py-3 text-lg font-medium transition-all duration-200"
-                    >
-                      {authLoading ? (
-                        <>
-                          <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                          Signing In...
-                        </>
-                      ) : (
-                        "Sign In"
-                      )}
-                    </Button>
-                  </form>
-                </TabsContent>
-
-                <TabsContent value="signup">
-                  <form onSubmit={handleSignup} className="space-y-6">
-                    <div className="space-y-2">
-                      <Label htmlFor="username" className="text-white flex items-center gap-2">
-                        <User className="w-4 h-4" />
-                        Username
-                      </Label>
-                      <Input
-                        id="username"
-                        type="text"
-                        placeholder="Choose a username"
-                        value={signupForm.username}
-                        onChange={(e) => setSignupForm({ ...signupForm, username: e.target.value })}
-                        className="bg-white/10 border-white/20 text-white placeholder:text-gray-400 focus:border-purple-400 transition-colors"
-                        required
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="signup-email" className="text-white flex items-center gap-2">
-                        <Mail className="w-4 h-4" />
-                        Email
-                      </Label>
-                      <Input
-                        id="signup-email"
-                        type="email"
-                        placeholder="Enter your email"
-                        value={signupForm.email}
-                        onChange={(e) => setSignupForm({ ...signupForm, email: e.target.value })}
-                        className="bg-white/10 border-white/20 text-white placeholder:text-gray-400 focus:border-purple-400 transition-colors"
-                        required
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="signup-password" className="text-white flex items-center gap-2">
-                        <Lock className="w-4 h-4" />
-                        Password
-                      </Label>
-                      <div className="relative">
-                        <Input
-                          id="signup-password"
-                          type={showPassword ? "text" : "password"}
-                          placeholder="Create a password (6+ chars)"
-                          value={signupForm.password}
-                          onChange={(e) => setSignupForm({ ...signupForm, password: e.target.value })}
-                          className="pr-12 bg-white/10 border-white/20 text-white placeholder:text-gray-400 focus:border-purple-400 transition-colors"
-                          required
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowPassword(!showPassword)}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white transition-colors"
-                          aria-label={showPassword ? "Hide password" : "Show password"}
-                        >
-                          {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="confirm-password" className="text-white flex items-center gap-2">
-                        <Lock className="w-4 h-4" />
-                        Confirm Password
-                      </Label>
-                      <div className="relative">
-                        <Input
-                          id="confirm-password"
-                          type={showConfirmPassword ? "text" : "password"}
-                          placeholder="Confirm your password"
-                          value={signupForm.confirmPassword}
-                          onChange={(e) => setSignupForm({ ...signupForm, confirmPassword: e.target.value })}
-                          className="pr-12 bg-white/10 border-white/20 text-white placeholder:text-gray-400 focus:border-purple-400 transition-colors"
-                          required
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white transition-colors"
-                          aria-label={showConfirmPassword ? "Hide password" : "Show password"}
-                        >
-                          {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                        </button>
-                      </div>
-                    </div>
-
-                    <Button
-                      type="submit"
-                      disabled={authLoading}
-                      className="w-full bg-purple-600 hover:bg-purple-700 text-white py-3 text-lg font-medium transition-all duration-200"
-                    >
-                      {authLoading ? (
-                        <>
-                          <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                          Creating Account...
-                        </>
-                      ) : (
-                        "Create Account"
-                      )}
-                    </Button>
-                  </form>
-                </TabsContent>
-              </Tabs>
-            </CardContent>
-          </Card>
-        </motion.div>
-      </div>
-    </div>
+    <OpeningAnimation
+      showAuthOptions={true}
+      onGoogleClick={handleOAuth}
+      onEmailClick={() => setShowEmailForm(true)}
+      isLoading={authLoading}
+    />
   )
 }

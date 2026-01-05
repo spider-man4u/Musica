@@ -126,96 +126,142 @@ export interface SearchHistory {
 }
 
 export const signUp = async (email: string, password: string) => {
-  try {
-    const { data, error } = await supabase.auth.signUp({ email, password })
-    if (error) {
-      if (error.message?.toLowerCase().includes("database error saving new user")) {
-        const redirectTo = typeof window !== "undefined" ? `${window.location.origin}/auth/callback` : undefined
-        const { error: magicErr } = await supabase.auth.signInWithOtp({
-          email,
-          options: { emailRedirectTo: redirectTo },
-        })
-        if (magicErr) {
-          return { success: false, error: magicErr.message }
+  let lastError: any
+
+  // Retry logic for network failures
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const { data, error } = await supabase.auth.signUp({ email, password })
+      if (error) {
+        if (error.message?.toLowerCase().includes("database error saving new user")) {
+          const redirectTo = typeof window !== "undefined" ? `${window.location.origin}/auth/callback` : undefined
+          const { error: magicErr } = await supabase.auth.signInWithOtp({
+            email,
+            options: { emailRedirectTo: redirectTo },
+          })
+          if (magicErr) {
+            return { success: false, error: magicErr.message }
+          }
+          return {
+            success: true,
+            needsEmailConfirmation: true,
+            usedMagicLink: true,
+            message: "We emailed you a magic link. Open it to finish signing up.",
+          }
         }
-        return {
-          success: true,
-          needsEmailConfirmation: true,
-          usedMagicLink: true,
-          message: "We emailed you a magic link. Open it to finish signing up.",
-        }
+        return { success: false, error: error.message }
       }
-      return { success: false, error: error.message }
+      if (!data.session) {
+        return { success: true, user: data.user, needsEmailConfirmation: true }
+      }
+      return { success: true, user: data.user, needsEmailConfirmation: false }
+    } catch (err: any) {
+      lastError = err
+      if (attempt < 2) {
+        await new Promise((resolve) => setTimeout(resolve, 500 * (attempt + 1)))
+      }
     }
-    if (!data.session) {
-      return { success: true, user: data.user, needsEmailConfirmation: true }
-    }
-    return { success: true, user: data.user, needsEmailConfirmation: false }
-  } catch (err: any) {
-    return { success: false, error: err?.message || "Unexpected error during sign up" }
   }
+  return { success: false, error: lastError?.message || "Network error during sign up. Please try again." }
 }
 
 export const signIn = async (email: string, password: string) => {
-  try {
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password })
-    if (error) {
-      if (error.message.includes("Invalid login credentials")) {
-        return { success: false, error: "Invalid email or password" }
+  let lastError: any
+
+  // Retry logic for network failures
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+      if (error) {
+        if (error.message.includes("Invalid login credentials")) {
+          return { success: false, error: "Invalid email or password" }
+        }
+        if (error.message.includes("Email not confirmed")) {
+          return { success: false, error: "Please confirm your email before signing in" }
+        }
+        return { success: false, error: error.message }
       }
-      if (error.message.includes("Email not confirmed")) {
-        return { success: false, error: "Please confirm your email before signing in" }
+      return { success: true, user: data.user, session: data.session }
+    } catch (err: any) {
+      lastError = err
+      if (attempt < 2) {
+        await new Promise((resolve) => setTimeout(resolve, 500 * (attempt + 1)))
       }
-      return { success: false, error: error.message }
     }
-    return { success: true, user: data.user, session: data.session }
-  } catch (err: any) {
-    return { success: false, error: err?.message || "Unexpected error during sign in" }
   }
+  return { success: false, error: lastError?.message || "Network error during sign in. Please try again." }
 }
 
 export const signInWithProvider = async (provider: "google" | "github" | "gitlab" | "bitbucket") => {
-  try {
-    const redirectTo = typeof window !== "undefined" ? `${window.location.origin}/auth/callback` : undefined
-    const { data, error } = await supabase.auth.signInWithOAuth({
-      provider,
-      options: { redirectTo, skipBrowserRedirect: true },
-    })
-    if (error) return { success: false, error: error.message }
-    if (typeof window !== "undefined" && data?.url) {
-      window.open(data.url, "_blank", "noopener,noreferrer")
+  let lastError: any
+
+  // Retry logic for network failures
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const redirectTo = typeof window !== "undefined" ? `${window.location.origin}/auth/callback` : undefined
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider,
+        options: { redirectTo, skipBrowserRedirect: true },
+      })
+      if (error) return { success: false, error: error.message }
+      if (typeof window !== "undefined" && data?.url) {
+        window.open(data.url, "_blank", "noopener,noreferrer")
+      }
+      return { success: true, data }
+    } catch (err: any) {
+      lastError = err
+      if (attempt < 2) {
+        await new Promise((resolve) => setTimeout(resolve, 500 * (attempt + 1)))
+      }
     }
-    return { success: true, data }
-  } catch (err: any) {
-    return { success: false, error: err?.message || "Unexpected error during OAuth sign in" }
   }
+  return { success: false, error: lastError?.message || "Network error during OAuth sign in. Please try again." }
 }
 
 export const signOut = async () => {
-  try {
-    const { error } = await supabase.auth.signOut()
-    if (error) return { success: false, error: error.message }
-    return { success: true }
-  } catch (err: any) {
-    return { success: false, error: err?.message || "Unexpected error during sign out" }
+  let lastError: any
+
+  // Retry logic for network failures
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const { error } = await supabase.auth.signOut()
+      if (error) return { success: false, error: error.message }
+      return { success: true }
+    } catch (err: any) {
+      lastError = err
+      if (attempt < 2) {
+        await new Promise((resolve) => setTimeout(resolve, 500 * (attempt + 1)))
+      }
+    }
   }
+  return { success: false, error: lastError?.message || "Network error during sign out. Please try again." }
 }
 
 export const getCurrentUser = async (): Promise<User | null> => {
-  try {
-    const {
-      data: { session },
-    } = await supabase.auth.getSession()
-    if (!session) return null
-    const {
-      data: { user },
-      error,
-    } = await supabase.auth.getUser()
-    if (error) return null
-    return user
-  } catch {
-    return null
+  let lastError: any
+
+  // Retry logic for network failures
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
+      if (!session) return null
+      const {
+        data: { user },
+        error,
+      } = await supabase.auth.getUser()
+      if (error) return null
+      return user
+    } catch (err: any) {
+      lastError = err
+      if (attempt < 2) {
+        await new Promise((resolve) => setTimeout(resolve, 500 * (attempt + 1)))
+      }
+    }
   }
+  console.warn("Failed to get current user after retries:", lastError)
+  return null
 }
 
 export const getUserProfile = async (userId: string) => {
