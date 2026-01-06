@@ -25,6 +25,8 @@ import {
   Save,
   Sparkles,
   ScrollText,
+  Clock,
+  Users,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useStore } from "@/lib/store"
@@ -39,6 +41,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { toast } from "@/components/ui/use-toast"
 import EnhancedQueueManager from "./EnhancedQueueManager"
+import SleepTimerMenu from "./SleepTimerMenu" // Import SleepTimerMenu component
 
 const NAV_HEIGHT = 64 // approx bottom nav height
 const MINI_HEIGHT = 68 // approx mini player height
@@ -371,8 +374,10 @@ export default function MusicPlayer() {
   const [isExpanded, setIsExpanded] = useState(false)
   const [showQueue, setShowQueue] = useState(false)
   const [showLyrics, setShowLyrics] = useState(true)
+  const [showSleepTimer, setShowSleepTimer] = useState(false) // Add sleep timer state
   const audioRef = useRef<HTMLAudioElement>(null)
-  const skipThresholdRef = useRef<number>(3) // 3 seconds to determine a skip
+  const skipThresholdRef = useRef<number>(3)
+  const sleepTimerRef = useRef<NodeJS.Timeout | null>(null) // Add sleep timer ref
 
   const {
     currentSong,
@@ -619,6 +624,18 @@ export default function MusicPlayer() {
     }
   }, [currentSong])
 
+  const handleSleepTimer = useCallback(
+    (minutes: number) => {
+      if (sleepTimerRef.current) clearTimeout(sleepTimerRef.current)
+      const ms = minutes * 60 * 1000
+      sleepTimerRef.current = setTimeout(() => {
+        setIsPlaying(false)
+        toast({ title: "Sleep Timer", description: "Music stopped by sleep timer" })
+      }, ms)
+    },
+    [setIsPlaying],
+  )
+
   const progress =
     duration && !isNaN(duration) && isFinite(duration) && duration > 0 ? (currentTime / duration) * 100 : 0
   if (!currentSong) return null
@@ -761,11 +778,18 @@ export default function MusicPlayer() {
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={handleShare} className="text-white hover:bg-gray-800">
                     <Share className="mr-2 h-4 w-4" />
-                    Share
+                    Share Song
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => setShowQueue((v) => !v)} className="text-white hover:bg-gray-800">
                     <ListMusic className="mr-2 h-4 w-4" />
                     Show Queue
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => setShowSleepTimer(!showSleepTimer)}
+                    className="text-white hover:bg-gray-800"
+                  >
+                    <Clock className="mr-2 h-4 w-4" />
+                    Sleep Timer
                   </DropdownMenuItem>
                   <DropdownMenuSeparator className="bg-gray-700" />
                   <DropdownMenuItem onClick={toggleFavorite} className="text-white hover:bg-gray-800">
@@ -774,7 +798,15 @@ export default function MusicPlayer() {
                   </DropdownMenuItem>
                   <DropdownMenuItem className="text-white hover:bg-gray-800">
                     <Sparkles className="mr-2 h-4 w-4" />
-                    Go to Artist
+                    View Artist
+                  </DropdownMenuItem>
+                  <DropdownMenuItem className="text-white hover:bg-gray-800">
+                    <Users className="mr-2 h-4 w-4" />
+                    Invite Collaboration
+                  </DropdownMenuItem>
+                  <DropdownMenuItem className="text-white hover:bg-gray-800">
+                    <Save className="mr-2 h-4 w-4" />
+                    Add to Playlist
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -917,6 +949,12 @@ export default function MusicPlayer() {
                 )}
               </motion.div>
             </div>
+
+            {showSleepTimer && (
+              <div className="fixed bottom-40 right-8 z-[100]">
+                <SleepTimerMenu onSetTimer={handleSleepTimer} onClose={() => setShowSleepTimer(false)} />
+              </div>
+            )}
           </motion.div>
         )}
       </AnimatePresence>

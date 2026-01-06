@@ -965,6 +965,26 @@ class SaavnAPI {
 
     throw new Error(`Failed to fetch popular playlists`)
   }
+
+  async getLyrics(songId: string): Promise<string> {
+    if (!songId?.trim()) return ""
+
+    try {
+      const url = `https://saavn.me/lyrics?id=${encodeURIComponent(songId)}`
+      const response = await fetch(url, {
+        headers: { "User-Agent": "Mozilla/5.0" },
+        cache: "force-cache",
+      })
+
+      if (!response.ok) return ""
+
+      const data = await response.json()
+      return data?.lyrics || ""
+    } catch (error) {
+      console.error("Lyrics fetch error:", error)
+      return ""
+    }
+  }
 }
 
 const saavnApi = new SaavnAPI()
@@ -1157,6 +1177,16 @@ export async function getPopularPlaylists(): Promise<{
     const message = error instanceof Error ? error.message : "Popular playlists failed"
     console.error(`❌ Popular playlists failed: ${message}\n`)
     return { success: false, data: { playlists: [] }, message }
+  }
+}
+
+export async function getLyrics(songId: string): Promise<{ success: boolean; data: string; message?: string }> {
+  try {
+    const lyrics = await saavnApi.getLyrics(songId)
+    return { success: true, data: lyrics }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Failed to get lyrics"
+    return { success: false, data: "", message }
   }
 }
 

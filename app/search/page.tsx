@@ -5,7 +5,7 @@ import { motion } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { ChevronLeft, Music, Play, Loader2, Users, Disc3 } from "lucide-react"
+import { ChevronLeft, Music, Play, Loader2, Users, Disc3, Clock } from "lucide-react"
 import { useRouter } from "next/navigation"
 import Image from "next/image"
 import { useStore } from "@/lib/store"
@@ -42,7 +42,7 @@ export default function SearchPage() {
   const [artists, setArtists] = useState<any[]>([])
   const [playlists, setPlaylists] = useState<any[]>([])
 
-  const { playSong, addToFavorites, userData } = useStore()
+  const { playSong, addToFavorites, userData, searchHistory } = useStore()
 
   const handleSearch = useCallback(async (query: string) => {
     if (!query.trim()) {
@@ -56,7 +56,6 @@ export default function SearchPage() {
     try {
       console.log(`\n🔍 Searching for: "${query}"`)
 
-      // Fetch all data in parallel
       const [songsRes, artistsRes, playlistsRes] = await Promise.all([
         searchMusic(query),
         searchArtists(query),
@@ -137,6 +136,33 @@ export default function SearchPage() {
       </div>
 
       <main className="max-w-6xl mx-auto px-4 py-8">
+        {!searchQuery && searchHistory.length > 0 && (
+          <motion.section initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="mb-12">
+            <h2 className="text-2xl font-bold text-white mb-4 flex items-center gap-2">
+              <Music className="w-6 h-6 text-blue-400" />
+              Recent Searches
+            </h2>
+            <div className="space-y-2 bg-white/5 border border-white/10 rounded-xl overflow-hidden">
+              {searchHistory.map((query, index) => (
+                <motion.div
+                  key={`${query}-${index}`}
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: index * 0.02 }}
+                  onClick={() => {
+                    setSearchQuery(query)
+                    handleSearch(query)
+                  }}
+                  className="flex items-center gap-3 p-4 hover:bg-white/10 cursor-pointer transition-colors border-b border-white/5 last:border-b-0"
+                >
+                  <Clock className="w-4 h-4 text-gray-400" />
+                  <span className="text-white">{query}</span>
+                </motion.div>
+              ))}
+            </div>
+          </motion.section>
+        )}
+
         {searchQuery && (
           <>
             {/* Tabs */}
@@ -351,7 +377,7 @@ export default function SearchPage() {
           </>
         )}
 
-        {!searchQuery && (
+        {!searchQuery && searchHistory.length === 0 && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
