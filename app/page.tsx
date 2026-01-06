@@ -34,6 +34,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { getActiveHolidays } from "@/lib/holidays"
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -107,6 +108,7 @@ const moodCategories = [
 export default function Home() {
   const [currentTime, setCurrentTime] = useState("")
   const [showAllTrending, setShowAllTrending] = useState(false)
+  const [activeHolidays, setActiveHolidays] = useState<any[]>([])
   const router = useRouter()
 
   const {
@@ -129,6 +131,8 @@ export default function Home() {
   } = useStore()
 
   useEffect(() => {
+    setActiveHolidays(getActiveHolidays())
+
     fetchTrendingSongs()
     fetchPopularPlaylists()
     const refreshInterval = setInterval(
@@ -136,6 +140,7 @@ export default function Home() {
         fetchTrendingSongs()
         fetchPopularPlaylists()
         updateMoodPlaylists()
+        setActiveHolidays(getActiveHolidays())
       },
       5 * 60 * 1000,
     )
@@ -184,19 +189,28 @@ export default function Home() {
     (item: any) => {
       switch (item.type) {
         case "favorites":
-          router.push("/library?tab=favorites")
+          router.push("/library?type=favorites")
           break
         case "recent":
-          router.push("/library?tab=recent")
+          router.push("/library?type=recent")
           break
         case "downloads":
           router.push("/downloads")
+          break
+        case "discover":
+          router.push("/mood/happy")
+          break
+        case "mix":
+          searchContent("daily mix party")
+          break
+        case "chill":
+          router.push("/mood/chill")
           break
         default:
           router.push("/library")
       }
     },
-    [router],
+    [router, searchContent],
   )
 
   const handleMoodClick = useCallback(
@@ -284,7 +298,7 @@ export default function Home() {
                     </Avatar>
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent className="w-56 bg-gray-900 border-gray-700" align="end" forceMount>
+                <DropdownMenuContent className="w-56 bg-gray-900 border border-gray-700" align="end" forceMount>
                   <div className="flex flex-col space-y-1 p-2">
                     <p className="text-sm font-medium text-white">{userName}</p>
                     <p className="text-xs text-gray-400">{userEmail}</p>
@@ -493,55 +507,88 @@ export default function Home() {
           </ScrollArea>
         </motion.div>
 
-        {/* Curated Playlists */}
-        <motion.div variants={itemVariants} className="mb-6 sm:mb-8">
-          <div className="flex items-center justify-between mb-4 sm:mb-6">
-            <h3 className="text-xl sm:text-2xl font-semibold text-white">Curated for You</h3>
-            <Button variant="ghost" className="text-gray-400 hover:text-white" onClick={() => router.push("/library")}>
-              Show all
-            </Button>
-          </div>
-          <ScrollArea className="w-full">
-            <div className="flex space-x-4 sm:space-x-6 pb-4">
-              {curatedPlaylists.map((playlist, index) => (
-                <motion.div
-                  key={playlist.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.08 }}
-                  onClick={() => router.push(`/library?playlist=${playlist.id}`)}
-                  className="min-w-[180px] sm:min-w-[220px] bg-white/5 hover:bg-white/10 rounded-xl p-4 sm:p-6 cursor-pointer transition-all duration-300 group border border-white/10 hover:border-white/20"
-                  whileHover={{ scale: 1.02, y: -4 }}
-                  whileTap={{ scale: 0.98 }}
-                >
-                  <div className="relative mb-4 sm:mb-6">
-                    <Image
-                      src={playlist.image || "/placeholder.svg?height=180&width=180"}
-                      alt={playlist.name}
-                      width={180}
-                      height={180}
-                      className="w-full aspect-square object-cover rounded-xl"
-                    />
-                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-xl flex items-center justify-center">
-                      <Button
-                        size="icon"
-                        className="bg-green-500 hover:bg-green-600 rounded-full w-12 h-12 sm:w-14 sm:h-14"
-                      >
-                        <Play className="w-6 h-6 sm:w-7 sm:h-7 ml-0.5" />
-                      </Button>
-                    </div>
-                  </div>
-                  <div>
-                    <h4 className="text-white font-semibold truncate mb-2 text-base sm:text-lg">{playlist.name}</h4>
-                    <p className="text-gray-400 text-sm sm:text-base truncate">{playlist.description}</p>
-                    <p className="text-gray-500 text-xs sm:text-sm mt-1">{playlist.songs.length} songs</p>
-                  </div>
-                </motion.div>
-              ))}
+        {activeHolidays.length > 0 && (
+          <motion.div variants={itemVariants} className="mb-6 sm:mb-8">
+            <h3 className="text-xl sm:text-2xl font-semibold text-white mb-4 sm:mb-6">
+              {activeHolidays[0].emoji} {activeHolidays[0].name} Specials
+            </h3>
+            <div className={`bg-gradient-to-r ${activeHolidays[0].color} rounded-2xl p-6 sm:p-8 text-white`}>
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="text-2xl sm:text-3xl font-bold mb-2">{activeHolidays[0].name}</h4>
+                  <p className="text-sm sm:text-base opacity-90">Discover the perfect soundtrack for celebration</p>
+                </div>
+                <div className="text-6xl sm:text-8xl opacity-20">{activeHolidays[0].emoji}</div>
+              </div>
+              <Button
+                onClick={() => searchContent(activeHolidays[0].keywords[0])}
+                className="mt-4 bg-white text-gray-900 hover:bg-gray-100 font-semibold"
+              >
+                Explore {activeHolidays[0].name} Playlist
+              </Button>
             </div>
-            <ScrollBar orientation="horizontal" />
-          </ScrollArea>
-        </motion.div>
+          </motion.div>
+        )}
+
+        {/* Discover New Playlists */}
+        {popularPlaylists.length > 8 && (
+          <motion.div variants={itemVariants} className="mb-6 sm:mb-8">
+            <div className="flex items-center justify-between mb-4 sm:mb-6">
+              <h3 className="text-xl sm:text-2xl font-semibold text-white">Discover New Playlists</h3>
+              <Button
+                variant="ghost"
+                className="text-gray-400 hover:text-white"
+                onClick={() => router.push("/library")}
+              >
+                Show all
+              </Button>
+            </div>
+            <ScrollArea className="w-full">
+              <div className="flex space-x-4 sm:space-x-6 pb-4">
+                {popularPlaylists.slice(8, 16).map((playlist, index) => (
+                  <motion.div
+                    key={playlist.id}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.08 }}
+                    onClick={() => router.push(`/playlist/${playlist.id}`)}
+                    className="min-w-[180px] sm:min-w-[220px] bg-white/5 hover:bg-white/10 rounded-xl p-4 sm:p-6 cursor-pointer transition-all duration-300 group border border-white/10 hover:border-white/20"
+                    whileHover={{ scale: 1.02, y: -4 }}
+                    whileTap={{ scale: 0.98 }}
+                  >
+                    <div className="relative mb-4 sm:mb-6">
+                      <Image
+                        src={playlist.image || "/placeholder.svg?height=180&width=180&query=music+playlist"}
+                        alt={playlist.name}
+                        width={180}
+                        height={180}
+                        className="w-full aspect-square object-cover rounded-xl"
+                      />
+                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-xl flex items-center justify-center">
+                        <Button
+                          size="icon"
+                          className="bg-green-500 hover:bg-green-600 rounded-full w-12 h-12 sm:w-14 sm:h-14"
+                        >
+                          <Play className="w-6 h-6 sm:w-7 sm:h-7 ml-0.5" />
+                        </Button>
+                      </div>
+                    </div>
+                    <div>
+                      <h4 className="text-white font-semibold truncate mb-2 text-base sm:text-lg">{playlist.name}</h4>
+                      <p className="text-gray-400 text-sm sm:text-base truncate">
+                        {playlist.description || "Popular collection"}
+                      </p>
+                      <p className="text-gray-500 text-xs sm:text-sm mt-1">
+                        {playlist.songCount || playlist.songs?.length || 0} songs
+                      </p>
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+              <ScrollBar orientation="horizontal" />
+            </ScrollArea>
+          </motion.div>
+        )}
 
         {/* Trending Now */}
         <motion.div variants={itemVariants} className="mb-6 sm:mb-8">
@@ -642,7 +689,9 @@ export default function Home() {
                             <Heart
                               className={cn(
                                 "w-4 h-4 sm:w-5 sm:h-5",
-                                isFavorite ? "fill-red-500 text-red-500" : "text-white",
+                                safeFavorites.some((fav) => fav?.id === song.id)
+                                  ? "fill-red-500 text-red-500"
+                                  : "text-white",
                               )}
                             />
                           </Button>
@@ -673,7 +722,9 @@ export default function Home() {
                                 }}
                                 className="text-white hover:bg-gray-800 cursor-pointer"
                               >
-                                {isFavorite ? "Remove from Favorites" : "Add to Favorites"}
+                                {safeFavorites.some((fav) => fav?.id === song.id)
+                                  ? "Remove from Favorites"
+                                  : "Add to Favorites"}
                               </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
@@ -730,7 +781,12 @@ export default function Home() {
                               className="absolute top-2 right-2 bg-black/50 hover:bg-black/70 w-8 h-8"
                             >
                               <Heart
-                                className={cn("w-4 h-4", isFavorite ? "fill-red-500 text-red-500" : "text-white")}
+                                className={cn(
+                                  "w-4 h-4",
+                                  safeFavorites.some((fav) => fav?.id === song.id)
+                                    ? "fill-red-500 text-red-500"
+                                    : "text-white",
+                                )}
                               />
                             </Button>
                           </div>
@@ -775,7 +831,7 @@ export default function Home() {
             <Button
               variant="ghost"
               className="text-gray-400 hover:text-white"
-              onClick={() => router.push("/library?tab=recent")}
+              onClick={() => router.push("/library?type=recent")}
             >
               Show all
             </Button>

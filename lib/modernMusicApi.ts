@@ -347,14 +347,12 @@ class SaavnAPI {
     if (!playlist) return null
 
     try {
-      const playlistData = playlist.playlist || playlist
+      const playlistData = playlist.playlist || playlist.data?.playlist || playlist
 
       console.log(`📋 [TRANSFORM PLAYLIST]`, {
         id: playlistData.id,
-        name: playlistData.name || playlistData.title,
+        name: playlistData.name || playlistData.title || playlistData.playlist_name,
         hasSongs: !!playlistData.songs,
-        songsType: Array.isArray(playlistData.songs) ? "array" : typeof playlistData.songs,
-        songsLength: Array.isArray(playlistData.songs) ? playlistData.songs.length : 0,
         playlistKeys: Object.keys(playlistData).slice(0, 20),
       })
 
@@ -374,9 +372,6 @@ class SaavnAPI {
       } else if (playlistData.tracks && Array.isArray(playlistData.tracks)) {
         songsArray = playlistData.tracks
         console.log(`✅ Found songs at playlistData.tracks: ${songsArray.length}`)
-      } else if (Array.isArray(playlistData)) {
-        songsArray = playlistData
-        console.log(`✅ Playlist data itself is array: ${songsArray.length}`)
       } else {
         for (const key in playlistData) {
           if (Array.isArray(playlistData[key]) && playlistData[key].length > 0) {
@@ -394,37 +389,29 @@ class SaavnAPI {
 
       const transformedSongs = songsArray
         .map((s: any, idx: number) => {
-          if (!s) {
-            console.warn(`⚠️ Song at index ${idx} is null/undefined`)
-            return null
-          }
+          if (!s) return null
           const transformed = this.transformSong(s)
           if (transformed) {
             console.log(`  ✅ [${idx}] Transformed: ${transformed.title}`)
-          } else {
-            console.warn(`  ❌ [${idx}] Failed to transform song:`, s.name || s.title || "Unknown")
           }
           return transformed
         })
-        .filter((s: ModernSong | null) => {
-          if (!s) return false
-          if (!s.id) {
-            console.warn(`⚠️ Song has no id: ${s.title}`)
-            return false
-          }
-          if (!s.title) {
-            console.warn(`⚠️ Song has no title, using artist: ${s.artist}`)
-            return true
-          }
-          return true
-        })
+        .filter((s: ModernSong | null) => s && s.id && s.title)
 
-      console.log(`📊 [FINAL COUNT] ${transformedSongs.length} valid songs from ${songsArray.length} total`)
+      console.log(`📊 [FINAL COUNT] ${transformedSongs.length} valid songs`)
+
+      const playlistName =
+        sanitizeString(
+          playlistData.name ||
+            playlistData.title ||
+            playlistData.playlist_name ||
+            playlistData.playlist_title ||
+            playlistData.listname,
+        ) || "Untitled Playlist"
 
       const result: ModernPlaylist = {
         id: playlistData.id || playlistData.playlistId || `playlist-${Date.now()}-${Math.random()}`,
-        name:
-          sanitizeString(playlistData.name || playlistData.title || playlistData.playlist_name) || "Unknown Playlist",
+        name: playlistName,
         description: sanitizeString(playlistData.description || playlistData.desc || playlistData.explanation),
         image: this.extractImageUrl(playlistData.image || playlistData.picture || playlistData.artwork),
         songCount: Number(playlistData.song_count || playlistData.songCount || transformedSongs.length || 0),

@@ -10,6 +10,7 @@ import { Music, ChevronLeft, Play, Share2, Heart, BookmarkPlus, Bookmark, Refres
 import { useStore } from "@/lib/store"
 import { cn } from "@/lib/utils"
 import { getPlaylistDetails } from "@/lib/modernMusicApi"
+import SharePlaylistPopup from "@/components/SharePlaylistPopup"
 
 const SafeImage = ({
   src,
@@ -39,6 +40,7 @@ export default function PlaylistPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [debugInfo, setDebugInfo] = useState<any>(null)
+  const [showSharePopup, setShowSharePopup] = useState(false)
 
   const { playSong, userData, addToFavorites, removeFromFavorites, savePlaylist, unsavePlaylist, isPlaylistSaved } =
     useStore()
@@ -144,17 +146,20 @@ export default function PlaylistPage() {
 
   const handleShare = async () => {
     try {
-      if (navigator.share) {
+      if (navigator.share && navigator.canShare?.({ title: "", text: "", url: "" })) {
         await navigator.share({
           title: playlist?.name || "Playlist",
           text: `Check out ${playlist?.name} on Musica!`,
           url: window.location.href,
         })
       } else {
-        await navigator.clipboard.writeText(window.location.href)
+        setShowSharePopup(true)
       }
-    } catch (error) {
-      console.error("Share failed:", error)
+    } catch (error: any) {
+      if (error.name !== "AbortError") {
+        setShowSharePopup(true)
+      }
+      console.log("Share API unavailable, showing popup instead")
     }
   }
 
@@ -443,6 +448,18 @@ export default function PlaylistPage() {
           </motion.div>
         )}
       </main>
+
+      {/* SharePlaylistPopup component */}
+      {showSharePopup && (
+        <SharePlaylistPopup
+          isOpen={showSharePopup}
+          onClose={() => setShowSharePopup(false)}
+          playlist={{
+            name: playlist?.name || "Playlist",
+            url: typeof window !== "undefined" ? window.location.href : "",
+          }}
+        />
+      )}
     </div>
   )
 }

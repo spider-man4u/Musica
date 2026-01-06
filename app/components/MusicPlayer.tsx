@@ -772,6 +772,10 @@ export default function MusicPlayer() {
                     <Heart className="mr-2 h-4 w-4" />
                     {isFavorite ? "Remove from Favorites" : "Add to Favorites"}
                   </DropdownMenuItem>
+                  <DropdownMenuItem className="text-white hover:bg-gray-800">
+                    <Sparkles className="mr-2 h-4 w-4" />
+                    Go to Artist
+                  </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
             </motion.div>

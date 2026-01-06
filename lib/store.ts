@@ -1065,12 +1065,13 @@ export const useStore = create<AppState>()(
       savePlaylist: (playlist) => {
         if (!playlist) return
         set((state) => {
-          const isSaved = state.userData.savedPlaylists.some((p) => p.id === playlist.id)
+          const savedPlaylists = state.userData?.savedPlaylists || []
+          const isSaved = savedPlaylists.some((p) => p.id === playlist.id)
           if (isSaved) return state
           return {
             userData: {
               ...state.userData,
-              savedPlaylists: [playlist, ...state.userData.savedPlaylists],
+              savedPlaylists: [playlist, ...savedPlaylists],
             },
           }
         })
