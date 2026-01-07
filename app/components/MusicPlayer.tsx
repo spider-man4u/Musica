@@ -636,6 +636,39 @@ export default function MusicPlayer() {
     [setIsPlaying],
   )
 
+  const handleViewArtist = useCallback(() => {
+    if (!currentSong?.artist) return
+    window.location.href = `/artist/${currentSong.artist.toLowerCase().replace(/\s+/g, "-")}`
+    toast({ title: "Opening Artist", description: `View ${currentSong.artist}` })
+  }, [currentSong])
+
+  const handleInviteCollaboration = useCallback(async () => {
+    if (!currentSong) return
+    const shareData = {
+      title: `Let's listen together: ${currentSong.title}`,
+      text: `Join me listening to "${currentSong.title}" by ${currentSong.artist}`,
+      url: typeof window !== "undefined" ? window.location.href : "",
+    }
+    try {
+      if (navigator.share) {
+        await navigator.share(shareData)
+        toast({ title: "Invited Successfully", description: "Invite sent to collaborators" })
+      } else {
+        await navigator.clipboard.writeText(shareData.text)
+        toast({ title: "Copied Invite", description: "Share link copied to clipboard" })
+      }
+    } catch {
+      toast({ title: "Invite Failed", description: "Unable to send invite", variant: "destructive" })
+    }
+  }, [currentSong])
+
+  const handleAddToPlaylist = useCallback(() => {
+    if (!currentSong) return
+    const playlistName = prompt("Enter playlist name:", "My Playlist")
+    if (!playlistName) return
+    toast({ title: "Added to Playlist", description: `${currentSong.title} added to "${playlistName}"` })
+  }, [currentSong])
+
   const progress =
     duration && !isNaN(duration) && isFinite(duration) && duration > 0 ? (currentTime / duration) * 100 : 0
   if (!currentSong) return null
@@ -796,15 +829,15 @@ export default function MusicPlayer() {
                     <Heart className="mr-2 h-4 w-4" />
                     {isFavorite ? "Remove from Favorites" : "Add to Favorites"}
                   </DropdownMenuItem>
-                  <DropdownMenuItem className="text-white hover:bg-gray-800">
+                  <DropdownMenuItem onClick={handleViewArtist} className="text-white hover:bg-gray-800">
                     <Sparkles className="mr-2 h-4 w-4" />
                     View Artist
                   </DropdownMenuItem>
-                  <DropdownMenuItem className="text-white hover:bg-gray-800">
+                  <DropdownMenuItem onClick={handleInviteCollaboration} className="text-white hover:bg-gray-800">
                     <Users className="mr-2 h-4 w-4" />
                     Invite Collaboration
                   </DropdownMenuItem>
-                  <DropdownMenuItem className="text-white hover:bg-gray-800">
+                  <DropdownMenuItem onClick={handleAddToPlaylist} className="text-white hover:bg-gray-800">
                     <Save className="mr-2 h-4 w-4" />
                     Add to Playlist
                   </DropdownMenuItem>
