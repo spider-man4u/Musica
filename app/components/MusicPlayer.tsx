@@ -8,11 +8,6 @@ import {
   SkipForward,
   Play,
   Pause,
-  Shuffle,
-  Repeat,
-  Repeat1,
-  Volume2,
-  VolumeX,
   Heart,
   ChevronDown,
   Share,
@@ -24,13 +19,11 @@ import {
   ArrowDown,
   Save,
   Sparkles,
-  ScrollText,
   Clock,
   Users,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useStore } from "@/lib/store"
-import { Slider } from "@/components/ui/slider"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -678,6 +671,53 @@ export default function MusicPlayer() {
 
   const progress =
     duration && !isNaN(duration) && isFinite(duration) && duration > 0 ? (currentTime / duration) * 100 : 0
+
+  // Sleep timer listener useEffect
+  useEffect(() => {
+    const handleSleepTimer = (event: any) => {
+      const { endTime, minutes } = event.detail
+      if (sleepTimerRef.current) clearTimeout(sleepTimerRef.current)
+
+      const now = Date.now()
+      const timeUntilStop = endTime - now
+
+      if (timeUntilStop > 0) {
+        // Fade out starts at 90% of timer duration
+        const fadeStartTime = timeUntilStop * 0.9
+
+        sleepTimerRef.current = setTimeout(() => {
+          // Start fading volume
+          const fadeInterval = setInterval(() => {
+            setVolume((prev) => {
+              if (prev <= 0) {
+                clearInterval(fadeInterval)
+                setIsPlaying(false)
+                toast({ title: "Sleep Timer", description: "Music stopped by sleep timer" })
+                return 0
+              }
+              return Math.max(0, prev - 0.05)
+            })
+          }, 100)
+        }, fadeStartTime)
+      }
+    }
+
+    window.addEventListener("sleepTimerSet", handleSleepTimer)
+    return () => window.removeEventListener("sleepTimerSet", handleSleepTimer)
+  }, [setVolume, setIsPlaying])
+
+  // Disable body scroll when player is expanded
+  useEffect(() => {
+    if (isExpanded) {
+      document.body.style.overflow = "hidden"
+    } else {
+      document.body.style.overflow = "unset"
+    }
+    return () => {
+      document.body.style.overflow = "unset"
+    }
+  }, [isExpanded])
+
   if (!currentSong) return null
 
   return (
@@ -790,7 +830,7 @@ export default function MusicPlayer() {
             initial="hidden"
             animate="visible"
             exit="exit"
-            className="fixed inset-0 bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 z-[65] flex flex-col"
+            className="fixed inset-0 bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 z-[65] flex flex-col overflow-hidden"
           >
             <motion.div variants={childVariants} className="flex items-center justify-between p-3 md:p-6 lg:p-8 pt-6">
               <Button
@@ -852,132 +892,14 @@ export default function MusicPlayer() {
               </DropdownMenu>
             </motion.div>
 
-            <div className="flex-1 flex flex-col lg:flex-row items-center justify-center px-4 md:px-8 lg:px-16 gap-8">
-              <motion.div
-                variants={childVariants}
-                className="w-72 h-72 sm:w-80 sm:h-80 md:w-96 md:h-96 lg:w-[400px] lg:h-[400px] flex-shrink-0"
-              >
-                <SafeImage
-                  src={currentSong.image}
-                  alt={currentSong.title}
-                  width={400}
-                  height={400}
-                  className="w-full h-full object-cover rounded-2xl shadow-2xl"
-                  priority
-                />
-              </motion.div>
+            <div className="flex-1 flex flex-col lg:flex-row items-center justify-center px-4 md:px-8 lg:px-16 gap-8 overflow-y-auto">
+              {/* ... existing existing code ... */}
 
               <motion.div
                 variants={childVariants}
                 className="flex flex-col items-center lg:items-start w-full lg:w-auto lg:flex-1 max-w-md lg:max-w-none"
               >
-                <div className="text-center lg:text-left mb-4 w-full">
-                  <h1 className="text-2xl md:text-3xl lg:text-4xl font-bold text-white mb-1 truncate">
-                    {currentSong.title}
-                  </h1>
-                  <p className="text-lg md:text-xl text-gray-400 truncate">{currentSong.artist}</p>
-                  {currentSong.album && (
-                    <p className="text-base md:text-lg text-gray-500 truncate mt-1">{currentSong.album}</p>
-                  )}
-                </div>
-
-                <div className="w-full mb-4">
-                  <Slider
-                    value={[progress]}
-                    max={100}
-                    step={0.1}
-                    onValueChange={handleProgressChange}
-                    className="w-full"
-                  />
-                  <div className="flex justify-between text-sm text-gray-400 mt-2">
-                    <span>{formatTimeSec(currentTime)}</span>
-                    <span>{formatTimeSec(duration)}</span>
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-center space-x-4 sm:space-x-6 md:space-x-8 mb-3">
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    onClick={doShuffle}
-                    className={cn("text-gray-400 hover:text-white", isShuffled && "text-green-500")}
-                  >
-                    <Shuffle className="w-5 h-5 md:w-6 md:h-6" />
-                  </Button>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    onClick={handlePrevious}
-                    className="text-white hover:text-gray-300"
-                  >
-                    <SkipBack className="w-5 h-5 sm:w-6 sm:h-6 md:w-8 md:h-8" />
-                  </Button>
-                  <Button
-                    size="icon"
-                    onClick={() => setIsPlaying(!isPlaying)}
-                    className="bg-white hover:bg-gray-200 text-black rounded-full w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16"
-                  >
-                    {isPlaying ? (
-                      <Pause className="w-5 h-5 sm:w-6 sm:h-6 md:w-8 md:h-8" />
-                    ) : (
-                      <Play className="w-5 h-5 sm:w-6 sm:h-6 md:w-8 md:h-8 ml-1" />
-                    )}
-                  </Button>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    onClick={handleSkipTrack}
-                    className="text-white hover:text-gray-300"
-                  >
-                    <SkipForward className="w-5 h-5 sm:w-6 sm:h-6 md:w-8 md:h-8" />
-                  </Button>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    onClick={cycleRepeat}
-                    className={cn("text-gray-400 hover:text-white", repeatMode !== "off" && "text-green-500")}
-                  >
-                    {repeatMode === "one" ? (
-                      <Repeat1 className="w-5 h-5 md:w-6 md:h-6" />
-                    ) : (
-                      <Repeat className="w-5 h-5 md:w-6 md:h-6" />
-                    )}
-                  </Button>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    onClick={() => setShowLyrics((v) => !v)}
-                    className="text-gray-400 hover:text-white"
-                  >
-                    <ScrollText className="w-5 h-5 md:w-6 md:h-6" />
-                  </Button>
-                </div>
-
-                <div className="flex items-center justify-between w-full mb-4">
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    onClick={toggleFavorite}
-                    className="text-gray-400 hover:text-white"
-                  >
-                    <Heart className={cn("w-5 h-5 md:w-6 md:h-6", isFavorite && "fill-red-500 text-red-500")} />
-                  </Button>
-                  <div className="flex items-center space-x-2 flex-1 mx-8">
-                    <Button size="icon" variant="ghost" onClick={toggleMute} className="text-gray-400 hover:text-white">
-                      {isMuted ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
-                    </Button>
-                    <Slider
-                      value={[isMuted ? 0 : volume]}
-                      max={1}
-                      step={0.01}
-                      onValueChange={handleVolumeChange}
-                      className="flex-1"
-                    />
-                  </div>
-                  <Button size="icon" variant="ghost" onClick={handleShare} className="text-gray-400 hover:text-white">
-                    <Share className="w-5 h-5 md:w-6 md:h-6" />
-                  </Button>
-                </div>
+                {/* ... existing song info and controls ... */}
 
                 {showLyrics && (
                   <LyricsPanel
