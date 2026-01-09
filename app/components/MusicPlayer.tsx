@@ -893,14 +893,78 @@ export default function MusicPlayer() {
             </motion.div>
 
             <div className="flex-1 flex flex-col lg:flex-row items-center justify-center px-4 md:px-8 lg:px-16 gap-8 overflow-y-auto">
-              {/* ... existing existing code ... */}
+              <motion.div variants={childVariants} className="flex flex-col items-center gap-6 flex-shrink-0">
+                <div className="relative w-48 h-48 sm:w-64 sm:h-64 lg:w-80 lg:h-80">
+                  <SafeImage
+                    src={currentSong.image}
+                    alt={currentSong.title}
+                    width={320}
+                    height={320}
+                    className="w-full h-full rounded-2xl shadow-2xl"
+                    priority
+                  />
+                  <div className="absolute inset-0 rounded-2xl shadow-xl shadow-purple-500/20" />
+                </div>
+
+                <motion.div variants={childVariants} className="text-center max-w-sm">
+                  <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white mb-2 truncate">
+                    {currentSong.title}
+                  </h2>
+                  <p className="text-gray-300 text-lg sm:text-xl truncate">{currentSong.artist}</p>
+                </motion.div>
+
+                <div className="w-full max-w-sm">
+                  <motion.div variants={childVariants} className="mb-4">
+                    <div className="w-full bg-gray-700 rounded-full h-1 mb-2">
+                      <motion.div
+                        className="bg-white rounded-full h-1"
+                        initial={{ width: 0 }}
+                        animate={{ width: `${progress}%` }}
+                        transition={{ duration: 0.1, ease: "linear" }}
+                      />
+                    </div>
+                    <div className="flex justify-between text-sm text-gray-400">
+                      <span>{formatTimeSec(currentTime)}</span>
+                      <span>{formatTimeSec(duration)}</span>
+                    </div>
+                  </motion.div>
+
+                  <motion.div variants={childVariants} className="flex items-center justify-center gap-4 sm:gap-6">
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={handlePrevious}
+                      className="text-white hover:bg-white/10 w-10 h-10 sm:w-12 sm:h-12"
+                    >
+                      <SkipBack className="w-5 h-5 sm:w-6 sm:h-6" />
+                    </Button>
+                    <Button
+                      size="icon"
+                      onClick={() => setIsPlaying(!isPlaying)}
+                      className="bg-white hover:bg-gray-200 text-black rounded-full w-14 h-14 sm:w-16 sm:h-16"
+                    >
+                      {isPlaying ? (
+                        <Pause className="w-7 h-7 sm:w-8 sm:h-8" />
+                      ) : (
+                        <Play className="w-7 h-7 sm:w-8 sm:h-8 ml-1" />
+                      )}
+                    </Button>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={handleSkipTrack}
+                      className="text-white hover:bg-white/10 w-10 h-10 sm:w-12 sm:h-12"
+                    >
+                      <SkipForward className="w-5 h-5 sm:w-6 sm:h-6" />
+                    </Button>
+                  </motion.div>
+                </div>
+              </motion.div>
 
               <motion.div
                 variants={childVariants}
                 className="flex flex-col items-center lg:items-start w-full lg:w-auto lg:flex-1 max-w-md lg:max-w-none"
               >
-                {/* ... existing song info and controls ... */}
-
                 {showLyrics && (
                   <LyricsPanel
                     title={currentSong.title}

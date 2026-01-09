@@ -683,41 +683,39 @@ export default function Home() {
                   .map((playlist: any, index: number) => (
                     <motion.div
                       key={`${playlist.id}-${index}`}
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
+                      className="flex-shrink-0 w-40 sm:w-48"
+                      initial={{ opacity: 0, x: 20 }}
+                      animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: index * 0.08 }}
                       onClick={() => router.push(`/playlist/${playlist.id}`)}
-                      className="min-w-[180px] sm:min-w-[220px] bg-white/5 hover:bg-white/10 rounded-xl p-4 sm:p-6 cursor-pointer transition-all duration-300 group border border-white/10 hover:border-white/20"
-                      whileHover={{ scale: 1.02, y: -4 }}
-                      whileTap={{ scale: 0.98 }}
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
                     >
-                      <div className="relative mb-4 sm:mb-6">
-                        <Image
-                          src={playlist.image || "/placeholder.svg?height=180&width=180"}
-                          alt={playlist.name || "Playlist"}
-                          width={180}
-                          height={180}
-                          className="w-full aspect-square object-cover rounded-xl"
-                        />
-                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-xl flex items-center justify-center">
-                          <Button
-                            size="icon"
-                            className="bg-green-500 hover:bg-green-600 rounded-full w-12 h-12 sm:w-14 sm:h-14"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              router.push(`/playlist/${playlist.id}`)
-                            }}
-                          >
-                            <Play className="w-6 h-6 sm:w-7 sm:h-7 ml-0.5" />
-                          </Button>
+                      <div className="bg-white/5 hover:bg-white/10 rounded-xl p-3 cursor-pointer transition-all duration-300 group border border-white/10 hover:border-white/20 h-full">
+                        <div className="relative mb-3">
+                          <Image
+                            src={playlist.image || "/placeholder.svg?height=150&width=150"}
+                            alt={playlist.name || "Playlist"}
+                            width={150}
+                            height={150}
+                            className="w-full aspect-square object-cover rounded-lg"
+                          />
+                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center">
+                            <Button
+                              size="icon"
+                              className="bg-green-500 hover:bg-green-600 rounded-full w-10 h-10"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                router.push(`/playlist/${playlist.id}`)
+                              }}
+                            >
+                              <Play className="w-5 h-5 ml-0.5" />
+                            </Button>
+                          </div>
                         </div>
-                      </div>
-                      <div>
-                        <h4 className="text-white font-semibold truncate mb-2 text-base sm:text-lg">{playlist.name}</h4>
-                        <p className="text-gray-400 text-sm sm:text-base truncate">
-                          {playlist.description || "Popular collection"}
-                        </p>
-                        <p className="text-gray-500 text-xs sm:text-sm mt-1 tabular-nums">
+                        <h4 className="text-white font-semibold truncate mb-1 text-sm">{playlist.name}</h4>
+                        <p className="text-gray-400 text-xs truncate">{playlist.description || "Popular collection"}</p>
+                        <p className="text-gray-500 text-xs mt-1 tabular-nums">
                           {playlist.songCount || playlist.songs?.length || 0} songs
                         </p>
                       </div>
