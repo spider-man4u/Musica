@@ -1,5 +1,7 @@
 "use client"
 
+import type React from "react"
+
 import { useState, useEffect, useRef, useCallback, useMemo } from "react"
 import Image from "next/image"
 import { motion, AnimatePresence } from "framer-motion"
@@ -21,6 +23,11 @@ import {
   Sparkles,
   Clock,
   Users,
+  Repeat,
+  Repeat1,
+  Shuffle,
+  Eye,
+  EyeOff,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useStore } from "@/lib/store"
@@ -669,6 +676,25 @@ export default function MusicPlayer() {
     toast({ title: "Added to Playlist", description: `${currentSong.title} added to "${playlistName}"` })
   }, [currentSong])
 
+  const handleProgressClick = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      const element = e.currentTarget
+      const rect = element.getBoundingClientRect()
+      const x = e.clientX - rect.left
+      const percentage = x / rect.width
+      if (audioRef.current && duration && !isNaN(duration) && duration > 0) {
+        const newTime = percentage * duration
+        audioRef.current.currentTime = newTime
+        setCurrentTime(newTime)
+      }
+    },
+    [duration, setCurrentTime],
+  )
+
+  const handleQuickShare = useCallback(() => {
+    handleShare()
+  }, [handleShare])
+
   const progress =
     duration && !isNaN(duration) && isFinite(duration) && duration > 0 ? (currentTime / duration) * 100 : 0
 
@@ -805,7 +831,7 @@ export default function MusicPlayer() {
             </motion.div>
           </motion.div>
 
-          <motion.div variants={childVariants} className="mt-1.5 sm:mt-3">
+          <motion.div variants={childVariants} className="mt-1.5 sm:mt-3 cursor-pointer" onClick={handleProgressClick}>
             <div className="w-full bg-gray-700 rounded-full h-0.5">
               <motion.div
                 className="bg-white rounded-full h-0.5"
@@ -893,79 +919,138 @@ export default function MusicPlayer() {
             </motion.div>
 
             <div className="flex-1 flex flex-col lg:flex-row items-center justify-center px-4 md:px-8 lg:px-16 gap-8 overflow-y-auto">
-              <motion.div variants={childVariants} className="flex flex-col items-center gap-6 flex-shrink-0">
-                <div className="relative w-48 h-48 sm:w-64 sm:h-64 lg:w-80 lg:h-80">
+              <motion.div variants={childVariants} className="flex flex-col items-center gap-8 w-full max-w-md">
+                {/* Album Art */}
+                <div className="relative w-56 h-56 sm:w-64 sm:h-64 lg:w-72 lg:h-72 rounded-2xl overflow-hidden shadow-2xl">
                   <SafeImage
                     src={currentSong.image}
                     alt={currentSong.title}
-                    width={320}
-                    height={320}
-                    className="w-full h-full rounded-2xl shadow-2xl"
+                    width={288}
+                    height={288}
+                    className="w-full h-full object-cover"
                     priority
                   />
-                  <div className="absolute inset-0 rounded-2xl shadow-xl shadow-purple-500/20" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent rounded-2xl" />
                 </div>
 
-                <motion.div variants={childVariants} className="text-center max-w-sm">
-                  <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white mb-2 truncate">
-                    {currentSong.title}
-                  </h2>
-                  <p className="text-gray-300 text-lg sm:text-xl truncate">{currentSong.artist}</p>
-                </motion.div>
+                {/* Song Info */}
+                <div className="text-center w-full">
+                  <h2 className="text-3xl sm:text-4xl font-bold text-white mb-3 line-clamp-2">{currentSong.title}</h2>
+                  <p className="text-lg text-gray-300 line-clamp-1">{currentSong.artist}</p>
+                </div>
 
-                <div className="w-full max-w-sm">
-                  <motion.div variants={childVariants} className="mb-4">
-                    <div className="w-full bg-gray-700 rounded-full h-1 mb-2">
-                      <motion.div
-                        className="bg-white rounded-full h-1"
-                        initial={{ width: 0 }}
-                        animate={{ width: `${progress}%` }}
-                        transition={{ duration: 0.1, ease: "linear" }}
-                      />
-                    </div>
-                    <div className="flex justify-between text-sm text-gray-400">
-                      <span>{formatTimeSec(currentTime)}</span>
-                      <span>{formatTimeSec(duration)}</span>
-                    </div>
-                  </motion.div>
+                {/* Progress Bar */}
+                <div className="w-full space-y-3 cursor-pointer" onClick={handleProgressClick}>
+                  <div className="w-full bg-gray-700/50 rounded-full h-1.5 hover:h-2 transition-all">
+                    <motion.div
+                      className="bg-white rounded-full h-1.5"
+                      initial={{ width: 0 }}
+                      animate={{ width: `${progress}%` }}
+                      transition={{ duration: 0.1, ease: "linear" }}
+                    />
+                  </div>
+                  <div className="flex justify-between text-sm text-gray-400">
+                    <span>{formatTimeSec(currentTime)}</span>
+                    <span>{formatTimeSec(duration)}</span>
+                  </div>
+                </div>
 
-                  <motion.div variants={childVariants} className="flex items-center justify-center gap-4 sm:gap-6">
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      onClick={handlePrevious}
-                      className="text-white hover:bg-white/10 w-10 h-10 sm:w-12 sm:h-12"
-                    >
-                      <SkipBack className="w-5 h-5 sm:w-6 sm:h-6" />
-                    </Button>
-                    <Button
-                      size="icon"
-                      onClick={() => setIsPlaying(!isPlaying)}
-                      className="bg-white hover:bg-gray-200 text-black rounded-full w-14 h-14 sm:w-16 sm:h-16"
-                    >
-                      {isPlaying ? (
-                        <Pause className="w-7 h-7 sm:w-8 sm:h-8" />
-                      ) : (
-                        <Play className="w-7 h-7 sm:w-8 sm:h-8 ml-1" />
-                      )}
-                    </Button>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      onClick={handleSkipTrack}
-                      className="text-white hover:bg-white/10 w-10 h-10 sm:w-12 sm:h-12"
-                    >
-                      <SkipForward className="w-5 h-5 sm:w-6 sm:h-6" />
-                    </Button>
-                  </motion.div>
+                {/* Playback Controls */}
+                <div className="flex items-center justify-center gap-6 w-full">
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    onClick={handlePrevious}
+                    className="text-gray-300 hover:text-white transition-colors w-12 h-12"
+                  >
+                    <SkipBack className="w-6 h-6" />
+                  </Button>
+                  <Button
+                    size="icon"
+                    onClick={() => setIsPlaying(!isPlaying)}
+                    className="bg-white hover:bg-gray-100 text-black rounded-full w-16 h-16 shadow-lg"
+                  >
+                    {isPlaying ? <Pause className="w-8 h-8" /> : <Play className="w-8 h-8 ml-0.5" />}
+                  </Button>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    onClick={handleSkipTrack}
+                    className="text-gray-300 hover:text-white transition-colors w-12 h-12"
+                  >
+                    <SkipForward className="w-6 h-6" />
+                  </Button>
+                </div>
+
+                {/* Quick Action Buttons */}
+                <div className="flex gap-4 w-full justify-center flex-wrap">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={toggleFavorite}
+                    className={cn(
+                      "transition-colors",
+                      isFavorite ? "text-red-500 hover:bg-red-500/10" : "text-gray-400 hover:text-white",
+                    )}
+                  >
+                    <Heart className={cn("w-5 h-5", isFavorite && "fill-current")} />
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={doShuffle}
+                    className={cn(
+                      "transition-colors",
+                      isShuffled ? "text-purple-400 hover:bg-purple-500/10" : "text-gray-400 hover:text-white",
+                    )}
+                  >
+                    <Shuffle className="w-5 h-5" />
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={cycleRepeat}
+                    className={cn(
+                      "transition-colors",
+                      repeatMode !== "off"
+                        ? "text-purple-400 hover:bg-purple-500/10"
+                        : "text-gray-400 hover:text-white",
+                    )}
+                  >
+                    {repeatMode === "one" ? (
+                      <Repeat1 className="w-5 h-5" />
+                    ) : repeatMode === "all" ? (
+                      <Repeat className="w-5 h-5" />
+                    ) : (
+                      <Repeat className="w-5 h-5 opacity-50" />
+                    )}
+                    <span className="ml-1 text-xs">{repeatMode === "one" ? "1" : repeatMode === "all" ? "∞" : ""}</span>
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={handleQuickShare}
+                    className="text-gray-400 hover:text-white transition-colors"
+                  >
+                    <Share className="w-5 h-5" />
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setShowLyrics((v) => !v)}
+                    className={cn(
+                      "transition-colors",
+                      showLyrics ? "text-purple-400 hover:bg-purple-500/10" : "text-gray-400 hover:text-white",
+                    )}
+                  >
+                    {showLyrics ? <Eye className="w-5 h-5" /> : <EyeOff className="w-5 h-5" />}
+                  </Button>
                 </div>
               </motion.div>
 
-              <motion.div
-                variants={childVariants}
-                className="flex flex-col items-center lg:items-start w-full lg:w-auto lg:flex-1 max-w-md lg:max-w-none"
-              >
-                {showLyrics && (
+              {/* Lyrics Panel - Side view on large screens */}
+              {showLyrics && (
+                <motion.div variants={childVariants} className="w-full lg:flex-1 lg:max-w-sm">
                   <LyricsPanel
                     title={currentSong.title}
                     artist={currentSong.artist}
@@ -973,14 +1058,20 @@ export default function MusicPlayer() {
                     duration={duration || currentSong.duration || 180}
                     songId={currentSong.id}
                   />
-                )}
-              </motion.div>
+                </motion.div>
+              )}
             </div>
 
+            {/* Sleep Timer Menu */}
             {showSleepTimer && (
-              <div className="fixed bottom-40 right-8 z-[100]">
-                <SleepTimerMenu onSetTimer={handleSleepTimer} onClose={() => setShowSleepTimer(false)} />
-              </div>
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95, y: -20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: -20 }}
+                className="fixed top-24 left-1/2 transform -translate-x-1/2 z-[100]"
+              >
+                <SleepTimerMenu onClose={() => setShowSleepTimer(false)} />
+              </motion.div>
             )}
           </motion.div>
         )}
