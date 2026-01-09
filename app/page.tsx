@@ -35,6 +35,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { getActiveHolidays } from "@/lib/holidays"
+import { getPopularPlaylists } from "@/lib/playlists"
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -109,6 +110,7 @@ export default function Home() {
   const [currentTime, setCurrentTime] = useState("")
   const [showAllTrending, setShowAllTrending] = useState(false)
   const [activeHolidays, setActiveHolidays] = useState<any[]>([])
+  const [smartPlaylists, setSmartPlaylists] = useState<any[]>([])
   const router = useRouter()
 
   const {
@@ -128,6 +130,7 @@ export default function Home() {
     addToQueue,
     searchContent,
     updateMoodPlaylists,
+    recentlyPlayed = [],
   } = useStore()
 
   useEffect(() => {
@@ -238,6 +241,45 @@ export default function Home() {
     const seconds = Math.floor(duration % 60)
     return `${minutes}:${seconds.toString().padStart(2, "0")}`
   }
+
+  const getSmartPlaylists = useCallback(async () => {
+    try {
+      const safeRecentlyPlayed = Array.isArray(recentlyPlayed) ? recentlyPlayed : []
+
+      if (!safeRecentlyPlayed || safeRecentlyPlayed.length === 0) {
+        return popularPlaylists || []
+      }
+
+      const recentGenres = safeRecentlyPlayed
+        .slice(0, 10)
+        .map((s) => s.genre || s.mood || "")
+        .filter(Boolean)
+      const uniqueGenres = [...new Set(recentGenres)]
+
+      if (uniqueGenres.length === 0) {
+        return popularPlaylists || []
+      }
+
+      const playlistPromises = uniqueGenres.slice(0, 3).map((genre) => getPopularPlaylists(`${genre} playlist`))
+
+      const results = await Promise.all(playlistPromises)
+      const fetchedSmartPlaylists = results.flat().slice(0, 8)
+
+      return fetchedSmartPlaylists.length > 0 ? fetchedSmartPlaylists : popularPlaylists || []
+    } catch (error) {
+      console.log("[v0] Error fetching smart playlists:", error)
+      return popularPlaylists || []
+    }
+  }, [recentlyPlayed, popularPlaylists])
+
+  useEffect(() => {
+    const safeRecentlyPlayed = Array.isArray(recentlyPlayed) ? recentlyPlayed : []
+    if (safeRecentlyPlayed.length > 0) {
+      getSmartPlaylists().then(setSmartPlaylists)
+    } else {
+      setSmartPlaylists(popularPlaylists || [])
+    }
+  }, [recentlyPlayed, getSmartPlaylists, popularPlaylists])
 
   return (
     <motion.div
@@ -490,13 +532,32 @@ export default function Home() {
                         <Play className="w-6 h-6 sm:w-7 sm:h-7 ml-0.5" />
                       </Button>
                     </div>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        const song = { id: playlist.id }
+                        toggleFavorite(song)
+                      }}
+                      className="absolute top-2 right-2 bg-black/50 hover:bg-black/70 w-8 h-8"
+                    >
+                      <Heart
+                        className={cn(
+                          "w-4 h-4",
+                          safeFavorites.some((fav) => fav?.id === playlist.id)
+                            ? "fill-red-500 text-red-500"
+                            : "text-white",
+                        )}
+                      />
+                    </Button>
                   </div>
                   <div>
                     <h4 className="text-white font-semibold truncate mb-2 text-base sm:text-lg">{playlist.name}</h4>
                     <p className="text-gray-400 text-sm sm:text-base truncate">
                       {playlist.description || "Popular collection"}
                     </p>
-                    <p className="text-gray-500 text-xs sm:text-sm mt-1">
+                    <p className="text-gray-500 text-xs sm:text-sm mt-1 tabular-nums">
                       {playlist.songCount || playlist.songs?.length || 0} songs
                     </p>
                   </div>
@@ -530,27 +591,26 @@ export default function Home() {
           </motion.div>
         )}
 
-        {/* Discover New Playlists */}
-        {popularPlaylists.length > 8 && (
-          <motion.div variants={itemVariants} className="mb-6 sm:mb-8">
-            <div className="flex items-center justify-between mb-4 sm:mb-6">
-              <h3 className="text-xl sm:text-2xl font-semibold text-white">Discover New Playlists</h3>
-              <Button
-                variant="ghost"
-                className="text-gray-400 hover:text-white"
-                onClick={() => router.push("/library")}
-              >
-                Show all
-              </Button>
-            </div>
-            <ScrollArea className="w-full">
-              <div className="flex space-x-4 sm:space-x-6 pb-4">
-                {popularPlaylists.slice(8, 16).map((playlist, index) => (
+        {/* Recommended For You */}
+        <div className="mt-12">
+          <h2 className="text-xl md:text-2xl font-bold text-white mb-4 ml-4 md:ml-6">
+            {recentlyPlayed && Array.isArray(recentlyPlayed) && recentlyPlayed.length > 0
+              ? "Recommended For You"
+              : "Discover New Playlists"}
+          </h2>
+          <ScrollArea className="w-full">
+            <div className="flex gap-4 p-4 md:p-6">
+              {(recentlyPlayed && Array.isArray(recentlyPlayed) && recentlyPlayed.length > 0
+                ? smartPlaylists
+                : popularPlaylists || []
+              )
+                .slice(0, 8)
+                .map((playlist: any) => (
                   <motion.div
                     key={playlist.id}
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.08 }}
+                    transition={{ delay: playlist.id * 0.08 }}
                     onClick={() => router.push(`/playlist/${playlist.id}`)}
                     className="min-w-[180px] sm:min-w-[220px] bg-white/5 hover:bg-white/10 rounded-xl p-4 sm:p-6 cursor-pointer transition-all duration-300 group border border-white/10 hover:border-white/20"
                     whileHover={{ scale: 1.02, y: -4 }}
@@ -558,7 +618,7 @@ export default function Home() {
                   >
                     <div className="relative mb-4 sm:mb-6">
                       <Image
-                        src={playlist.image || "/placeholder.svg?height=180&width=180&query=music+playlist"}
+                        src={playlist.image || "/placeholder.svg?height=180&width=180"}
                         alt={playlist.name}
                         width={180}
                         height={180}
@@ -584,11 +644,10 @@ export default function Home() {
                     </div>
                   </motion.div>
                 ))}
-              </div>
-              <ScrollBar orientation="horizontal" />
-            </ScrollArea>
-          </motion.div>
-        )}
+            </div>
+            <ScrollBar orientation="horizontal" />
+          </ScrollArea>
+        </div>
 
         {/* Trending Now */}
         <motion.div variants={itemVariants} className="mb-6 sm:mb-8">

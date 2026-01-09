@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { Clock, X } from "lucide-react"
-import { useStore } from "@/lib/store"
+import { toast } from "@/components/ui/use-toast"
 
 interface SleepTimerMenuProps {
   onClose: () => void
@@ -10,7 +10,6 @@ interface SleepTimerMenuProps {
 
 export default function SleepTimerMenu({ onClose }: SleepTimerMenuProps) {
   const [customMinutes, setCustomMinutes] = useState("")
-  const { setPlayerConfig } = useStore()
 
   const presets = [
     { label: "15 min", minutes: 15 },
@@ -21,7 +20,15 @@ export default function SleepTimerMenu({ onClose }: SleepTimerMenuProps) {
 
   const handleSetTimer = (minutes: number) => {
     const endTime = Date.now() + minutes * 60 * 1000
-    setPlayerConfig({ sleepTimer: endTime })
+    localStorage.setItem("sleepTimerEnd", endTime.toString())
+
+    // Dispatch custom event to notify player about sleep timer
+    window.dispatchEvent(new CustomEvent("sleepTimerSet", { detail: { endTime, minutes } }))
+
+    toast({
+      title: "Sleep Timer Set",
+      description: `Music will fade out in ${minutes} minutes`,
+    })
     onClose()
   }
 
@@ -29,6 +36,12 @@ export default function SleepTimerMenu({ onClose }: SleepTimerMenuProps) {
     const minutes = Number.parseInt(customMinutes)
     if (minutes > 0 && minutes <= 480) {
       handleSetTimer(minutes)
+    } else {
+      toast({
+        title: "Invalid time",
+        description: "Please enter a value between 1 and 480 minutes",
+        variant: "destructive",
+      })
     }
   }
 

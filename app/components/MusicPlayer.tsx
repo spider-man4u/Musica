@@ -152,11 +152,13 @@ function LyricsPanel({
   artist,
   currentTime,
   duration,
+  songId,
 }: {
   title: string
   artist: string
   currentTime: number
   duration: number
+  songId?: string
 }) {
   const [raw, setRaw] = useState<string>("")
   const [lrc, setLrc] = useState<LrcLine[]>([])
@@ -166,7 +168,12 @@ function LyricsPanel({
     let active = true
     async function loadLyrics() {
       try {
-        const res = await fetch(`/api/lyrics?title=${encodeURIComponent(title)}&artist=${encodeURIComponent(artist)}`)
+        const params = new URLSearchParams()
+        if (songId) params.append("songId", songId)
+        params.append("title", title)
+        params.append("artist", artist)
+
+        const res = await fetch(`/api/lyrics?${params.toString()}`)
         if (!res.ok) throw new Error("lyrics fetch failed")
         const data = await res.json()
         if (!active) return
@@ -190,7 +197,7 @@ function LyricsPanel({
     return () => {
       active = false
     }
-  }, [title, artist, duration])
+  }, [title, artist, duration, songId])
 
   const activeIndex = useMemo(() => {
     if (!lrc.length) return -1
@@ -800,11 +807,11 @@ export default function MusicPlayer() {
               </div>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button size="icon" variant="ghost" className="text-white hover:bg-white/10">
+                  <Button size="icon" variant="ghost" className="text-white hover:bg-white/10 relative z-50">
                     <MoreHorizontal className="w-6 h-6" />
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent className="bg-gray-900 border-gray-700" align="end">
+                <DropdownMenuContent className="bg-gray-900 border-gray-700 z-[100]" align="end">
                   <DropdownMenuItem onClick={handleDownload} className="text-white hover:bg-gray-800">
                     <Download className="mr-2 h-4 w-4" />
                     Download
@@ -818,7 +825,7 @@ export default function MusicPlayer() {
                     Show Queue
                   </DropdownMenuItem>
                   <DropdownMenuItem
-                    onClick={() => setShowSleepTimer(!showSleepTimer)}
+                    onClick={() => setShowSleepTimer((v) => !v)}
                     className="text-white hover:bg-gray-800"
                   >
                     <Clock className="mr-2 h-4 w-4" />
@@ -978,6 +985,7 @@ export default function MusicPlayer() {
                     artist={currentSong.artist}
                     currentTime={currentTime}
                     duration={duration || currentSong.duration || 180}
+                    songId={currentSong.id}
                   />
                 )}
               </motion.div>

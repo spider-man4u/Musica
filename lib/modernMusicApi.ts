@@ -929,21 +929,44 @@ class SaavnAPI {
 
         console.log(`✅ Got ${playlists.length} playlists for "${query}"`)
 
-        const transformed = playlists
-          .map((p: any) => {
-            try {
-              return this.transformPlaylist(p)
-            } catch (e) {
-              console.error(`❌ Transform error:`, e)
-              return null
+        const enrichedPlaylists: ModernPlaylist[] = []
+        for (const p of playlists) {
+          try {
+            const transformed = this.transformPlaylist(p)
+            if (transformed && transformed.id && transformed.name) {
+              // Try to fetch playlist details with songs
+              const detailsUrl = `${API_BASE_URL}/playlists?id=${encodeURIComponent(transformed.id)}`
+              try {
+                const detailsData = await fetchWithRetry<any>(detailsUrl, TIMEOUTS.details)
+                const playlistDetails = detailsData?.data || detailsData
+
+                // Add songs to playlist if available
+                if (playlistDetails?.songs && Array.isArray(playlistDetails.songs)) {
+                  const songs = playlistDetails.songs
+                    .slice(0, 20) // Limit to first 20 songs
+                    .map((s: any) => this.transformSong(s))
+                    .filter(Boolean)
+                  transformed.songs = songs as ModernSong[]
+                  transformed.songCount = playlistDetails.songCount || songs.length
+                }
+              } catch (e) {
+                console.warn(`⚠️ Failed to fetch details for playlist ${transformed.id}`)
+                // Continue with playlist without songs
+                transformed.songs = []
+                transformed.songCount = transformed.songCount || 0
+              }
+              enrichedPlaylists.push(transformed)
             }
-          })
-          .filter((p: ModernPlaylist | null) => p && p.id && p.name)
+          } catch (e) {
+            console.error(`❌ Transform error:`, e)
+            continue
+          }
+        }
 
-        console.log(`✅ Transformed ${transformed.length} playlists for "${query}"`)
+        console.log(`✅ Enriched ${enrichedPlaylists.length} playlists for "${query}"`)
 
-        if (transformed.length > bestResults.length) {
-          bestResults = transformed as ModernPlaylist[]
+        if (enrichedPlaylists.length > bestResults.length) {
+          bestResults = enrichedPlaylists
           successCount++
           console.log(`🏆 New best: ${bestResults.length} playlists`)
         }
