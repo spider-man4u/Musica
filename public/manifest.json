@@ -1,12 +1,26 @@
 {
   "name": "Musica - Your Music Companion",
   "short_name": "Musica",
-  "description": "Discover, play, and enjoy music with mood-based recommendations",
+  "description": "Discover, play, and enjoy music with mood-based recommendations. Works offline with push notifications and lightning-fast performance.",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#1a1a2e",
   "theme_color": "#8b5cf6",
-  "orientation": "portrait",
+  "orientation": "portrait-primary",
+  "prefer_related_applications": false,
+  "screenshots": [
+    {
+      "src": "/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ],
   "icons": [
     {
       "src": "/icon-192x192.png",
@@ -19,9 +33,41 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable any"
+    },
+    {
+      "src": "/icon-144x144.png",
+      "sizes": "144x144",
+      "type": "image/png",
+      "purpose": "any"
     }
   ],
   "categories": ["music", "entertainment"],
   "lang": "en",
-  "dir": "ltr"
+  "dir": "ltr",
+  "shortcuts": [
+    {
+      "name": "Search Music",
+      "short_name": "Search",
+      "description": "Search for your favorite music",
+      "url": "/search",
+      "icons": [{ "src": "/icon-96x96.png", "sizes": "96x96" }]
+    },
+    {
+      "name": "My Library",
+      "short_name": "Library",
+      "description": "Access your music library",
+      "url": "/library",
+      "icons": [{ "src": "/icon-96x96.png", "sizes": "96x96" }]
+    }
+  ],
+  "share_target": {
+    "action": "/share",
+    "method": "POST",
+    "enctype": "multipart/form-data",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "url": "url"
+    }
+  }
 }
